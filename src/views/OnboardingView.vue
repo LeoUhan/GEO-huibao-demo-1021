@@ -31,11 +31,6 @@ const questionSelectionSaving = shallowRef(false)
 const planSaving = shallowRef(false)
 let toastTimer: ReturnType<typeof setTimeout> | undefined
 
-const stepHint = computed(() => {
-  if (store.currentStep === 0)
-    return '请先确认摘要；如需补充或修改，点击「编辑资料」维护完整字段。'
-  return `当前正在配置${store.steps[store.currentStep]}，已完成前置引导内容。`
-})
 const currentMarket = computed(() => store.knowledgeItems.find(item => item.id === 'market')?.marketLanguage?.market ?? '')
 const currentLanguage = computed(() => store.knowledgeItems.find(item => item.id === 'market')?.marketLanguage?.language ?? '')
 const options = (key: string): DropdownSelectOption[] => wizard.dictionaryOptions.value[key] ?? []
@@ -245,9 +240,7 @@ onBeforeUnmount(() => {
 
         <OnboardingSteps :current-step="store.currentStep" :steps="store.steps" />
 
-        <Alert class="knowledge-notice" variant="neutral" icon-type="icon-wancheng-1" title="已同步品牌知识：独立站超级智能体">
-          {{ stepHint }}
-        </Alert>
+        <Alert class="knowledge-notice" variant="neutral" icon-type="icon-wancheng-1" title="已同步品牌知识：独立站超级智能体" />
 
         <section class="knowledge-panel" aria-labelledby="knowledge-panel-title">
           <div class="knowledge-panel__header">

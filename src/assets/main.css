@@ -143,6 +143,10 @@ html.ce-iframe-root .knowledge-notice .ce-alert__icon-slot {
   color: var(--feedback-success-icon);
 }
 
+html.ce-iframe-root .knowledge-notice .ce-alert__body {
+  display: none;
+}
+
 .knowledge-panel {
   overflow: hidden;
   background: var(--background-primary);
