@@ -11,6 +11,7 @@ function createToolbar() {
       stubs: {
         MarketSwitcher: { template: '<button data-test="market-control">市场 / 语言</button>' },
         GeoSectionNav: { template: '<nav data-test="page-tabs">工作台页面</nav>' },
+        RouterLink: { template: '<a><slot /></a>' },
       },
     },
   })
@@ -31,7 +32,8 @@ describe('geoWorkbenchToolbar', () => {
     const market = wrapper.get('.geo-workbench-toolbar__market')
     const tabs = wrapper.get('[data-test="page-tabs"]')
 
-    expect(wrapper.get('.geo-workbench-toolbar__main').element.firstElementChild).toBe(tabs.element)
+    expect(wrapper.get('.geo-workbench-toolbar__navigation').element.firstElementChild).toBe(tabs.element)
+    expect(wrapper.get('.geo-workbench-toolbar__onboarding-demo').text()).toBe('新人引导演示')
     expect(wrapper.get('.geo-workbench-toolbar__main').element.lastElementChild).toBe(market.element)
     expect(wrapper.find('.geo-workbench-toolbar__controls').exists()).toBe(false)
     expect(wrapper.text()).not.toContain('展示时长')
