@@ -5,7 +5,7 @@ import type { CompetitorRecommendationCandidate } from './CompetitorKnowledgePan
 import type { KnowledgeTab, KnowledgeValidationResult } from './knowledge-validation'
 import type { ProductRecommendationCandidate } from './ProductKnowledgePanel.vue'
 import { computed, reactive, ref, shallowRef, watch } from 'vue'
-import { confirmRecommendation, generateCompetitorCandidates, generateProductCandidates, getMarketCompetitors, getRecommendationItems } from '../../../api/geo-config'
+import { confirmRecommendation, generateCompetitorCandidates, getMarketCompetitors, getRecommendationItems } from '../../../api/geo-config'
 import { Button, Modal } from '../../ui/ce'
 import BrandKnowledgePanel from './BrandKnowledgePanel.vue'
 import { persistCompetitorDraft } from './competitor-persistence'
@@ -53,7 +53,6 @@ const hasNestedEdit = computed(() => activeEditors.product || activeEditors.comp
 const recommendations = shallowRef<ProductRecommendationCandidate[]>([])
 const recommendationsLoaded = shallowRef(false)
 const recommendationsLoading = shallowRef(false)
-const recommendationsGenerating = shallowRef(false)
 const acceptingRecommendationId = shallowRef<number | null>(null)
 const recommendationError = shallowRef('')
 const competitorRecommendations = shallowRef<CompetitorRecommendationCandidate[]>([])
@@ -64,6 +63,17 @@ const acceptingCompetitorRecommendationId = shallowRef<number | null>(null)
 const competitorRecommendationError = shallowRef('')
 const savePending = shallowRef(false)
 const saveError = shallowRef('')
+
+const mockProductRecommendation: ProductRecommendationCandidate = {
+  id: -2026,
+  lineName: '三轴水刀切割系统',
+  productName: 'APW 三轴水刀切割系统',
+  usageScene: '金属板材、石材与玻璃的通用切割',
+  sellingPoints: ['切割精度稳定', '支持多种材料', '维护成本可控'],
+  targetCustomers: ['金属加工企业', '石材与玻璃加工企业'],
+  sourceType: 3,
+  isMock: true,
+}
 
 function cloneItems(items: readonly KnowledgeItem[]): KnowledgeItem[] {
   return items.map(item => ({
@@ -197,11 +207,13 @@ async function loadProductRecommendations() {
   try {
     const records = await getRecommendationItems({ recommendType: 2, itemStatus: 1 })
     const parsed = records.map(parseRecommendation)
-    recommendations.value = parsed.filter((candidate): candidate is ProductRecommendationCandidate => candidate !== null)
+    const validRecommendations = parsed.filter((candidate): candidate is ProductRecommendationCandidate => candidate !== null)
+    recommendations.value = validRecommendations.length ? validRecommendations : [{ ...mockProductRecommendation }]
     if (parsed.some(candidate => candidate === null))
       recommendationError.value = '部分推荐数据格式不完整，暂时无法展示。'
   }
   catch (cause) {
+    recommendations.value = [{ ...mockProductRecommendation }]
     recommendationError.value = cause instanceof Error ? cause.message : '产品推荐读取失败'
   }
   finally {
@@ -231,22 +243,6 @@ async function loadCompetitorRecommendations() {
   }
 }
 
-async function generateRecommendations() {
-  recommendationsGenerating.value = true
-  recommendationError.value = ''
-  try {
-    await generateProductCandidates()
-    recommendationsLoaded.value = false
-    await loadProductRecommendations()
-  }
-  catch (cause) {
-    recommendationError.value = cause instanceof Error ? cause.message : '产品推荐生成失败'
-  }
-  finally {
-    recommendationsGenerating.value = false
-  }
-}
-
 async function generateCompetitorRecommendations() {
   competitorRecommendationsGenerating.value = true
   competitorRecommendationError.value = ''
@@ -270,7 +266,7 @@ async function acceptRecommendation(id: number) {
   acceptingRecommendationId.value = id
   recommendationError.value = ''
   try {
-    const productId = await confirmRecommendation(id)
+    const productId = candidate.isMock ? -Date.now() : await confirmRecommendation(id)
     const product: BrandProductRecord = {
       id: productId,
       lineName: candidate.lineName,
@@ -466,13 +462,11 @@ watch([open, activeTab], ([isOpen, tab]) => {
             :recommendations="recommendations"
             :recommendations-loaded="recommendationsLoaded"
             :recommendations-loading="recommendationsLoading"
-            :recommendations-generating="recommendationsGenerating"
             :accepting-recommendation-id="acceptingRecommendationId"
             :recommendation-error="recommendationError"
             :persist-product="props.persistProducts ? persistProduct : undefined"
             :delete-product="props.deleteProduct"
             @editing-change="activeEditors.product = $event"
-            @generate-recommendations="generateRecommendations"
             @accept-recommendation="acceptRecommendation"
           />
         </div>

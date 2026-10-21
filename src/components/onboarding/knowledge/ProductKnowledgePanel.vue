@@ -15,6 +15,7 @@ export interface ProductRecommendationCandidate {
   sellingPoints: string[]
   targetCustomers: string[]
   sourceType?: number | null
+  isMock?: boolean
 }
 
 const props = withDefaults(defineProps<{
@@ -22,7 +23,6 @@ const props = withDefaults(defineProps<{
   recommendations?: ProductRecommendationCandidate[]
   recommendationsLoaded?: boolean
   recommendationsLoading?: boolean
-  recommendationsGenerating?: boolean
   acceptingRecommendationId?: number | null
   recommendationError?: string
   persistProduct?: (product: ProductKnowledgeDraft) => Promise<ProductKnowledgeDraft>
@@ -31,13 +31,11 @@ const props = withDefaults(defineProps<{
   recommendations: () => [],
   recommendationsLoaded: false,
   recommendationsLoading: false,
-  recommendationsGenerating: false,
   acceptingRecommendationId: null,
   recommendationError: '',
 })
 const emit = defineEmits<{
   editingChange: [editing: boolean]
-  generateRecommendations: []
   acceptRecommendation: [id: number]
   productPersisted: [product: ProductKnowledgeDraft]
 }>()
@@ -296,9 +294,8 @@ function itemError(id: string, field: 'name' | 'useCase') {
     <section class="product-recommendations" aria-labelledby="product-recommendations-title">
       <header class="product-recommendations__header">
         <h4 id="product-recommendations-title">
-          <span aria-hidden="true">✦</span> AI 推荐核心产品
+          <span aria-hidden="true">✦</span> AI推荐产品
         </h4>
-        <span>基于品牌、产品、使用场景与目标市场生成</span>
       </header>
       <p v-if="recommendationError" class="product-recommendations__error" role="alert">
         {{ recommendationError }}
@@ -328,18 +325,6 @@ function itemError(id: string, field: 'name' | 'useCase') {
             加入核心产品
           </Button>
         </article>
-      </div>
-      <div v-else-if="props.recommendationsLoaded" class="product-recommendations__empty">
-        <p>暂无待确认的产品推荐</p>
-        <Button
-          data-test="generate-product-recommendations"
-          variant="outline"
-          :loading="props.recommendationsGenerating"
-          :disabled="editingId !== null"
-          @click="emit('generateRecommendations')"
-        >
-          生成产品推荐
-        </Button>
       </div>
     </section>
   </section>
@@ -372,7 +357,6 @@ function itemError(id: string, field: 'name' | 'useCase') {
 .product-recommendations__header { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); }
 .product-recommendations__header h4 { margin: 0; color: var(--text-primary); font-size: var(--font-size-section-title); line-height: var(--line-height-section-title); }
 .product-recommendations__header h4 span { margin-right: var(--space-2); color: var(--action-accent); }
-.product-recommendations__header > span { color: var(--text-muted); font-size: var(--font-size-caption); }
 .product-recommendations__grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-3); }
 .product-recommendation { display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-2); min-width: 0; padding: var(--space-4); border: 1px solid var(--border-default); border-radius: var(--radius-card); background: var(--background-primary); }
 .product-recommendation h5 { margin: 0; color: var(--text-primary); font-size: var(--font-size-body); line-height: var(--line-height-body); }
@@ -380,10 +364,9 @@ function itemError(id: string, field: 'name' | 'useCase') {
 .product-recommendation__details dt { color: var(--text-muted); font-size: var(--font-size-caption); }
 .product-recommendation__details dd { margin: 0; color: var(--text-primary); font-size: var(--font-size-caption); line-height: var(--line-height-caption); overflow-wrap: anywhere; }
 .product-recommendation__accept { width: 100%; margin-top: auto; color: var(--action-accent); background: var(--action-subtle-background); }
-.product-recommendations__empty { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); }
-.product-recommendations__empty p,.product-recommendations__state { margin: 0; color: var(--text-secondary); font-size: var(--font-size-body); }
+.product-recommendations__state { margin: 0; color: var(--text-secondary); font-size: var(--font-size-body); }
 .product-recommendations__state { display: flex; min-height: 48px; align-items: center; justify-content: center; --spinner-color: var(--action-accent); }
 .product-recommendations__error { margin: 0; color: var(--status-error); font-size: var(--font-size-caption); }
 @media (max-width: 760px) { .knowledge-section__heading { align-items: flex-start; flex-direction: column; } .knowledge-section__actions { flex-wrap: wrap; } }
-@media (max-width: 520px) { .knowledge-entry__form { grid-template-columns: 1fr; } .knowledge-field--wide { grid-column: auto; } .knowledge-entry__details { grid-template-columns: 1fr; gap: var(--space-1); } .knowledge-entry__details dd + dt { margin-top: var(--space-2); } .knowledge-entry__header { align-items: flex-start; } .knowledge-entry__actions--top { flex-wrap: wrap; } .product-recommendations__header,.product-recommendations__empty { align-items: flex-start; flex-direction: column; } .product-recommendations__grid { grid-template-columns: 1fr; } }
+@media (max-width: 520px) { .knowledge-entry__form { grid-template-columns: 1fr; } .knowledge-field--wide { grid-column: auto; } .knowledge-entry__details { grid-template-columns: 1fr; gap: var(--space-1); } .knowledge-entry__details dd + dt { margin-top: var(--space-2); } .knowledge-entry__header { align-items: flex-start; } .knowledge-entry__actions--top { flex-wrap: wrap; } .product-recommendations__header { align-items: flex-start; flex-direction: column; } .product-recommendations__grid { grid-template-columns: 1fr; } }
 </style>

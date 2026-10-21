@@ -28,7 +28,7 @@ describe('productKnowledgePanel AI recommendations', () => {
       },
     })
 
-    expect(wrapper.text()).toContain('AI 推荐核心产品')
+    expect(wrapper.text()).toContain('AI推荐产品')
     expect(wrapper.text()).toContain('三轴水刀切割系统')
     expect(wrapper.text()).toContain('通用性高 · 成本可控 · 易于维护')
     expect(wrapper.text()).toContain('金属加工厂 · 石材加工企业')
@@ -38,13 +38,13 @@ describe('productKnowledgePanel AI recommendations', () => {
     wrapper.unmount()
   })
 
-  it('shows the generation action when there are no pending candidates', async () => {
+  it('does not render an empty recommendation prompt or generation button', async () => {
     const wrapper = mount(ProductKnowledgePanel, {
       props: { modelValue: products, errors: {}, recommendations: [], recommendationsLoaded: true },
     })
 
-    await wrapper.get('[data-test="generate-product-recommendations"]').trigger('click')
-    expect(wrapper.emitted('generateRecommendations')).toHaveLength(1)
+    expect(wrapper.text()).not.toContain('暂无待确认的产品推荐')
+    expect(wrapper.find('[data-test="generate-product-recommendations"]').exists()).toBe(false)
     wrapper.unmount()
   })
 

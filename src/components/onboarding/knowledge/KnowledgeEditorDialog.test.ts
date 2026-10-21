@@ -150,18 +150,26 @@ describe('knowledgeEditorDialog controlled save behavior', () => {
     wrapper.unmount()
   })
 
-  it('generates recommendations when no pending products are available', async () => {
-    api.getRecommendationItems
-      .mockResolvedValueOnce([])
-      .mockResolvedValueOnce([{ id: 51, itemPayload: JSON.stringify({ lineName: '高压泵', productName: '高压泵' }) }])
+  it('shows a mock AI product recommendation when no pending product candidates are available', async () => {
+    api.getRecommendationItems.mockResolvedValue([])
     const wrapper = await mountOpen(undefined, 'product')
     await flushPromises()
-    await wrapper.get('[data-test="generate-product-recommendations"]').trigger('click')
+    expect(wrapper.text()).toContain('AI推荐产品')
+    expect(wrapper.text()).toContain('APW 三轴水刀切割系统')
+    expect(wrapper.text()).toContain('切割精度稳定 · 支持多种材料 · 维护成本可控')
+    expect(wrapper.get('.product-recommendations').text()).not.toContain('基于品牌、产品、使用场景与目标市场生成')
+    expect(wrapper.find('[data-test="generate-product-recommendations"]').exists()).toBe(false)
+
+    await wrapper.get('[data-test="accept-product--2026"]').trigger('click')
     await flushPromises()
 
-    expect(api.generateProductCandidates).toHaveBeenCalledOnce()
-    expect(api.getRecommendationItems).toHaveBeenCalledTimes(2)
-    expect(wrapper.text()).toContain('高压泵')
+    expect(api.confirmRecommendation).not.toHaveBeenCalled()
+    expect(wrapper.emitted('productAccepted')?.[0]).toEqual([expect.objectContaining({
+      productName: 'APW 三轴水刀切割系统',
+      usageScene: '金属板材、石材与玻璃的通用切割',
+      sourceType: 3,
+    })])
+    expect(wrapper.text()).toContain('APW 三轴水刀切割系统')
     wrapper.unmount()
   })
 
