@@ -1,0 +1,109 @@
+import type { AuditFinding, GeoTask, Strategy } from '../data/geo-data'
+
+export const currentPeriod = '09/14–09/20'
+
+export function nextTaskId(tasks: GeoTask[]) {
+  return `T-${Math.max(2400, ...tasks.map(task => Number(task.id.replace(/\D/g, '')) || 0)) + 1}`
+}
+
+export function taskForStrategy(tasks: GeoTask[], strategy: Strategy) {
+  return tasks.find(task => task.strategy === strategy.id || task.relatedStrategies.includes(strategy.id))
+}
+
+/** 同一策略只编排一次；相同执行目标可复用，已完成交付不被覆盖。 */
+export function orchestrateStrategy(tasks: GeoTask[], strategy: Strategy): GeoTask {
+  const existing = taskForStrategy(tasks, strategy)
+  if (existing) {
+    strategy.confirmed = true
+    return existing
+  }
+  const type = strategy.layer === '外部信源' ? 'external' : 'web'
+  const deliveryStrategies = new Set(['GS6', 'GS10', 'GS11'])
+  const target = deliveryStrategies.has(strategy.id) ? 'delivery-page' : `${type}:${strategy.layer}:${strategy.factor}`
+  const destination = type === 'external' ? '外部内容交付' : strategy.layer === '内容' ? '官网内容' : 'AI 建站协同'
+  const candidate = tasks.find((task) => {
+    const strategyIds = [task.strategy, ...task.relatedStrategies]
+    const sameDeliveryPage = target === 'delivery-page' && strategyIds.some(id => deliveryStrategies.has(id))
+    const sameStrategyTarget = target !== 'delivery-page' && task.factor === strategy.factor && task.type === type
+    return task.progress === 'brief' && task.strategyWindow === currentPeriod && (sameDeliveryPage || sameStrategyTarget)
+  })
+  if (candidate) {
+    if (!candidate.relatedStrategies.includes(strategy.id))
+      candidate.relatedStrategies.push(strategy.id)
+    candidate.source = [...new Set([...candidate.source.split(' / '), strategy.source])].join(' / ')
+    candidate.persona = [...new Set([...candidate.persona.split('、'), ...strategy.persona.split('、')])].join('、')
+    candidate.methods = [...new Set([...candidate.methods, ...strategy.methods])]
+    strategy.confirmed = true
+    return candidate
+  }
+  const task: GeoTask = {
+    id: nextTaskId(tasks),
+    name: strategy.title,
+    type,
+    source: strategy.source,
+    strategy: strategy.id,
+    persona: strategy.persona,
+    factor: strategy.factor,
+    methods: [...strategy.methods],
+    destination,
+    progress: 'brief',
+    relatedStrategies: [strategy.id],
+    baselineVersion: 'V2',
+    strategyWindow: currentPeriod,
+  }
+  tasks.push(task)
+  strategy.confirmed = true
+  return task
+}
+
+export function createRepairTask(tasks: GeoTask[], finding: AuditFinding): GeoTask {
+  const existing = tasks.find(task => task.source.split(' / ').includes(finding.id))
+  if (existing)
+    return existing
+  const task: GeoTask = {
+    id: nextTaskId(tasks),
+    name: finding.title,
+    type: 'repair',
+    source: finding.id,
+    strategy: '',
+    persona: '全站买家',
+    factor: finding.check,
+    methods: [finding.method],
+    destination: 'AI 建站协同',
+    progress: 'human',
+    relatedStrategies: [],
+    baselineVersion: 'V2',
+    strategyWindow: currentPeriod,
+  }
+  tasks.push(task)
+  finding.status = '待官网运营审核'
+  finding.checked = false
+  return task
+}
+
+export function generateFindingStrategy(items: Strategy[], finding: AuditFinding): Strategy {
+  const mappedId = /专家|作者/.test(finding.title) ? 'GS14' : undefined
+  const existing = items.find(item => item.source.split(' / ').includes(finding.id) || (mappedId && item.id === mappedId))
+  if (existing) {
+    finding.status = '已生成策略'
+    finding.checked = false
+    return existing
+  }
+  const strategy: Strategy = {
+    id: `GS${Math.max(14, ...items.map(item => Number(item.id.replace(/\D/g, '')) || 0)) + 1}`,
+    title: finding.title,
+    description: finding.detail,
+    evidence: `${finding.id} · ${finding.detail}`,
+    source: finding.id,
+    layer: '实体与信任',
+    priority: finding.priority,
+    persona: '复材技术负责人、航空采购',
+    factor: '认证与合规',
+    methods: ['专家档案', '品牌事实核验'],
+    confirmed: false,
+  }
+  items.push(strategy)
+  finding.status = '已生成策略'
+  finding.checked = false
+  return strategy
+}
