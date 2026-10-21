@@ -85,7 +85,7 @@ export function createAppRouter() {
     const geoContext = useGeoContextStore()
     let entryStatus = geoContext.entryStatus?.entryStatus
     if (to.name === 'onboarding')
-      return entryStatus === 'CONFIGURED' ? { name: 'overview' } : true
+      return entryStatus === 'CONFIGURED' && to.query.preview !== '1' ? { name: 'overview' } : true
     if (!to.meta.requiresOnboarding || entryStatus === 'CONFIGURED')
       return true
 

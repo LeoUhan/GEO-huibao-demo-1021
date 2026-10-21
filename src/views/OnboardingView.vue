@@ -41,6 +41,8 @@ onMounted(() => void loadWizard())
 async function loadWizard() {
   try {
     await wizard.load()
+    if (route.query.preview === '1')
+      store.currentStep = 0
   }
   catch {
     showToast(wizard.error.value ? `新人引导加载失败：${wizard.error.value}` : '新人引导加载失败', 'error')
@@ -225,6 +227,11 @@ onBeforeUnmount(() => {
   <main v-else-if="!wizard.loaded.value" class="onboarding-page onboarding-page__status" aria-live="polite" />
   <main v-else class="onboarding-page">
     <div class="onboarding-page__inner">
+      <div v-if="route.query.preview === '1'" class="onboarding-page__preview-actions">
+        <RouterLink :to="{ name: 'overview' }">
+          返回工作台
+        </RouterLink>
+      </div>
       <template v-if="store.currentStep === 0">
         <header class="page-header">
           <div>
@@ -355,6 +362,22 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped>
+.onboarding-page__preview-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 8px;
+}
+
+.onboarding-page__preview-actions a {
+  color: var(--text-secondary);
+  font-size: 14px;
+  text-decoration: none;
+}
+
+.onboarding-page__preview-actions a:hover {
+  color: var(--action-accent);
+}
+
 .onboarding-page__status {
   display: grid;
   min-height: 100vh;

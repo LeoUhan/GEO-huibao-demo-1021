@@ -6,6 +6,7 @@ defineProps<{
 }>()
 
 const navItems = [
+  { page: 'onboarding', label: '新人引导', route: 'onboarding' },
   { page: 'overview', label: '概览', route: 'overview' },
   { page: 'diagnosis', label: '诊断与策略', route: 'diagnosis' },
   { page: 'optimization', label: '优化中心', route: 'optimization' },
@@ -21,7 +22,7 @@ const navItems = [
       :key="item.page"
       class="geo-section-nav__item"
       :class="{ 'is-active': activePage === item.page }"
-      :to="{ name: item.route }"
+      :to="item.page === 'onboarding' ? { name: item.route, query: { preview: '1' } } : { name: item.route }"
       :aria-current="activePage === item.page ? 'page' : undefined"
     >
       <span>{{ item.label }}</span>

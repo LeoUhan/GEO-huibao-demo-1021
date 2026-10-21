@@ -61,6 +61,15 @@ describe('visibility monitoring route', () => {
     expect(router.currentRoute.value.name).toBe('visibility-monitoring')
   })
 
+  it('opens the onboarding preview from the workbench after setup is complete', async () => {
+    useGeoContextStore().entryStatus = { entryStatus: 'CONFIGURED', marketId: 5, wizardId: null, wizardStatus: null, currentStep: 4, maxReachedStep: 4, stepStatus: null }
+    const router = createAppRouter()
+
+    await router.push('/onboarding?preview=1')
+
+    expect(router.currentRoute.value.name).toBe('onboarding')
+  })
+
   it('resumes an unfinished server wizard instead of trusting local state', async () => {
     useGeoContextStore().entryStatus = { entryStatus: 'CONTINUE_WIZARD', marketId: 5, wizardId: 9, wizardStatus: 0, currentStep: 2, maxReachedStep: 2, stepStatus: { step1: 'DONE', step2: 'DOING' } }
     const router = createAppRouter()
