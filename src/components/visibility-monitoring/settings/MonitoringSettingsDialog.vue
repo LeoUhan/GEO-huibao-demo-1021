@@ -8,18 +8,17 @@ import AppIcon from '../../ui/icons/AppIcon.vue'
 const props = defineProps<{ open: boolean, frequency: SamplingFrequency, selectedPlatforms: readonly string[], planName: string, saving?: boolean, error?: string }>()
 const emit = defineEmits<{ close: [], save: [settings: { frequency: SamplingFrequency, platforms: string[] }] }>()
 const dialog = shallowRef<HTMLDialogElement | null>(null)
-const frequency = shallowRef<SamplingFrequency>(props.frequency)
+const frequency = shallowRef<SamplingFrequency>('weekly')
 const selectedPlatforms = shallowRef<string[]>([...props.selectedPlatforms])
 const availablePlatforms = computed(() => monitoringPlatformOptions.map(platform => ({ id: platform.value, label: platform.label, enabled: !platform.disabled, hint: platform.hint })))
 const frequencyOptions = computed(() => [
   { id: 'weekly' as const, label: '每周' },
-  { id: 'monthly' as const, label: '每月' },
 ])
 watch(() => props.open, (open) => {
   if (!dialog.value)
     return
   if (open) {
-    frequency.value = props.frequency
+    frequency.value = 'weekly'
     selectedPlatforms.value = [...props.selectedPlatforms]
     if (!dialog.value.open)
       dialog.value.showModal()
@@ -28,10 +27,6 @@ watch(() => props.open, (open) => {
     dialog.value.close()
   }
 }, { flush: 'post' })
-watch(() => props.frequency, (value) => {
-  if (props.open)
-    frequency.value = value
-})
 watch(() => props.selectedPlatforms, (value) => {
   if (props.open)
     selectedPlatforms.value = [...value]
@@ -44,7 +39,7 @@ function togglePlatform(id: string, checked: boolean) {
   selectedPlatforms.value = checked ? [...new Set([...selectedPlatforms.value, id])] : selectedPlatforms.value.filter(platform => platform !== id)
 }
 function save() {
-  emit('save', { frequency: props.frequency, platforms: selectedPlatforms.value.filter(id => availablePlatforms.value.some(platform => platform.id === id && platform.enabled)) })
+  emit('save', { frequency: 'weekly', platforms: selectedPlatforms.value.filter(id => availablePlatforms.value.some(platform => platform.id === id && platform.enabled)) })
 }
 function handleClose() {
   if (props.open)
@@ -81,12 +76,7 @@ onBeforeUnmount(() => {
         </div>
       </fieldset>
       <p class="vm-settings__note">
-        <template v-if="props.planName.includes('入门')">
-          入门版默认每月采集；升级至成长版或专业版可按每周采集。
-        </template>
-        <template v-else>
-          {{ props.planName || '当前套餐' }}按套餐固定频率采集，由系统自动执行，客户无法修改采集频率。
-        </template>
+        当前采集计划按每周执行，执行日期与时间由系统安排。
       </p>
     </form>
     <footer class="vm-settings__foot">

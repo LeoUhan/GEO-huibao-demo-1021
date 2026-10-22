@@ -4,24 +4,18 @@ export type MonitoringPlatform = 'chatgpt' | 'google-ai' | 'ai-mode' | 'gemini' 
 
 export const monitoringFrequencyOptions = [
   { value: 'weekly', label: '每周' },
-  { value: 'monthly', label: '每月' },
 ] as const
 
-export function frequencyForPlan(planCode?: string | null, planName?: string | null, fallback: MonitoringFrequency = 'weekly'): MonitoringFrequency {
-  const plan = `${planCode ?? ''} ${planName ?? ''}`.toLocaleLowerCase()
-  if (plan.includes('入门') || plan.includes('basic') || plan.includes('starter'))
-    return 'monthly'
-  if (plan.includes('专业') || plan.includes('professional') || plan.includes('pro'))
-    return 'weekly'
-  return fallback === 'monthly' ? 'monthly' : 'weekly'
+export function frequencyForPlan(_planCode?: string | null, _planName?: string | null, _fallback: MonitoringFrequency = 'weekly'): MonitoringFrequency {
+  return 'weekly'
 }
 
-export const monitoringPlatformOptions: { value: MonitoringPlatform, label: string, logo: string, disabled?: boolean, hint?: string }[] = [
-  { value: 'google-ai', label: 'AI Overview', logo: '/platform-logos/google.svg' },
-  { value: 'ai-mode', label: 'AI Mode', logo: '/platform-logos/gemini.svg' },
-  { value: 'gemini', label: 'Gemini', logo: '/platform-logos/gemini.svg' },
-  { value: 'chatgpt', label: 'ChatGPT', logo: '/platform-logos/chatgpt.svg' },
-  { value: 'claude', label: 'Claude', logo: '/platform-logos/claude.svg', disabled: true, hint: '敬请期待' },
+export const monitoringPlatformOptions: { value: MonitoringPlatform, label: string, mark: string, markTone: string, disabled?: boolean, hint?: string }[] = [
+  { value: 'google-ai', label: 'AI Overview', mark: '✦', markTone: 'google' },
+  { value: 'ai-mode', label: 'AI Mode', mark: '✧', markTone: 'ai-mode' },
+  { value: 'gemini', label: 'Gemini', mark: '✦', markTone: 'gemini' },
+  { value: 'chatgpt', label: 'ChatGPT', mark: '⊕', markTone: 'chatgpt' },
+  { value: 'claude', label: 'Claude', mark: '✳', markTone: 'claude', disabled: true, hint: '敬请期待' },
 ]
 
 const baseMonitoringPlatforms: MonitoringPlatform[] = ['google-ai', 'ai-mode', 'gemini']
