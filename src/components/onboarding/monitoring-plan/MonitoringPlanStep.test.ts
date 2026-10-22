@@ -14,13 +14,13 @@ describe('monitoringPlanStep market setup copy', () => {
     const onboarding = mount(MonitoringPlanStep, { props })
     expect(onboarding.get('h1').text()).toBe('设置首次采集计划')
     expect(onboarding.find('.monitoring-plan-platform__check svg.lucide-check').exists()).toBe(true)
-    expect(onboarding.text()).toContain('当前套餐按每周由系统固定采集。')
+    expect(onboarding.text()).toContain('系统将按每周自动采集')
     expect(onboarding.text()).not.toContain('入门版')
     const frequencyInputs = onboarding.findAll<HTMLInputElement>('.ce-segmented__input')
     expect(frequencyInputs).toHaveLength(2)
     expect(frequencyInputs.find(input => input.element.value === 'weekly')?.element.checked).toBe(true)
     expect(frequencyInputs.find(input => input.element.value === 'weekly')?.element.disabled).toBe(false)
-    expect(frequencyInputs.find(input => input.element.value === 'monthly')?.element.disabled).toBe(true)
+    expect(frequencyInputs.find(input => input.element.value === 'monthly')?.element.disabled).toBe(false)
     expect(onboarding.findAll('.monitoring-plan-step__label')).toHaveLength(0)
     expect(onboarding.findAll('.monitoring-plan-platform')).toHaveLength(5)
     expect(onboarding.text()).toContain('敬请期待')
@@ -32,16 +32,21 @@ describe('monitoringPlanStep market setup copy', () => {
     expect(marketSetup.text()).toContain('为该市场配置自动采集频率与 AI 平台')
   })
 
-  it('shows only the current plan rule and an upgrade hint for the starter plan', () => {
+  it('shows the selected frequency rule for each plan', () => {
     const starter = mount(MonitoringPlanStep, { props: { ...props, frequency: 'monthly', planName: '入门版' } })
-    expect(starter.text()).toContain('入门版每月按系统固定采集')
-    expect(starter.text()).toContain('可升级至成长版/专业版')
-    expect(starter.text()).not.toContain('专业版默认每周')
+    expect(starter.text()).toContain('系统将按每月自动采集')
 
     const professional = mount(MonitoringPlanStep, { props: { ...props, frequency: 'weekly', planName: '专业版' } })
-    expect(professional.text()).toContain('专业版按每周由系统固定采集。')
-    expect(professional.text()).not.toContain('可升级至')
-    expect(professional.text()).not.toContain('入门版')
+    expect(professional.text()).toContain('系统将按每周自动采集')
+  })
+
+  it('lets the customer choose a monthly collection cadence', async () => {
+    const wrapper = mount(MonitoringPlanStep, { props })
+    const monthly = wrapper.get<HTMLInputElement>('.ce-segmented__input[value="monthly"]')
+
+    await monthly.setValue(true)
+
+    expect(wrapper.emitted('frequencyChanged')?.[0]).toEqual(['monthly'])
   })
 
   it('maps starter and professional plans to fixed monthly and weekly collection', async () => {

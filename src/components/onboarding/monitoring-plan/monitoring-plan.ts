@@ -16,12 +16,12 @@ export function frequencyForPlan(planCode?: string | null, planName?: string | n
   return fallback === 'monthly' ? 'monthly' : 'weekly'
 }
 
-export const monitoringPlatformOptions: { value: MonitoringPlatform, label: string, mark: string, markTone: string, disabled?: boolean, hint?: string }[] = [
-  { value: 'google-ai', label: 'AI Overview', mark: '✦', markTone: 'google' },
-  { value: 'ai-mode', label: 'AI Mode', mark: '✧', markTone: 'ai-mode' },
-  { value: 'gemini', label: 'Gemini', mark: '✦', markTone: 'gemini' },
-  { value: 'chatgpt', label: 'ChatGPT', mark: '⊕', markTone: 'chatgpt' },
-  { value: 'claude', label: 'Claude', mark: '✳', markTone: 'claude', disabled: true, hint: '敬请期待' },
+export const monitoringPlatformOptions: { value: MonitoringPlatform, label: string, logo: string, disabled?: boolean, hint?: string }[] = [
+  { value: 'google-ai', label: 'AI Overview', logo: '/platform-logos/google.svg' },
+  { value: 'ai-mode', label: 'AI Mode', logo: '/platform-logos/gemini.svg' },
+  { value: 'gemini', label: 'Gemini', logo: '/platform-logos/gemini.svg' },
+  { value: 'chatgpt', label: 'ChatGPT', logo: '/platform-logos/chatgpt.svg' },
+  { value: 'claude', label: 'Claude', logo: '/platform-logos/claude.svg', disabled: true, hint: '敬请期待' },
 ]
 
 const baseMonitoringPlatforms: MonitoringPlatform[] = ['google-ai', 'ai-mode', 'gemini']

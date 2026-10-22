@@ -26,15 +26,11 @@ const emit = defineEmits<{
 const visibleFrequency = computed<MonitoringFrequency>(() => props.frequency === 'monthly' ? 'monthly' : 'weekly')
 const frequencyOptions = computed(() => monitoringFrequencyOptions.map(option => ({
   ...option,
-  disabled: option.value !== visibleFrequency.value,
+  disabled: props.saving ?? false,
 })))
 const executionRule = computed(() => {
   const label = monitoringFrequencyOptions.find(option => option.value === visibleFrequency.value)?.label ?? '每周'
-  const planName = props.planName?.trim() || '当前套餐'
-  const plan = `${planName} ${planName.toLocaleLowerCase()}`
-  if (plan.includes('入门') || plan.includes('basic') || plan.includes('starter'))
-    return `入门版每月按系统固定采集；可升级至成长版/专业版，提升采集频率。`
-  return `${planName}按${label}由系统固定采集。`
+  return `系统将按${label}自动采集，具体执行日期与时间由系统按规则安排。`
 })
 const availablePlatforms = monitoringPlatformOptions
 
@@ -117,7 +113,7 @@ function togglePlatform(platform: MonitoringPlatform) {
               <AppIcon v-if="platforms.includes(platform.value)" name="check" :size="14" aria-hidden="true" />
             </span>
             <span class="monitoring-plan-platform__identity">
-              <span class="monitoring-plan-platform__mark" :data-platform="platform.markTone" aria-hidden="true">{{ platform.mark }}</span>
+              <span class="monitoring-plan-platform__logo" aria-hidden="true"><img :src="platform.logo" alt="" loading="lazy"></span>
               <span class="monitoring-plan-platform__label">{{ platform.label }}</span>
               <span v-if="platform.hint" class="monitoring-plan-platform__hint">{{ platform.hint }}</span>
             </span>
@@ -161,11 +157,8 @@ function togglePlatform(platform: MonitoringPlatform) {
 .monitoring-plan-platform__identity { flex: 1 1 auto; gap: 4px; color: var(--text-primary); font-size: var(--font-size-caption); line-height: var(--line-height-caption); font-weight: var(--weight-semibold); }
 .monitoring-plan-platform__label { flex: 0 0 auto; white-space: nowrap; }
 .monitoring-plan-platform__hint { margin-left: auto; color: var(--text-muted); font-size: 11px; font-weight: var(--weight-medium); white-space: nowrap; }
-.monitoring-plan-platform__mark { display: inline-grid; width: 30px; height: 30px; flex: 0 0 30px; place-items: center; border: 1px solid var(--border-default); border-radius: var(--radius-control); background: var(--background-primary); color: var(--text-primary); font-size: 21px; line-height: 1; }
-.monitoring-plan-platform__mark[data-platform='perplexity'] { font-size: 22px; font-weight: var(--weight-semibold); }
-.monitoring-plan-platform__mark[data-platform='google'] { color: #4285f4; }
-.monitoring-plan-platform__mark[data-platform='gemini'] { color: #7568f5; }
-.monitoring-plan-platform__mark[data-platform='ai-mode'] { color: #4983f5; }
+.monitoring-plan-platform__logo { display: inline-grid; width: 30px; height: 30px; flex: 0 0 30px; place-items: center; border: 1px solid var(--border-default); border-radius: var(--radius-control); background: var(--background-primary); }
+.monitoring-plan-platform__logo img { display: block; width: 20px; height: 20px; object-fit: contain; }
 .monitoring-plan-platform__check { display: inline-grid; width: 16px; height: 16px; flex: 0 0 16px; place-items: center; border: 1px solid var(--border-strong, var(--border-default)); border-radius: 3px; background: var(--background-primary); color: transparent; }
 .monitoring-plan-platform[aria-pressed='true'] .monitoring-plan-platform__check { border-color: var(--action-accent); background: var(--action-accent); color: var(--text-on-accent, #fff); }
 .monitoring-plan-platform__check svg { width: 12px; height: 12px; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 2.2; }
