@@ -61,4 +61,45 @@ describe('taskRichTextEditor', () => {
     expect(editor.text()).toBe('可编辑内容')
     expect(wrapper.find('.ProseMirror a').exists()).toBe(false)
   })
+
+  it('previews a paragraph-level AI optimization and replaces only the selected text', async () => {
+    const wrapper = mount(TaskRichTextEditor, {
+      props: { modelValue: '<p>日本提供本地服务支持。</p><p>欢迎联系团队了解详情。</p>', aiOptimize: true },
+    })
+    await new Promise(resolve => setTimeout(resolve, 0))
+
+    const editor = wrapper.findComponent(EditorContent).props('editor')
+    editor?.commands.setTextSelection({ from: 1, to: '日本提供本地服务支持。'.length + 1 })
+    await wrapper.get('[data-test="open-ai-optimize"]').trigger('click')
+    expect(wrapper.get('[data-test="ai-optimize-panel"]').text()).toContain('日本提供本地服务支持。')
+
+    await wrapper.get('#task-ai-instruction').setValue('表达更专业，并突出本地服务')
+    await wrapper.get('[data-test="generate-ai-preview"]').trigger('click')
+    expect(wrapper.get('[data-test="ai-optimize-preview"]').text()).toContain('交互原型')
+    await wrapper.get('[data-test="ai-optimize-preview"] textarea').setValue('日本团队提供本地化服务支持。')
+    await wrapper.get('[data-test="replace-selected-text"]').trigger('click')
+
+    expect(wrapper.get('.ProseMirror').text()).toBe('日本团队提供本地化服务支持。欢迎联系团队了解详情。')
+    expect(wrapper.emitted('update:modelValue')?.at(-1)?.[0]).toContain('日本团队提供本地化服务支持。')
+  })
+
+  it('exposes a full-article regeneration action and previews the whole article scope', async () => {
+    const wrapper = mount(TaskRichTextEditor, {
+      props: { modelValue: '<p>第一段。</p><p>第二段。</p>', aiOptimize: true },
+    })
+    await new Promise(resolve => setTimeout(resolve, 0))
+
+    await wrapper.get('[data-test="regenerate-article"]').trigger('click')
+    expect(wrapper.get('[data-test="ai-optimize-panel"] strong').text()).toBe('重新生成文章')
+    expect(wrapper.get('[data-test="ai-optimize-panel"] .task-rich-editor__ai-source').text()).toContain('第一段。')
+    expect(wrapper.get('[data-test="ai-optimize-panel"] .task-rich-editor__ai-source').text()).toContain('第二段。')
+    await wrapper.get('#task-ai-instruction').setValue('按照 GEO 结构重写，保留已确认事实')
+    await wrapper.get('[data-test="generate-ai-preview"]').trigger('click')
+    expect((wrapper.get('[data-test="ai-optimize-preview"] textarea').element as HTMLTextAreaElement).value).toContain('第一段。')
+    await wrapper.get('[data-test="ai-optimize-preview"] textarea').setValue('新的整篇内容。')
+    await wrapper.get('[data-test="replace-selected-text"]').trigger('click')
+
+    expect(wrapper.get('.ProseMirror').text()).toBe('新的整篇内容。')
+    expect(wrapper.get('.ProseMirror').text()).not.toContain('第一段。')
+  })
 })

@@ -1,9 +1,8 @@
 <script setup lang="ts">
-import type { ReportFilter, ReportType } from '../data/report-center-data'
+import type { ReportFilter } from '../data/report-center-data'
 import { computed, onBeforeUnmount, shallowRef, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { generateLatestReport, getReportList, getReportQuota } from '../api/reports'
-import CadenceSelector from '../components/report-center/CadenceSelector.vue'
 import GenerateLatestReportDialog from '../components/report-center/GenerateLatestReportDialog.vue'
 import LatestReportCard from '../components/report-center/LatestReportCard.vue'
 import ReportListPanel from '../components/report-center/ReportListPanel.vue'
@@ -20,7 +19,6 @@ const remainingQuota = shallowRef<number | null>(null)
 const quotaTotal = shallowRef(0)
 const quotaLoaded = shallowRef(false)
 const quotaError = shallowRef('')
-const cadence: ReportType = 'weekly'
 const reportFilter = shallowRef<ReportFilter>('all')
 const pageNum = shallowRef(1)
 const pageSize = 20
@@ -200,8 +198,6 @@ function changeFilter(filter: ReportFilter) {
     <p v-if="quotaError" class="quota-error" role="status">
       报告额度暂不可用：{{ quotaError }}
     </p>
-    <CadenceSelector :model-value="cadence" />
-
     <ReportListPanel
       :model-value="reportFilter"
       :reports="reports"

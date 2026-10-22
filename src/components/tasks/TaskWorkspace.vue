@@ -538,7 +538,7 @@ function versionDiff(index: number) {
               <template v-if="flow.output.body">
                 <div class="tw-output-review-layout">
                   <div class="tw-output-review-main">
-                    <TaskRichTextEditor v-model="draft.body" :editable="reviewing" :full-width="true" :heading="flow.output.title" label="生成内容正文编辑器">
+                    <TaskRichTextEditor v-model="draft.body" :editable="reviewing" :ai-optimize="reviewing" :full-width="true" :heading="flow.output.title" label="生成内容正文编辑器">
                       <template #supplement>
                         <section class="tw-internet-supplement" data-test="internet-supplement" aria-label="AI 联网内容状态">
                           <header class="tw-internet-supplement__head">

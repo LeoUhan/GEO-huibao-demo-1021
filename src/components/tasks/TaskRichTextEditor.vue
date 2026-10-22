@@ -2,7 +2,7 @@
 import { Color, TextStyle } from '@tiptap/extension-text-style'
 import StarterKit from '@tiptap/starter-kit'
 import { EditorContent, useEditor } from '@tiptap/vue-3'
-import { watch } from 'vue'
+import { ref, watch } from 'vue'
 
 const props = withDefaults(defineProps<{
   modelValue: string
@@ -10,11 +10,13 @@ const props = withDefaults(defineProps<{
   label?: string
   heading?: string
   fullWidth?: boolean
+  aiOptimize?: boolean
 }>(), {
   editable: true,
   label: '内容正文',
   heading: '',
   fullWidth: false,
+  aiOptimize: false,
 })
 const emit = defineEmits<{ 'update:modelValue': [value: string] }>()
 defineSlots<{ supplement?: () => any }>()
@@ -33,6 +35,15 @@ const editor = useEditor({
   extensions: [StarterKit.configure({ link: false, italic: { HTMLAttributes: { class: 'task-rich-italic' } } }), TextStyle, Color.configure({ types: ['textStyle'] })],
   onUpdate: ({ editor: currentEditor }) => emit('update:modelValue', currentEditor.getHTML()),
 })
+
+const aiPanelOpen = ref(false)
+const aiPreviewOpen = ref(false)
+const aiInstruction = ref('')
+const selectedText = ref('')
+const previewText = ref('')
+const selectionRange = ref<{ from: number, to: number } | null>(null)
+const optimizationScope = ref<'paragraph' | 'article'>('paragraph')
+const aiError = ref('')
 
 watch(() => props.modelValue, (value) => {
   if (editor.value && value !== editor.value.getHTML())
@@ -86,6 +97,67 @@ function focusEditor() {
   editor.value?.commands.focus()
 }
 
+function openAiOptimize(scope: 'paragraph' | 'article' = 'paragraph') {
+  const current = editor.value
+  if (!current)
+    return
+  const selection = current.state.selection
+  if (scope === 'article') {
+    selectionRange.value = { from: 0, to: current.state.doc.content.size }
+    selectedText.value = current.getText({ blockSeparator: '\n\n' })
+  }
+  else if (!selection.empty) {
+    selectionRange.value = { from: selection.from, to: selection.to }
+    selectedText.value = current.state.doc.textBetween(selection.from, selection.to, '\n')
+  }
+  else if (selection.$from.parent.isTextblock) {
+    selectionRange.value = { from: selection.$from.start(), to: selection.$from.end() }
+    selectedText.value = selection.$from.parent.textContent
+  }
+  else {
+    aiError.value = '请先选中需要优化的段落或文字。'
+    aiPanelOpen.value = true
+    return
+  }
+  aiError.value = ''
+  optimizationScope.value = scope
+  aiInstruction.value = ''
+  previewText.value = selectedText.value
+  aiPreviewOpen.value = false
+  aiPanelOpen.value = true
+}
+
+function useSuggestion(value: string) {
+  aiInstruction.value = aiInstruction.value ? `${aiInstruction.value}；${value}` : value
+}
+
+function generatePreview() {
+  if (!aiInstruction.value.trim()) {
+    aiError.value = '请先填写希望 AI 如何调整。'
+    return
+  }
+  // This prototype exposes the complete review flow without invoking a generation service.
+  previewText.value = selectedText.value
+  aiError.value = ''
+  aiPreviewOpen.value = true
+}
+
+function replaceSelectedText() {
+  const current = editor.value
+  const range = selectionRange.value
+  if (!current || !range || !previewText.value.trim())
+    return
+  if (optimizationScope.value === 'article') {
+    current.commands.setContent(editorContent(previewText.value))
+  }
+  else {
+    current.chain().focus().insertContentAt(range, previewText.value).run()
+  }
+  aiPanelOpen.value = false
+  aiPreviewOpen.value = false
+  selectionRange.value = null
+}
+
 defineExpose({ focusEditor })
 </script>
 
@@ -116,8 +188,44 @@ defineExpose({ focusEditor })
         <span aria-hidden="true">A</span>
         <input type="color" aria-label="文字颜色" value="#1D2129" @input="setTextColor">
       </label>
+      <span v-if="aiOptimize" class="task-rich-editor__divider" aria-hidden="true" />
+      <button v-if="aiOptimize" type="button" class="task-rich-editor__ai-trigger" data-test="open-ai-optimize" @mousedown.prevent @click="openAiOptimize('paragraph')">
+        <span aria-hidden="true">✦</span> AI 优化选中段落
+      </button>
+      <button v-if="aiOptimize" type="button" class="task-rich-editor__ai-regenerate" data-test="regenerate-article" @mousedown.prevent @click="openAiOptimize('article')">
+        重新生成文章
+      </button>
       <span class="task-rich-editor__shortcut-hint" data-test="editor-shortcuts">快捷键：⌘/Ctrl+B 加粗 · ⌘/Ctrl+I 斜体 · ⌘/Ctrl+U 下划线 · ⌘/Ctrl+Z 撤销</span>
     </div>
+    <section v-if="aiPanelOpen" class="task-rich-editor__ai-panel" data-test="ai-optimize-panel" aria-label="段落 AI 优化">
+      <header class="task-rich-editor__ai-head">
+        <div><strong>{{ optimizationScope === 'article' ? '重新生成文章' : '优化选中内容' }}</strong><span>{{ optimizationScope === 'article' ? '沿用当前任务策略、Brief 和已确认事实生成新稿' : '保留原意和事实，仅调整选中段落' }}</span></div>
+        <button type="button" aria-label="关闭 AI 优化" @click="aiPanelOpen = false">×</button>
+      </header>
+      <p v-if="aiError" class="task-rich-editor__ai-error" role="alert">{{ aiError }}</p>
+      <template v-else>
+        <div class="task-rich-editor__ai-source"><span>{{ optimizationScope === 'article' ? '当前文章' : '当前段落' }}</span><p>{{ selectedText }}</p></div>
+        <label class="task-rich-editor__ai-label" for="task-ai-instruction">优化要求</label>
+        <textarea id="task-ai-instruction" v-model="aiInstruction" rows="2" placeholder="写下希望如何调整；请只补充已确认的事实。" />
+        <div class="task-rich-editor__ai-suggestions" aria-label="常用优化方向">
+          <button type="button" @click="useSuggestion('表达更专业')">表达更专业</button>
+          <button type="button" @click="useSuggestion('突出产品优势')">突出产品优势</button>
+          <button type="button" @click="useSuggestion('补充专家视角')">补充专家视角</button>
+        </div>
+        <div class="task-rich-editor__ai-foot">
+          <small>本次优化会计入内容生成额度</small>
+          <button type="button" class="task-rich-editor__ai-generate" data-test="generate-ai-preview" @click="generatePreview">生成优化稿</button>
+        </div>
+        <div v-if="aiPreviewOpen" class="task-rich-editor__ai-preview" data-test="ai-optimize-preview">
+          <div class="task-rich-editor__ai-preview-head"><strong>优化稿预览</strong><span>交互原型 · 生成服务待接入</span></div>
+          <textarea v-model="previewText" rows="4" aria-label="优化稿预览内容" />
+          <div class="task-rich-editor__ai-preview-actions">
+            <button type="button" @click="aiPanelOpen = false">保留原文</button>
+            <button type="button" class="task-rich-editor__ai-generate" data-test="replace-selected-text" :disabled="!previewText.trim()" @click="replaceSelectedText">替换选中内容</button>
+          </div>
+        </div>
+      </template>
+    </section>
     <slot v-if="$slots.supplement" name="supplement" />
     <article class="task-rich-editor__page" :class="{ 'is-full-width': fullWidth }">
       <h1 v-if="heading">
@@ -179,6 +287,27 @@ defineExpose({ focusEditor })
   margin: 0 4px;
   background: #dce3ef;
 }
+
+.task-rich-editor__toolbar button.task-rich-editor__ai-trigger, .task-rich-editor__toolbar button.task-rich-editor__ai-regenerate { display: inline-flex; min-height: 30px; align-items: center; gap: 6px; padding: 0 10px; border: 1px solid #d8ddff; background: #fff; color: var(--action-accent); font-size: 12px; font-weight: 600; }
+.task-rich-editor__toolbar button.task-rich-editor__ai-regenerate { border-color: var(--action-accent); background: var(--action-accent); color: #fff; }
+.task-rich-editor__ai-panel { display: grid; gap: 10px; margin: 12px 14px; padding: 14px; border: 1px solid #dce2f0; border-radius: 10px; background: #fbfcff; }
+.task-rich-editor__ai-head, .task-rich-editor__ai-foot, .task-rich-editor__ai-preview-head, .task-rich-editor__ai-preview-actions { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.task-rich-editor__ai-head > div { display: grid; gap: 2px; }
+.task-rich-editor__ai-head strong, .task-rich-editor__ai-preview-head strong { color: #1d2129; font-size: 13px; }
+.task-rich-editor__ai-head span, .task-rich-editor__ai-preview-head span, .task-rich-editor__ai-foot small { color: #77849a; font-size: 11px; }
+.task-rich-editor__ai-head > button { border: 0; background: transparent; color: #77849a; font-size: 20px; cursor: pointer; }
+.task-rich-editor__ai-source { padding: 9px 10px; border-radius: 7px; background: #f1f3f8; }
+.task-rich-editor__ai-source span, .task-rich-editor__ai-label { color: #77849a; font-size: 11px; font-weight: 600; }
+.task-rich-editor__ai-source p { max-height: 54px; margin: 3px 0 0; overflow: auto; color: #46546a; font-size: 12px; line-height: 18px; white-space: pre-wrap; }
+.task-rich-editor__ai-label { margin-bottom: -6px; }
+.task-rich-editor__ai-panel textarea { box-sizing: border-box; width: 100%; resize: vertical; padding: 8px 10px; border: 1px solid #dce3ef; border-radius: 7px; background: white; color: #1d2129; font: inherit; font-size: 12px; line-height: 18px; }
+.task-rich-editor__ai-suggestions { display: flex; flex-wrap: wrap; gap: 6px; }
+.task-rich-editor__ai-suggestions button, .task-rich-editor__ai-preview-actions > button:first-child { min-height: 27px; padding: 3px 9px; border: 1px solid #dce3ef; border-radius: 999px; background: white; color: #53627a; font: inherit; font-size: 11px; cursor: pointer; }
+.task-rich-editor__ai-generate { min-height: 30px; padding: 4px 11px; border: 1px solid var(--action-accent); border-radius: 7px; background: var(--action-accent); color: white; font: inherit; font-size: 12px; font-weight: 600; cursor: pointer; }
+.task-rich-editor__ai-generate:disabled { opacity: .45; cursor: not-allowed; }
+.task-rich-editor__ai-error { margin: 0; color: #c34539; font-size: 12px; }
+.task-rich-editor__ai-preview { display: grid; gap: 8px; padding-top: 10px; border-top: 1px solid #e6eaf2; }
+.task-rich-editor__ai-preview-actions { justify-content: flex-end; }
 
 .task-rich-editor__color {
   position: relative;
