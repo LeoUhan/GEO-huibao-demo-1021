@@ -26,34 +26,26 @@ const route = useRoute()
 const router = useRouter()
 const isOnboardingPage = computed(() => route.name === 'onboarding')
 const activePage = computed<GeoPage | 'overview' | 'visibility-monitoring' | 'report-center' | 'operations-review'>(() => route.name === 'overview' ? 'overview' : route.name === 'visibility-monitoring' ? 'visibility-monitoring' : route.name === 'report-center' ? 'report-center' : route.name === 'operations-review' ? 'operations-review' : ['optimization', 'task-detail'].includes(String(route.name)) ? 'optimization' : 'diagnosis')
-const activeSidebarItem = computed(() => {
-  if (isOnboardingPage.value)
-    return undefined
-  if (route.name === 'operations-review')
-    return undefined
-  if (activePage.value === 'overview')
-    return '网站概览'
-  if (activePage.value === 'diagnosis')
-    return '网站审查'
-  if (activePage.value === 'optimization')
-    return '内容运营'
-  if (activePage.value === 'visibility-monitoring')
-    return '运维与设置'
-  return '数据分析'
-})
 const sidebarSections = [
   { heading: '', items: [{ label: '网站建设', icon: 'globe', route: 'overview' }] },
   { heading: '整合视图', items: [{ label: '增长驾驶舱', icon: 'dashboard', route: 'overview' }] },
-  { heading: '增长入口', items: [
-    { label: '网站概览', icon: 'dashboard', route: 'overview' },
-    { label: '网站审查', icon: 'visibility', route: 'diagnosis' },
-    { label: '内容运营', icon: 'optimize', route: 'optimization' },
-    { label: '智能落地页', icon: 'globe', route: 'optimization' },
-    { label: '留资线索', icon: 'success', route: 'overview' },
-    { label: '数据分析', icon: 'report', route: 'report-center' },
-    { label: '运维与设置', icon: 'visibility', route: 'visibility-monitoring' },
-  ] },
+  { heading: '增长入口', items: [{ label: '网站智能体', icon: 'dashboard', route: 'overview', children: [
+    { label: '网站概览', route: 'overview' },
+    { label: '网站审查', route: 'diagnosis' },
+    { label: '内容运营', route: 'optimization' },
+    { label: '智能落地页', route: 'optimization' },
+    { label: '留资线索', route: 'overview' },
+    { label: '数据分析', route: 'report-center' },
+    { label: '运维与设置', route: 'visibility-monitoring' },
+  ] }] },
   { heading: '企业数字资产', items: [{ label: '企业知识库', icon: 'report', route: 'onboarding' }] },
+  { heading: '营销智能体', items: [
+    { label: 'SEO 智能体', icon: 'search', route: 'diagnosis', tier: '基础版' },
+    { label: 'GEO 智能体', icon: 'globe', route: 'overview', tier: '基础版', selected: true },
+    { label: 'SDR 智能体', icon: 'circle', route: 'overview', tier: '基础版' },
+  ] },
+  { heading: '客户经营', items: [{ label: 'AI CRM', icon: 'circle', route: 'report-center', tier: '专业版' }] },
+  { heading: '账号', items: [{ label: '账号与权益', icon: 'dashboard', route: 'onboarding' }] },
 ] as const
 const serviceMode = shallowRef<ServiceMode>('managed')
 const role = shallowRef<UserRole>('ops')
@@ -590,16 +582,30 @@ provide(geoWorkbenchRouteContextKey, {
         <h2 v-if="section.heading" class="geo-workbench-sidebar__heading">
           {{ section.heading }}
         </h2>
-        <RouterLink
-          v-for="item in section.items"
-          :key="item.label"
-          class="geo-workbench-sidebar__item"
-          :class="{ 'is-active': item.label === activeSidebarItem }"
-          :to="{ name: item.route, ...(item.route === 'onboarding' ? { query: { preview: '1' } } : {}) }"
-        >
-          <AppIcon :name="item.icon" :size="18" />
-          <span>{{ item.label }}</span>
-        </RouterLink>
+        <template v-for="item in section.items" :key="item.label">
+          <RouterLink
+            class="geo-workbench-sidebar__item"
+            :class="{ 'is-agent-active': 'selected' in item && item.selected }"
+            :to="{ name: item.route, ...(item.route === 'onboarding' ? { query: { preview: '1' } } : {}) }"
+          >
+            <span class="geo-workbench-sidebar__icon" :class="{ 'is-highlighted': 'selected' in item && item.selected }">
+              <AppIcon :name="item.icon" :size="16" />
+            </span>
+            <span class="geo-workbench-sidebar__label">{{ item.label }}</span>
+            <span v-if="'tier' in item" class="geo-workbench-sidebar__tier">{{ item.tier }}</span>
+            <AppIcon v-if="'children' in item || 'tier' in item" class="geo-workbench-sidebar__chevron" name="chevronDown" :size="14" />
+          </RouterLink>
+          <div v-if="'children' in item" class="geo-workbench-sidebar__children">
+            <RouterLink
+              v-for="child in item.children"
+              :key="child.label"
+              :to="{ name: child.route }"
+              class="geo-workbench-sidebar__child"
+            >
+              {{ child.label }}
+            </RouterLink>
+          </div>
+        </template>
       </section>
       <RouterLink class="geo-workbench-sidebar__onboarding" :to="{ name: 'onboarding', query: { preview: '1' } }">
         新人引导演示
