@@ -5,7 +5,7 @@ import type { BuyerPersonaDraft } from './buyer-persona-validation'
 import { computed, ref, watch } from 'vue'
 import { Button, DropdownSelect, Input, Modal } from '../../ui/ce'
 import AppIcon from '../../ui/icons/AppIcon.vue'
-import { buyerPersonaTypeOptions, companySizeOptions, decisionRoleOptions, maxBuyerPersonas, purchaseStageOptions } from './buyer-persona-options'
+import { buyerPersonaTypeOptions, companySizeOptions, maxBuyerPersonas, purchaseStageOptions } from './buyer-persona-options'
 import { validateBuyerPersonas } from './buyer-persona-validation'
 
 type PersistPersonas = (personas: BuyerPersona[]) => Promise<BuyerPersona[]>
@@ -15,8 +15,6 @@ const props = defineProps<{
   mode: 'add' | 'edit' | 'view'
   typeOptions?: readonly DropdownSelectOption[]
   stageOptions?: readonly DropdownSelectOption[]
-  companyScaleOptions?: readonly DropdownSelectOption[]
-  decisionRoleOptions?: readonly DropdownSelectOption[]
   persistPersonas?: PersistPersonas
 }>()
 
@@ -32,8 +30,7 @@ const saving = ref(false)
 const saveError = ref('')
 const availableTypeOptions = computed(() => props.typeOptions ?? buyerPersonaTypeOptions)
 const availableStageOptions = computed(() => props.stageOptions ?? purchaseStageOptions)
-const availableCompanySizeOptions = computed(() => props.companyScaleOptions ?? companySizeOptions)
-const availableDecisionRoleOptions = computed(() => props.decisionRoleOptions ?? decisionRoleOptions)
+const availableCompanySizeOptions = computed(() => companySizeOptions)
 const isReadOnly = computed(() => props.mode === 'view')
 const remainingTypes = computed(() => availableTypeOptions.value.filter(option => !drafts.value.some(item => item.type === option.value)))
 const purchaseStageChoices = [
@@ -43,10 +40,6 @@ const purchaseStageChoices = [
 const companySizeChoices = [
   { value: '', label: '请选择', disabled: true },
   ...availableCompanySizeOptions.value,
-]
-const decisionRoleChoices = [
-  { value: '', label: '请选择', disabled: true },
-  ...availableDecisionRoleOptions.value,
 ]
 
 function newDraft(): BuyerPersonaDraft {
@@ -134,8 +127,10 @@ async function save() {
   try {
     const next = drafts.value.map(item => ({ ...item }))
     const saved = props.persistPersonas ? await props.persistPersonas(next) : next
-    emit('saved', saved)
+    // Close the dialog before notifying parents. Parent listeners may replace
+    // the persona list (or change onboarding steps) as part of the save.
     open.value = false
+    emit('saved', saved)
   }
   catch (cause) {
     saveError.value = cause instanceof Error ? cause.message : '保存人设失败，请重试。'
@@ -250,21 +245,20 @@ watch([open, () => props.mode], ([isOpen]) => {
                   v-else
                   v-model="persona.companySize"
                   :options="companySizeChoices"
-                  v-bind="{ ariaLabel: `人设 ${index + 1} 企业规模` }"
+                  v-bind="{ ariaLabel: '请选择企业规模' }"
                   panel-width="100%"
                 />
               </div>
               <div class="buyer-persona-field">
-                <label :id="`persona-decision-role-label-${persona.id}`">决策角色</label>
+                <label :for="`persona-decision-role-${persona.id}`">决策角色</label>
                 <div v-if="isReadOnly" class="buyer-persona-field__value">
-                  {{ persona.decisionRole ? optionLabel(availableDecisionRoleOptions, persona.decisionRole) : '—' }}
+                  {{ displayOptional(persona.decisionRole) }}
                 </div>
-                <DropdownSelect
+                <Input
                   v-else
+                  :id="`persona-decision-role-${persona.id}`"
                   v-model="persona.decisionRole"
-                  :options="decisionRoleChoices"
-                  v-bind="{ ariaLabel: `人设 ${index + 1} 决策角色`, ariaLabelledby: `persona-decision-role-label-${persona.id}` }"
-                  panel-width="100%"
+                  placeholder="如：老板、总经理、采购负责人"
                 />
               </div>
               <div class="buyer-persona-field">

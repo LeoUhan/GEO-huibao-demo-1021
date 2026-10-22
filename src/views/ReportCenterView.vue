@@ -20,7 +20,7 @@ const remainingQuota = shallowRef<number | null>(null)
 const quotaTotal = shallowRef(0)
 const quotaLoaded = shallowRef(false)
 const quotaError = shallowRef('')
-const cadence = shallowRef<ReportType>('weekly')
+const cadence: ReportType = 'weekly'
 const reportFilter = shallowRef<ReportFilter>('all')
 const pageNum = shallowRef(1)
 const pageSize = 20
@@ -200,7 +200,7 @@ function changeFilter(filter: ReportFilter) {
     <p v-if="quotaError" class="quota-error" role="status">
       报告额度暂不可用：{{ quotaError }}
     </p>
-    <CadenceSelector v-model="cadence" />
+    <CadenceSelector :model-value="cadence" />
 
     <ReportListPanel
       :model-value="reportFilter"

@@ -3,7 +3,9 @@ import type { DrawerSize } from '../../ui/ce/drawer/types'
 import Button from '../../ui/ce/button/Button.vue'
 import Drawer from '../../ui/ce/drawer/Drawer.vue'
 
-defineProps<{ open: boolean, title: string, subtitle?: string, eyebrow?: string, size?: DrawerSize, titleFirst?: boolean }>()
+withDefaults(defineProps<{ open: boolean, title: string, subtitle?: string, eyebrow?: string, size?: DrawerSize, titleFirst?: boolean, showFooter?: boolean }>(), {
+  showFooter: true,
+})
 const emit = defineEmits<{ close: [] }>()
 </script>
 
@@ -20,7 +22,7 @@ const emit = defineEmits<{ close: [] }>()
     @close="emit('close')"
   >
     <slot />
-    <template #footer>
+    <template v-if="showFooter" #footer>
       <slot name="footer">
         <Button type="button" @click="emit('close')">
           关闭

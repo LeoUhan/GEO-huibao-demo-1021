@@ -3,14 +3,14 @@ import type { BrandMetric } from '../../api/monitoring'
 import type { OverviewTrend } from '../../data/monitoring-api-adapters'
 import { computed } from 'vue'
 import MonitoringEChart from '../visibility-monitoring/analysis/MonitoringEChart.vue'
+import MetricDefinitionButton from './MetricDefinitionButton.vue'
 import { createOverviewTrendOption } from './overview-chart-options'
-import OverviewInfoIcon from './OverviewInfoIcon.vue'
 
 const props = defineProps<{ trend: OverviewTrend, brandMetric: BrandMetric | null }>()
 const metricDefinitions = [
   { id: 'soa', label: '品牌提及率（SOA）', field: 'mentionRate', previous: 'mentionVsPrevPp', first: 'mentionVsFirstPp', tone: 'blue' },
   { id: 'recommendation', label: '品牌推荐率', field: 'recommendRate', previous: 'recommendVsPrevPp', first: 'recommendVsFirstPp', tone: 'green' },
-  { id: 'citation', label: '官网引用率', field: 'citationRate', previous: 'citeVsPrevPp', first: 'citeVsFirstPp', tone: 'cyan' },
+  { id: 'officialCitation', label: '官网引用率', field: 'citationRate', previous: 'citeVsPrevPp', first: 'citeVsFirstPp', tone: 'cyan' },
   { id: 'sov', label: '声量份额（SOV）', field: 'sovRate', previous: 'sovVsPrevPp', first: 'sovVsFirstPp', tone: 'violet' },
 ] as const
 const formatRate = (value: number | null | undefined) => value == null ? '—' : `${value}%`
@@ -45,7 +45,7 @@ const sentimentLabel = computed(() => props.brandMetric
       <div class="overview-metrics__cards">
         <article v-for="metric in metricCards" :key="metric.id" class="overview-metric-card" :data-metric="metric.id">
           <div class="overview-metric-card__heading">
-            <h3>{{ metric.label }}</h3>
+            <h3>{{ metric.label }} <MetricDefinitionButton :id="metric.id" /></h3>
           </div>
           <div class="overview-metric-card__value">
             <span>本次监测</span>
@@ -71,11 +71,16 @@ const sentimentLabel = computed(() => props.brandMetric
 
       <div class="overview-metrics__insights">
         <article class="overview-insight" data-testid="average-rank">
-          <span class="overview-insight__label">平均位次 (Rank) <OverviewInfoIcon /></span>
+          <span class="overview-insight__label">平均位次（Rank） <MetricDefinitionButton id="rank" /></span>
           <strong>{{ brandMetric?.avgRank == null ? '—' : `${brandMetric.avgRank} 位` }}</strong>
+          <div class="overview-insight__top-ranks" aria-label="Top1、Top3 和 Top5 位次率">
+            <span>Top1率 <b>{{ formatRate(brandMetric?.top1Rate) }}</b><MetricDefinitionButton id="topRank" /></span>
+            <span>Top3率 <b>{{ formatRate(brandMetric?.top3Rate) }}</b><MetricDefinitionButton id="topRank" /></span>
+            <span>Top5率 <b>{{ formatRate(brandMetric?.top5Rate) }}</b><MetricDefinitionButton id="topRank" /></span>
+          </div>
         </article>
         <article class="overview-insight" data-testid="factual-accuracy">
-          <span class="overview-insight__label">讲对了吗（事实准确率） <OverviewInfoIcon /></span>
+          <span class="overview-insight__label">讲对了吗（事实准确率） <MetricDefinitionButton id="factAccuracy" /></span>
           <strong>事实准确率 {{ formatRate(brandMetric?.factAccuracyRate) }}</strong>
           <small>情绪样本：{{ sentimentLabel }}</small>
         </article>
@@ -95,7 +100,7 @@ const sentimentLabel = computed(() => props.brandMetric
 .overview-metrics__cards { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
 .overview-metric-card { min-width: 0; padding: 14px 16px; border: 1px solid var(--border-default); border-radius: 10px; background: var(--background-primary); box-shadow: 0 1px 2px rgb(20 35 60 / 5%); }
 .overview-metric-card__heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-.overview-metric-card h3 { overflow: hidden; margin: 0; color: var(--text-secondary); font-size: var(--font-size-caption); line-height: var(--line-height-caption); font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.overview-metric-card h3 { display: flex; align-items: center; gap: 4px; overflow: hidden; margin: 0; color: var(--text-secondary); font-size: var(--font-size-caption); line-height: var(--line-height-caption); font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
 .overview-metric-card__value { display: flex; align-items: baseline; justify-content: space-between; min-height: 46px; color: var(--text-secondary); font-size: 12px; line-height: 1.2; }
 .overview-metric-card__value strong { color: var(--text-primary); font-size: 32px; font-weight: 720; }
 .overview-metric-card__comparison { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; padding-top: 8px; border-top: 1px solid var(--border-divider); color: var(--text-muted); font-size: 11px; }
@@ -112,6 +117,9 @@ const sentimentLabel = computed(() => props.brandMetric
 .overview-insight strong span { color: var(--text-muted); font-weight: 400; }
 .overview-insight strong em { color: var(--status-error-foreground); font-size: inherit; font-style: normal; }
 .overview-insight small { color: var(--text-muted); font-size: 11px; }
+.overview-insight__top-ranks { display: flex; flex-wrap: wrap; gap: 10px; color: var(--text-muted); font-size: 11px; }
+.overview-insight__top-ranks span { display: inline-flex; align-items: center; gap: 4px; }
+.overview-insight__top-ranks b { color: var(--text-primary); }
 .overview-accuracy-bar { display: flex; height: 7px; overflow: hidden; border-radius: 999px; background: var(--background-tertiary, var(--border-divider)); }
 .overview-accuracy-bar i:first-child { width: 93%; background: var(--status-success-foreground, #047857); }
 .overview-accuracy-bar i:last-child { width: 7%; background: var(--status-error-foreground); }

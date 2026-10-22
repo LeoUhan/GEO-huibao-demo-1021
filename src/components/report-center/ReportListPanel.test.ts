@@ -16,7 +16,7 @@ describe('reportListPanel', () => {
     expect(wrapper.text()).not.toContain('按时间倒序整理的监测快照与周期汇报')
     expect(wrapper.text()).toContain('按时间倒序')
     expect(wrapper.text()).not.toContain('最近生成优先')
-    expect(wrapper.get('[data-report-filter="all"]').text()).toContain('4')
+    expect(wrapper.get('[data-report-filter="all"]').text()).toContain('5')
     expect(wrapper.get('[data-report-filter="weekly"]').text()).toContain('2')
     expect(wrapper.find('.report-card__action svg.lucide-arrow-right').exists()).toBe(true)
     await wrapper.get('[data-report-filter="monthly"]').trigger('click')
@@ -35,12 +35,12 @@ describe('reportListPanel', () => {
       props: {
         reports: initialReports,
         modelValue: 'weekly',
-        counts: { all: 4, weekly: 2, monthly: 1, quarterly: 1, adhoc: 0 },
+        counts: { all: 5, weekly: 2, monthly: 1, quarterly: 1, adhoc: 1 },
       },
     })
 
     expect(wrapper.findAll('.report-card')).toHaveLength(2)
-    expect(wrapper.get('[data-report-filter="all"] .filter-count').text()).toBe('4')
+    expect(wrapper.get('[data-report-filter="all"] .filter-count').text()).toBe('5')
     expect(wrapper.findAll('.report-card .report-card__type').every(el => el.text() === '周报')).toBe(true)
     wrapper.unmount()
   })
@@ -55,14 +55,15 @@ describe('reportListPanel', () => {
     wrapper.unmount()
   })
 
-  it('offers an on-demand report filter with its own empty state', () => {
+  it('offers the supplied on-demand report prototype from its filter', () => {
     const wrapper = mount(ReportListPanel, {
       props: { reports: initialReports, modelValue: 'adhoc' },
     })
 
     expect(wrapper.get('[data-report-filter="adhoc"]').text()).toContain('次报')
-    expect(wrapper.get('[data-report-filter="adhoc"]').text()).toContain('0')
-    expect(wrapper.get('[role="status"]').text()).toContain('暂无次报')
+    expect(wrapper.get('[data-report-filter="adhoc"]').text()).toContain('1')
+    expect(wrapper.findAll('.report-card')).toHaveLength(1)
+    expect(wrapper.get('[data-open-report="adhoc-2026-09-12"]').text()).toContain('查看报告')
     wrapper.unmount()
   })
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { presentCredibility } from './credibility-presentation'
+import { presentCredibility, presentCredibilityFromInterval } from './credibility-presentation'
 
 describe('presentCredibility', () => {
   it('maps service-provided high, medium, and low grades to user copy', () => {
@@ -20,5 +20,13 @@ describe('presentCredibility', () => {
       label: '',
       reason: '',
     })
+  })
+
+  it('derives a trend grade from the 95% confidence-interval margin', () => {
+    expect(presentCredibilityFromInterval(2.8).label).toBe('中 · 趋势级')
+    expect(presentCredibilityFromInterval(2.8).reason).toContain('±2.8pp')
+    expect(presentCredibilityFromInterval(1.7).label).toBe('高 · 趋势级')
+    expect(presentCredibilityFromInterval(6.1).label).toBe('低 · 趋势级')
+    expect(presentCredibilityFromInterval(null).label).toBe('')
   })
 })

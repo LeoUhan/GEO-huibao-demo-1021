@@ -39,6 +39,12 @@ export function createAppRouter() {
             meta: { title: '优化中心', requiresOnboarding: true },
           },
           {
+            path: 'operations-review',
+            name: 'operations-review',
+            component: () => import('../views/OperationsReviewView.vue'),
+            meta: { title: '运营复盘与 Agent 升级', requiresOnboarding: true },
+          },
+          {
             path: 'optimization/tasks/:taskId',
             name: 'task-detail',
             component: () => import('../views/TaskDetailView.vue'),
@@ -56,13 +62,13 @@ export function createAppRouter() {
             component: () => import('../views/ReportCenterView.vue'),
             meta: { title: '报告中心', requiresOnboarding: true },
           },
+          {
+            path: 'onboarding',
+            name: 'onboarding',
+            component: () => import('../views/OnboardingView.vue'),
+            meta: { title: '品牌知识引导' },
+          },
         ],
-      },
-      {
-        path: '/onboarding',
-        name: 'onboarding',
-        component: () => import('../views/OnboardingView.vue'),
-        meta: { title: '品牌知识引导' },
       },
       {
         path: '/market-setup',

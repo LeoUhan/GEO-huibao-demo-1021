@@ -59,6 +59,22 @@ export const initialReports: ReportRecord[] = [
     status: 'generated',
   },
   {
+    id: 'adhoc-2026-09-12',
+    type: 'adhoc',
+    title: '专项监测次报',
+    period: '专项触发 · 单次监测',
+    date: '2026-09-12',
+    summary: '围绕重点竞品与关键问题进行单次监测，快速查看本次变化与引用证据。',
+    tags: ['专项结果', '重点问题', '竞品变化', '引用证据'],
+    sections: [
+      { title: '专项结果', summary: '汇总本次专项监测的核心发现。' },
+      { title: '重点问题', summary: '查看本次关注问题的回答与品牌表现。' },
+      { title: '引用证据', summary: '列出支持本次结论的回答和来源页面。' },
+    ],
+    questionIds: ['Q01', 'Q03'],
+    status: 'generated',
+  },
+  {
     id: 'quarterly-2026-q3',
     type: 'quarterly',
     title: '季度成果汇报',

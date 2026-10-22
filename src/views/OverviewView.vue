@@ -1,10 +1,12 @@
 <script setup lang="ts">
 import type { BuyerPersonaRecord, GeoDictionaryItem, GeoMarket, MarketThemeRecord, MonitoringQuestionRecord, SelectedPlatformRecord } from '../api/geo-config'
 import type { BrandMetric, MarketTrend, PlatformMetric } from '../api/monitoring'
-import { computed, onMounted, shallowRef } from 'vue'
+import { computed, inject, onMounted, shallowRef } from 'vue'
+import { routerKey } from 'vue-router'
 import { getDictionary, getMarketPersonas, getMarketPlatforms, getMarketQuestions, getMarkets, getMarketThemes } from '../api/geo-config'
 import { getBrandMetrics, getMarketTrend, getPlatformMetrics, getRoundDetail } from '../api/monitoring'
 import OverviewMetrics from '../components/overview/OverviewMetrics.vue'
+import AgentWorkQueue from '../components/overview/AgentWorkQueue.vue'
 import PlatformPerformance from '../components/overview/PlatformPerformance.vue'
 import { Button, Modal } from '../components/ui/ce'
 import Spinner from '../components/ui/ce/spinner/Spinner.vue'
@@ -12,6 +14,7 @@ import MonitoringOverview from '../components/visibility-monitoring/analysis/Mon
 import GeoPageIntro from '../components/workbench/shared/GeoPageIntro.vue'
 import { useMonitoringSchedule } from '../composables/use-monitoring-schedule'
 import { toOverviewTrend } from '../data/monitoring-api-adapters'
+import { overviewQueuePreview } from '../data/overview-data'
 import { formatMarketLanguage, toMonitoringOverviewMetrics } from '../data/monitoring-overview-summary'
 import { useGeoContextStore } from '../stores/geo-context'
 
@@ -31,6 +34,7 @@ const loading = shallowRef(true)
 const error = shallowRef('')
 const monitoringSchedule = useMonitoringSchedule()
 const geoContext = useGeoContextStore()
+const router = inject(routerKey, null)
 const configurationMetrics = shallowRef<OverviewConfigurationData>({ market: '', personas: null, questions: null, themes: null, platforms: null })
 const enableConfirmationOpen = shallowRef(false)
 const monitoringStatusText = computed(() => {
@@ -116,6 +120,18 @@ async function enableCurrentMarket() {
     enableConfirmationOpen.value = false
 }
 
+function openQueueItem(item: typeof overviewQueuePreview[number]) {
+  if (item.id === 'candidate-competitors') {
+    void router?.push({ name: 'visibility-monitoring' })
+    return
+  }
+  void router?.push({ name: 'optimization' })
+}
+
+function openQueueSecondaryItem() {
+  void router?.push({ name: 'visibility-monitoring' })
+}
+
 onMounted(() => {
   void loadOverview()
   void loadConfigurationMetrics()
@@ -162,6 +178,7 @@ onMounted(() => {
       </div>
       <OverviewMetrics :trend="toOverviewTrend(trend)" :brand-metric="brandMetric" />
       <PlatformPerformance :metrics="platformMetrics" />
+      <AgentWorkQueue :items="overviewQueuePreview" @open-item="openQueueItem" @open-secondary-item="openQueueSecondaryItem" />
     </template>
     <Modal v-model:open="enableConfirmationOpen" title="开启当前市场？" width="min(760px, calc(100vw - 32px))" confirm-text="开启当前市场" cancel-text="暂不开启" processing-text="开启中…" close-label="关闭开启确认" :footer="undefined">
       <p class="overview-page__enable-copy">

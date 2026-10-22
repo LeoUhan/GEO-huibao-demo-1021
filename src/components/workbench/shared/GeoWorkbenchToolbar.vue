@@ -4,7 +4,7 @@ import MarketSwitcher from '../../market/MarketSwitcher.vue'
 import GeoSectionNav from './GeoSectionNav.vue'
 
 defineProps<{
-  activePage: GeoPage | 'overview' | 'visibility-monitoring' | 'report-center'
+  activePage: GeoPage | 'overview' | 'visibility-monitoring' | 'report-center' | 'operations-review'
   role: UserRole
 }>()
 const emit = defineEmits<{ 'update:role': [role: UserRole] }>()
@@ -13,12 +13,7 @@ const emit = defineEmits<{ 'update:role': [role: UserRole] }>()
 <template>
   <div class="geo-workbench-toolbar">
     <div class="geo-workbench-toolbar__main">
-      <div class="geo-workbench-toolbar__navigation">
-        <GeoSectionNav :active-page="activePage" />
-        <RouterLink class="geo-workbench-toolbar__onboarding-demo" :to="{ name: 'onboarding', query: { preview: '1' } }">
-          新人引导演示
-        </RouterLink>
-      </div>
+      <GeoSectionNav :active-page="activePage" />
       <div class="geo-workbench-toolbar__role" aria-label="本地模拟角色">
         <span>本地角色</span>
         <div class="geo-role-switch" role="group" aria-label="切换体验角色">

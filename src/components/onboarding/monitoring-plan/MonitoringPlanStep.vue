@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import type { DropdownSelectOption } from '../../ui/ce'
 import type { MonitoringFrequency, MonitoringPlatform } from './monitoring-plan'
 import { computed } from 'vue'
 import { Button, SegmentedControl, Tag } from '../../ui/ce'
@@ -15,7 +14,7 @@ const props = defineProps<{
   platforms: MonitoringPlatform[]
   marketSetup?: boolean
   market?: string
-  platformOptions?: readonly DropdownSelectOption[]
+  planName?: string
   saving?: boolean
 }>()
 
@@ -24,16 +23,20 @@ const emit = defineEmits<{
   platformsChanged: [platforms: MonitoringPlatform[]]
 }>()
 
+const visibleFrequency = computed<MonitoringFrequency>(() => props.frequency === 'monthly' ? 'monthly' : 'weekly')
+const frequencyOptions = computed(() => monitoringFrequencyOptions.map(option => ({
+  ...option,
+  disabled: option.value !== visibleFrequency.value,
+})))
 const executionRule = computed(() => {
-  const label = monitoringFrequencyOptions.find(option => option.value === props.frequency)?.label ?? '每周'
-  return `${label}按系统固定采集日与时间自动采集`
+  const label = monitoringFrequencyOptions.find(option => option.value === visibleFrequency.value)?.label ?? '每周'
+  const planName = props.planName?.trim() || '当前套餐'
+  const plan = `${planName} ${planName.toLocaleLowerCase()}`
+  if (plan.includes('入门') || plan.includes('basic') || plan.includes('starter'))
+    return `入门版每月按系统固定采集；可升级至成长版/专业版，提升采集频率。`
+  return `${planName}按${label}由系统固定采集。`
 })
-const availablePlatforms = computed(() => props.platformOptions?.map(option => ({
-  value: option.value as MonitoringPlatform,
-  label: option.label,
-  mark: option.label.slice(0, 1),
-  markTone: option.value,
-})) ?? monitoringPlatformOptions)
+const availablePlatforms = monitoringPlatformOptions
 
 function togglePlatform(platform: MonitoringPlatform) {
   emit('platformsChanged', toggleMonitoringPlatform(props.platforms, platform))
@@ -66,19 +69,17 @@ function togglePlatform(platform: MonitoringPlatform) {
           <OnboardingHelp label="采集频率说明" message="设置系统自动采集的周期。采集日期与执行时间将按系统固定规则执行。" />
         </div>
         <Tag tone="neutral" variant="soft" size="sm">
-          可调整
+          按套餐执行
         </Tag>
       </div>
 
       <div class="monitoring-plan-step__frequency">
-        <span id="monitoring-frequency-label" class="monitoring-plan-step__label">采集频率</span>
         <SegmentedControl
           class="monitoring-plan-step__frequency-options"
-          :model-value="frequency"
-          :options="monitoringFrequencyOptions"
-          aria-labelledby="monitoring-frequency-label"
+          :model-value="visibleFrequency"
+          :options="frequencyOptions"
+          aria-labelledby="monitoring-frequency-title"
           name="monitoring-frequency"
-          :disabled="saving"
           @update:model-value="emit('frequencyChanged', $event as MonitoringFrequency)"
         />
         <div class="monitoring-plan-step__rule">
@@ -97,7 +98,7 @@ function togglePlatform(platform: MonitoringPlatform) {
           <OnboardingHelp label="AI 平台说明" message="选择首次监测需要采集的平台" />
         </div>
         <Tag tone="neutral" variant="soft" size="sm">
-          {{ availablePlatforms.length }} 个可选
+          {{ availablePlatforms.filter(platform => !platform.disabled).length }} 个可选
         </Tag>
       </div>
 
@@ -108,7 +109,7 @@ function togglePlatform(platform: MonitoringPlatform) {
           class="monitoring-plan-platform"
           variant="outline"
           :aria-pressed="platforms.includes(platform.value)"
-          :disabled="saving"
+          :disabled="saving || platform.disabled"
           @click="togglePlatform(platform.value)"
         >
           <span class="monitoring-plan-platform__content">
@@ -117,7 +118,8 @@ function togglePlatform(platform: MonitoringPlatform) {
             </span>
             <span class="monitoring-plan-platform__identity">
               <span class="monitoring-plan-platform__mark" :data-platform="platform.markTone" aria-hidden="true">{{ platform.mark }}</span>
-              <span>{{ platform.label }}</span>
+              <span class="monitoring-plan-platform__label">{{ platform.label }}</span>
+              <span v-if="platform.hint" class="monitoring-plan-platform__hint">{{ platform.hint }}</span>
             </span>
           </span>
         </Button>
@@ -141,6 +143,7 @@ function togglePlatform(platform: MonitoringPlatform) {
 .monitoring-plan-step__frequency-options :deep(.ce-segmented__input) { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
 .monitoring-plan-step__frequency-options :deep(.ce-segmented__option) { display: inline-flex; min-height: 40px; align-items: center; justify-content: center; padding: var(--space-2) var(--space-4); border: 1px solid var(--border-default); border-radius: var(--radius-control); background: var(--background-primary); color: var(--text-secondary); font-size: var(--font-size-body); line-height: var(--line-height-body); font-weight: var(--weight-medium); cursor: pointer; transition: border-color var(--motion-fast), background-color var(--motion-fast), color var(--motion-fast); }
 .monitoring-plan-step__frequency-options :deep(.ce-segmented__input:checked + .ce-segmented__option) { border-color: var(--action-accent); background: var(--action-subtle-background); color: var(--action-accent); }
+.monitoring-plan-step__frequency-options :deep(.ce-segmented__input:disabled:not(:checked) + .ce-segmented__option) { border-color: var(--border-default); background: var(--background-secondary); color: var(--text-muted); cursor: not-allowed; }
 .monitoring-plan-step__frequency-options :deep(.ce-segmented__input:focus-visible + .ce-segmented__option) { outline: 2px solid var(--action-accent); outline-offset: 2px; }
 .monitoring-plan-step__rule { display: flex; min-height: 48px; align-items: center; justify-content: space-between; gap: var(--space-4); margin-top: var(--space-2); padding: var(--space-3) var(--space-4); border: 1px solid var(--border-default); border-radius: var(--radius-control); background: var(--background-secondary); color: var(--text-muted); font-size: var(--font-size-caption); line-height: var(--line-height-caption); }
 .monitoring-plan-step__rule strong { color: var(--text-secondary); font-weight: var(--weight-semibold); text-align: right; }
@@ -149,11 +152,15 @@ function togglePlatform(platform: MonitoringPlatform) {
 .monitoring-plan-step :deep(.ce-button.monitoring-plan-platform:hover:not(:disabled)) { border-color: var(--border-strong, var(--border-default)); background: var(--background-secondary); box-shadow: none; }
 .monitoring-plan-step :deep(.ce-button.monitoring-plan-platform[aria-pressed='true']) { border-color: var(--action-accent); background: var(--action-subtle-background); color: var(--text-primary); }
 .monitoring-plan-step :deep(.ce-button.monitoring-plan-platform[aria-pressed='true']:hover:not(:disabled)) { border-color: var(--action-accent); background: var(--action-subtle-background); }
+.monitoring-plan-step :deep(.ce-button.monitoring-plan-platform:disabled) { border-color: var(--border-default); background: var(--background-secondary); color: var(--text-muted); opacity: 1; cursor: not-allowed; }
+.monitoring-plan-step :deep(.ce-button.monitoring-plan-platform:disabled .monitoring-plan-platform__identity) { color: var(--text-muted); }
 .monitoring-plan-step :deep(.ce-button.monitoring-plan-platform:focus-visible) { outline: 2px solid var(--action-accent); outline-offset: 2px; }
 .monitoring-plan-platform :deep(.ce-button__content) { display: block; width: 100%; }
 .monitoring-plan-platform__content,.monitoring-plan-platform__identity { display: flex; min-width: 0; align-items: center; }
-.monitoring-plan-platform__content { justify-content: flex-start; gap: var(--space-2); }
-.monitoring-plan-platform__identity { gap: var(--space-2); color: var(--text-primary); font-size: var(--font-size-caption); line-height: var(--line-height-caption); font-weight: var(--weight-semibold); }
+.monitoring-plan-platform__content { justify-content: flex-start; gap: 6px; }
+.monitoring-plan-platform__identity { flex: 1 1 auto; gap: 4px; color: var(--text-primary); font-size: var(--font-size-caption); line-height: var(--line-height-caption); font-weight: var(--weight-semibold); }
+.monitoring-plan-platform__label { flex: 0 0 auto; white-space: nowrap; }
+.monitoring-plan-platform__hint { margin-left: auto; color: var(--text-muted); font-size: 11px; font-weight: var(--weight-medium); white-space: nowrap; }
 .monitoring-plan-platform__mark { display: inline-grid; width: 30px; height: 30px; flex: 0 0 30px; place-items: center; border: 1px solid var(--border-default); border-radius: var(--radius-control); background: var(--background-primary); color: var(--text-primary); font-size: 21px; line-height: 1; }
 .monitoring-plan-platform__mark[data-platform='perplexity'] { font-size: 22px; font-weight: var(--weight-semibold); }
 .monitoring-plan-platform__mark[data-platform='google'] { color: #4285f4; }

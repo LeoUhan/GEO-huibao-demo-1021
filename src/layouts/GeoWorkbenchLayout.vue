@@ -24,7 +24,37 @@ type FlowType = 'diagnosis' | 'optimization'
 interface Snapshot { findings: AuditFinding[], strategies: Strategy[], tasks: GeoTask[], reviews: Record<string, ReviewNote[]> }
 const route = useRoute()
 const router = useRouter()
-const activePage = computed<GeoPage | 'overview' | 'visibility-monitoring' | 'report-center'>(() => route.name === 'overview' ? 'overview' : route.name === 'visibility-monitoring' ? 'visibility-monitoring' : route.name === 'report-center' ? 'report-center' : ['optimization', 'task-detail'].includes(String(route.name)) ? 'optimization' : 'diagnosis')
+const isOnboardingPage = computed(() => route.name === 'onboarding')
+const activePage = computed<GeoPage | 'overview' | 'visibility-monitoring' | 'report-center' | 'operations-review'>(() => route.name === 'overview' ? 'overview' : route.name === 'visibility-monitoring' ? 'visibility-monitoring' : route.name === 'report-center' ? 'report-center' : route.name === 'operations-review' ? 'operations-review' : ['optimization', 'task-detail'].includes(String(route.name)) ? 'optimization' : 'diagnosis')
+const activeSidebarItem = computed(() => {
+  if (isOnboardingPage.value)
+    return undefined
+  if (route.name === 'operations-review')
+    return undefined
+  if (activePage.value === 'overview')
+    return '网站概览'
+  if (activePage.value === 'diagnosis')
+    return '网站审查'
+  if (activePage.value === 'optimization')
+    return '内容运营'
+  if (activePage.value === 'visibility-monitoring')
+    return '运维与设置'
+  return '数据分析'
+})
+const sidebarSections = [
+  { heading: '', items: [{ label: '网站建设', icon: 'globe', route: 'overview' }] },
+  { heading: '整合视图', items: [{ label: '增长驾驶舱', icon: 'dashboard', route: 'overview' }] },
+  { heading: '增长入口', items: [
+    { label: '网站概览', icon: 'dashboard', route: 'overview' },
+    { label: '网站审查', icon: 'visibility', route: 'diagnosis' },
+    { label: '内容运营', icon: 'optimize', route: 'optimization' },
+    { label: '智能落地页', icon: 'globe', route: 'optimization' },
+    { label: '留资线索', icon: 'success', route: 'overview' },
+    { label: '数据分析', icon: 'report', route: 'report-center' },
+    { label: '运维与设置', icon: 'visibility', route: 'visibility-monitoring' },
+  ] },
+  { heading: '企业数字资产', items: [{ label: '企业知识库', icon: 'report', route: 'onboarding' }] },
+] as const
 const serviceMode = shallowRef<ServiceMode>('managed')
 const role = shallowRef<UserRole>('ops')
 const activePersona = shallowRef('engineering')
@@ -539,10 +569,46 @@ provide(geoWorkbenchRouteContextKey, {
 
 <template>
   <div class="geo-workbench">
-    <main class="geo-main">
-      <GeoWorkbenchToolbar :active-page="activePage" :role="role" @update:role="role = $event" />
+    <header class="geo-app-header">
+      <div class="geo-app-header__identity">
+        <span class="geo-app-header__logo" aria-hidden="true">AI</span>
+        <strong>独立站营销智能体</strong>
+        <span class="geo-app-header__divider" aria-hidden="true" />
+        <span class="geo-app-header__tenant">APW Waterjet</span>
+        <span class="geo-app-header__plan">专业版</span>
+        <AppIcon name="chevronDown" :size="16" class="geo-app-header__chevron" />
+      </div>
+      <div class="geo-app-header__account" aria-label="当前账户">
+        <span class="geo-app-header__theme" aria-hidden="true">◐</span>
+        <span class="geo-app-header__avatar" aria-hidden="true">运</span>
+        <span>运营管理员</span>
+        <AppIcon name="chevronDown" :size="14" />
+      </div>
+    </header>
+    <aside class="geo-workbench-sidebar">
+      <section v-for="section in sidebarSections" :key="section.heading || 'primary'" class="geo-workbench-sidebar__section">
+        <h2 v-if="section.heading" class="geo-workbench-sidebar__heading">
+          {{ section.heading }}
+        </h2>
+        <RouterLink
+          v-for="item in section.items"
+          :key="item.label"
+          class="geo-workbench-sidebar__item"
+          :class="{ 'is-active': item.label === activeSidebarItem }"
+          :to="{ name: item.route, ...(item.route === 'onboarding' ? { query: { preview: '1' } } : {}) }"
+        >
+          <AppIcon :name="item.icon" :size="18" />
+          <span>{{ item.label }}</span>
+        </RouterLink>
+      </section>
+      <RouterLink class="geo-workbench-sidebar__onboarding" :to="{ name: 'onboarding', query: { preview: '1' } }">
+        新人引导演示
+      </RouterLink>
+    </aside>
+    <div class="geo-main" :class="{ 'geo-main--onboarding': isOnboardingPage }">
+      <GeoWorkbenchToolbar v-if="!isOnboardingPage" :active-page="activePage" :role="role" @update:role="role = $event" />
       <RouterView />
-    </main>
+    </div>
 
     <GeoDrawer :open="drawer.type !== null" :title="drawerTitle()" :subtitle="drawerSubtitle()" :eyebrow="drawerEyebrow()" :size="drawer.type === 'strategy' ? 560 : drawer.type === 'audit-finding' ? 600 : 400" :title-first="drawer.type === 'strategy' || drawer.type === 'audit-finding'" @close="closeDrawer">
       <template v-if="drawer.type === 'strategy'">

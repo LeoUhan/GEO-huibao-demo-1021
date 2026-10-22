@@ -4,7 +4,7 @@ import type { CitedPage, MonitoringPlatformId, SourceDomain } from '../../../dat
 const props = defineProps<{ sources: readonly SourceDomain[], pages: readonly CitedPage[], platforms: readonly { id: MonitoringPlatformId, label: string }[] }>()
 const emit = defineEmits<{ selectSource: [sourceId: string] }>()
 function platformNames(ids: MonitoringPlatformId[]) {
-  return ids.map(id => props.platforms.find(platform => platform.id === id)?.label ?? id).join(' · ')
+  return ids.map(id => ({ id, label: props.platforms.find(platform => platform.id === id)?.label ?? id }))
 }
 function domainName(id: string) {
   return props.sources.find(source => source.id === id)?.domain ?? id
@@ -26,7 +26,7 @@ function domainName(id: string) {
                 <button type="button" class="vm-link vm-domain" @click="emit('selectSource', source.id)">
                   {{ source.domain }}
                 </button>
-              </th><td>{{ source.questionCount }}</td><td>{{ source.citationCount }}</td><td>{{ platformNames(source.platforms) }}</td><td><span class="vm-status" :class="source.ownBrandMentioned ? 'is-yes' : 'is-no'">{{ source.ownBrandMentioned ? '是' : '否' }}</span></td><td><span v-if="source.competitors.length" class="vm-chip-list"><span v-for="competitor in source.competitors" :key="competitor">{{ competitor }}</span></span><span v-else>否</span></td><td class="vm-table-action-cell">
+              </th><td>{{ source.questionCount }}</td><td>{{ source.citationCount }}</td><td><span class="vm-platform-list"><span v-for="platform in platformNames(source.platforms)" :key="platform.id" class="vm-platform-chip"><i :class="`platform-${platform.id}`" />{{ platform.label }}</span></span></td><td><span class="vm-status" :class="source.ownBrandMentioned ? 'is-yes' : 'is-no'">{{ source.ownBrandMentioned ? '是' : '否' }}</span></td><td><span v-if="source.competitors.length" class="vm-chip-list"><span class="vm-status is-confirmed">是</span><span v-for="competitor in source.competitors" :key="competitor">{{ competitor }}</span></span><span v-else class="vm-status is-no">否</span></td><td class="vm-table-action-cell">
                 <button class="vm-link geo-table-detail-button" type="button" @click="emit('selectSource', source.id)">
                   查看详情
                 </button>
@@ -49,7 +49,7 @@ function domainName(id: string) {
                 <button type="button" class="vm-link vm-page-title" @click="emit('selectSource', page.id)">
                   {{ page.title }}
                 </button>
-              </th><td>{{ domainName(page.domainId) }}</td><td>{{ page.questionIds.length }}</td><td>{{ page.citations }}</td><td>{{ platformNames(page.platforms) }}</td><td class="vm-summary">
+              </th><td>{{ domainName(page.domainId) }}</td><td>{{ page.questionIds.length }}</td><td>{{ page.citations }}</td><td><span class="vm-platform-list"><span v-for="platform in platformNames(page.platforms)" :key="platform.id" class="vm-platform-chip"><i :class="`platform-${platform.id}`" />{{ platform.label }}</span></span></td><td class="vm-summary">
                 {{ page.summary }}
               </td><td class="vm-table-action-cell">
                 <button class="vm-link geo-table-detail-button" type="button" @click="emit('selectSource', page.id)">
@@ -90,5 +90,13 @@ tbody tr:last-child th, tbody tr:last-child td { border-bottom: 0; }
 .is-no { color: var(--status-error-foreground); background: var(--status-error-background); }
 .vm-chip-list { display: flex; flex-wrap: wrap; gap: 4px; }
 .vm-chip-list span { color: var(--action-accent); background: var(--action-subtle-background); }
+.vm-chip-list .is-confirmed { color: var(--action-accent); background: var(--action-subtle-background); }
+.vm-platform-list { display: flex; flex-wrap: wrap; gap: 5px; min-width: 126px; }
+.vm-platform-chip { display: inline-flex; align-items: center; gap: 5px; padding: 3px 8px; border: 1px solid var(--border-default); border-radius: 999px; color: var(--text-secondary); font-size: 11px; white-space: nowrap; }
+.vm-platform-chip i { width: 7px; height: 7px; border-radius: 50%; background: #2563eb; }
+.platform-perplexity { background: #7c3aed !important; }
+.platform-google-ai { background: #f59e0b !important; }
+.platform-gemini { background: #059669 !important; }
+.platform-ai-mode { background: #0891b2 !important; }
 @media (max-width: 520px) { .vm-card { padding: 16px; } .vm-section-head { flex-direction: column; } }
 </style>

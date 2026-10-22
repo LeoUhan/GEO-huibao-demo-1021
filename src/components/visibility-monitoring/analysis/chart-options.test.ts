@@ -33,4 +33,9 @@ describe('visibility chart options', () => {
     const series = option.series as Array<{ data: Array<{ value: [number, number, number | null] }> }>
     expect(series[0]?.data[0]?.value[2]).toBeNull()
   })
+
+  it('keeps heatmap plots aligned toward the left side of the card', () => {
+    const option = createHeatmapOption({ rows: ['主管'], columns: ['主题'], cells: [] })
+    expect(option.grid).toMatchObject({ left: 8, containLabel: true })
+  })
 })

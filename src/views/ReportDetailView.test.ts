@@ -16,9 +16,20 @@ describe('standalone report detail', () => {
     const wrapper = mount(ReportDetailView, { global: { plugins: [router] } })
     await flushPromises()
 
-    expect(wrapper.find('h1').text()).toBe(first.title)
-    expect(wrapper.text()).toContain('GEO Agent')
-    expect(wrapper.find('.toolbar-link').attributes('href')).toBe('/report-center?siteId=demo-site-apw&marketId=1')
+    expect(wrapper.get('iframe').attributes('src')).toContain(`report-prototypes/${first.type}.html`)
+    expect(wrapper.get('iframe').attributes('title')).toContain('内容')
+    wrapper.unmount()
+  })
+
+  it.each(['weekly', 'adhoc', 'quarterly', 'monthly'] as const)('opens the supplied %s report prototype from its report record', async (type) => {
+    const record = (await import('../data/report-center-data')).initialReports.find(report => report.type === type)!
+    const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/reports/:reportId', component: ReportDetailView }] })
+    await router.push(`/reports/${mockReportId(record)}`)
+    await router.isReady()
+    const wrapper = mount(ReportDetailView, { global: { plugins: [router] } })
+    await flushPromises()
+
+    expect(wrapper.get('iframe').attributes('src')).toContain(`report-prototypes/${type}.html`)
     wrapper.unmount()
   })
 })

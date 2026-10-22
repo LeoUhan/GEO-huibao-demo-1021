@@ -35,3 +35,16 @@ export function presentCredibility(level: string | null | undefined): Credibilit
     reason: '',
   }
 }
+
+/** Map the 95% confidence-interval margin (pp) to the summary trend grade. */
+export function presentCredibilityFromInterval(ciValue: number | null | undefined): CredibilityPresentation {
+  if (ciValue === null || ciValue === undefined || !Number.isFinite(ciValue))
+    return { label: '', reason: '' }
+
+  const margin = Math.abs(ciValue)
+  const grade = margin <= 2 ? '高' : margin <= 5 ? '中' : '低'
+  return {
+    label: `${grade} · 趋势级`,
+    reason: `依据 95% 置信区间 ±${margin.toFixed(1)}pp 判断：±2.0pp 以内为高，±2.0–5.0pp 为中，超过 ±5.0pp 为低。`,
+  }
+}

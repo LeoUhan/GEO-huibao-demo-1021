@@ -1,5 +1,6 @@
 import { mount } from '@vue/test-utils'
 import { describe, expect, it } from 'vitest'
+import BuyerPersonaEditorDialog from './BuyerPersonaEditorDialog.vue'
 import BuyerPersonaStep from './BuyerPersonaStep.vue'
 
 const props = {
@@ -44,6 +45,18 @@ describe('buyerPersonaStep market setup copy', () => {
     expect(removeButton.text()).toBe('删除')
     expect(removeButton.attributes('data-variant')).toBe('outline')
     expect(removeButton.attributes('data-tone')).toBe('danger')
+  })
+
+  it('closes the editor when the saved event updates the parent persona list', async () => {
+    const wrapper = mount(BuyerPersonaStep, { props })
+    await wrapper.get('.buyer-persona-step__empty button').trigger('click')
+    const editor = wrapper.findComponent(BuyerPersonaEditorDialog)
+    expect(editor.props('open')).toBe(true)
+
+    editor.vm.$emit('saved', [])
+    await wrapper.vm.$nextTick()
+
+    expect(editor.props('open')).toBe(false)
   })
 
   it('shows the updated AI-generated defaults guidance', () => {

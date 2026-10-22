@@ -5,26 +5,29 @@ import MonitoringSettingsDialog from './MonitoringSettingsDialog.vue'
 const props = {
   open: true as const,
   frequency: 'weekly' as const,
-  platforms: [{ id: 'chatgpt', label: 'ChatGPT', enabled: true }, { id: 'gemini', label: 'Gemini', enabled: true }],
   selectedPlatforms: ['chatgpt'],
-  time: '05:00',
+  planName: '专业版',
 }
 
 describe('monitoringSettingsDialog', () => {
-  it('shows only available platforms and emits saved schedule and selected platforms', async () => {
+  it('shows the five supported platforms, locks plan frequency, and saves platform selection', async () => {
     const wrapper = mount(MonitoringSettingsDialog, { props })
     expect(wrapper.get('dialog').attributes('open')).toBeDefined()
     expect(wrapper.find('button[aria-label="关闭设置"] svg.lucide-x').exists()).toBe(true)
-    expect(wrapper.findAll('input[type="radio"]')).toHaveLength(3)
-    expect(wrapper.text()).not.toContain('每季度')
+    expect(wrapper.findAll('input[type="radio"]')).toHaveLength(2)
+    expect(wrapper.get('input[type="radio"][value="weekly"]').element).toHaveProperty('disabled', true)
+    expect(wrapper.text()).toContain('每周')
+    expect(wrapper.text()).toContain('每月')
     expect(wrapper.find('.vm-schedule').exists()).toBe(false)
-    expect(wrapper.text()).toContain('执行频率和时间将保存到当前市场的服务端计划')
+    expect(wrapper.text()).not.toContain('执行时间')
+    expect(wrapper.text()).toContain('按套餐固定频率采集')
     expect(wrapper.text()).toContain('保存当前设置')
-    expect(wrapper.findAll('input[type="checkbox"]')).toHaveLength(2)
-    await wrapper.get('input[type="time"]').setValue('09:30')
-    await wrapper.get('input[type="radio"][value="monthly"]').setValue()
+    expect(wrapper.findAll('input[type="checkbox"]')).toHaveLength(5)
+    expect(wrapper.text()).toContain('AI Overview')
+    expect(wrapper.text()).toContain('Claude')
+    expect(wrapper.get('input[type="checkbox"][value="claude"]').element).toHaveProperty('disabled', true)
     await wrapper.get('button.is-primary').trigger('click')
-    expect(wrapper.emitted('save')?.[0]?.[0]).toEqual({ frequency: 'monthly', platforms: ['chatgpt'], time: '09:30' })
+    expect(wrapper.emitted('save')?.[0]?.[0]).toEqual({ frequency: 'weekly', platforms: ['chatgpt'] })
     wrapper.unmount()
   })
 

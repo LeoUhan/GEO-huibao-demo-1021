@@ -19,8 +19,12 @@ describe('useMonitoringRound', () => {
   })
 
   it('uses the latest server round and its snapshots without falling back to fixtures', async () => {
-    api.getRounds.mockResolvedValue({ records: [{ id: 19, roundNo: 4, roundStatus: 3, monitorDate: '2026-10-15', totalSample: 48 }], total: 1 })
-    api.getRoundDetail.mockResolvedValue({ id: 19, validSample: 46 })
+    api.getRounds.mockImplementation(async ({ pageNum } = {}) => pageNum === 2
+      ? { records: [{ id: 18, roundNo: 3, roundStatus: 3, monitorDate: '2026-10-08', totalSample: 52 }], total: 2, pages: 2 }
+      : { records: [{ id: 19, roundNo: 4, roundStatus: 3, monitorDate: '2026-10-15', totalSample: 48 }], total: 2, pages: 2 })
+    api.getRoundDetail.mockImplementation(async id => id === 19
+      ? { id: 19, totalSample: 60, finishedSampleCount: 48, validSample: 46, monitorDate: '2026-10-15' }
+      : { id: 18, totalSample: 60, finishedSampleCount: 52, validSample: 49, monitorDate: '2026-10-08' })
     api.getBrandMetrics.mockResolvedValue([{ brandType: 1, brandId: 0, brandName: 'Brand', validAnswerCount: 46 }])
     api.getPlatformMetrics.mockResolvedValue([])
     api.getPersonaMetrics.mockResolvedValue([])
@@ -34,8 +38,10 @@ describe('useMonitoringRound', () => {
 
     expect(state.round.value?.id).toBe(19)
     expect(state.detail.value?.validSample).toBe(46)
+    expect(state.cumulativeSampling.value).toMatchObject({ executedCount: 100, plannedCount: 120, validCount: 95, roundCount: 2, periodStart: '2026-10-08', periodEnd: '2026-10-15', complete: true })
     expect(state.brandMetrics.value).toHaveLength(1)
-    expect(api.getRounds).toHaveBeenCalledWith({ pageNum: 1, pageSize: 1 })
+    expect(api.getRounds).toHaveBeenCalledWith({ pageNum: 1, pageSize: 100 })
+    expect(api.getRounds).toHaveBeenCalledWith({ pageNum: 2, pageSize: 100 })
     expect(api.getQuestionHits).toHaveBeenCalledWith(19)
   })
 

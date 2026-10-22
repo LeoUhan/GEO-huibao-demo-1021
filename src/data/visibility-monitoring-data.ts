@@ -62,6 +62,7 @@ export interface SourceDomain {
   ownBrandMentioned: boolean
   competitors: string[]
   pageIds: string[]
+  platformStats?: Array<{ platform: MonitoringPlatformId, citationCount: number, questionCount: number, pageCount: number }>
 }
 
 export interface CitedPage {
@@ -73,6 +74,7 @@ export interface CitedPage {
   citations: number
   platforms: MonitoringPlatformId[]
   ownBrandMentioned: boolean
+  platformStats?: Array<{ platform: MonitoringPlatformId, citationCount: number, questionCount: number }>
 }
 
 export interface MonitoringPlatform {
@@ -155,16 +157,17 @@ const intentValues = [82, 60, 45, 20, 65, 75, 55, 15, 70, 40, 65, 30, 25, 10, 5,
 const matrix = (columns: string[], values: number[]): HeatmapCell[] => personas.flatMap((row, rowIndex) => columns.map((column, columnIndex) => ({ row, column, value: values[rowIndex * columns.length + columnIndex] ?? 0 })))
 
 const sources: SourceDomain[] = [
-  { id: 'source-compositesworld', domain: 'compositesworld.com', questionCount: 14, citationCount: 30, platforms: ['chatgpt', 'perplexity', 'google-ai'], ownBrandMentioned: false, competitors: ['Flow', 'OMAX'], pageIds: ['page-1', 'page-2'] },
+  { id: 'source-compositesworld', domain: 'compositesworld.com', questionCount: 14, citationCount: 30, platforms: ['chatgpt', 'perplexity', 'google-ai'], ownBrandMentioned: false, competitors: ['Flow', 'OMAX', 'KMT'], pageIds: ['page-1', 'page-2', 'page-4'], platformStats: [{ platform: 'chatgpt', citationCount: 12, questionCount: 7, pageCount: 3 }, { platform: 'perplexity', citationCount: 10, questionCount: 5, pageCount: 3 }, { platform: 'google-ai', citationCount: 8, questionCount: 4, pageCount: 3 }] },
   { id: 'source-reddit', domain: 'reddit.com', questionCount: 8, citationCount: 18, platforms: ['chatgpt', 'perplexity'], ownBrandMentioned: false, competitors: ['Flow'], pageIds: [] },
   { id: 'source-apw', domain: 'apw.com', questionCount: 11, citationCount: 17, platforms: ['chatgpt', 'perplexity', 'google-ai'], ownBrandMentioned: true, competitors: [], pageIds: ['page-3'] },
   { id: 'source-fabricator', domain: 'thefabricator.com', questionCount: 6, citationCount: 14, platforms: ['chatgpt', 'google-ai'], ownBrandMentioned: true, competitors: ['KMT'], pageIds: [] },
   { id: 'source-youtube', domain: 'youtube.com', questionCount: 5, citationCount: 11, platforms: ['google-ai'], ownBrandMentioned: false, competitors: ['OMAX'], pageIds: [] },
 ]
 const citedPages: CitedPage[] = [
-  { id: 'page-1', domainId: 'source-compositesworld', title: 'CFRP 切割：水刀与激光方案对比', summary: '行业媒体对 CFRP 切割工艺、水刀与激光适用性的对比说明。', questionIds: ['Q01', 'Q02', 'Q03'], citations: 12, platforms: ['chatgpt', 'perplexity', 'google-ai'], ownBrandMentioned: false },
+  { id: 'page-1', domainId: 'source-compositesworld', title: 'CFRP 切割：水刀与激光方案对比', summary: '行业媒体对 CFRP 切割工艺、水刀与激光适用性的对比说明。', questionIds: ['Q01', 'Q02', 'Q03', 'Q04', 'Q05', 'Q06', 'Q07'], citations: 12, platforms: ['chatgpt', 'perplexity', 'google-ai'], ownBrandMentioned: false, platformStats: [{ platform: 'chatgpt', citationCount: 5, questionCount: 7 }, { platform: 'perplexity', citationCount: 4, questionCount: 7 }, { platform: 'google-ai', citationCount: 3, questionCount: 7 }] },
   { id: 'page-2', domainId: 'source-compositesworld', title: '5 轴水刀系统与复材加工', summary: '复合材料加工中 5 轴水刀、锥度补偿与边缘质量的技术讨论。', questionIds: ['Q01', 'Q04'], citations: 10, platforms: ['chatgpt', 'perplexity', 'google-ai'], ownBrandMentioned: false },
   { id: 'page-3', domainId: 'source-apw', title: 'Carbon Fiber Solutions - APW Waterjet', summary: 'CFRP 加工解决方案、工艺参数与案例。', questionIds: ['Q01', 'Q05'], citations: 7, platforms: ['chatgpt', 'perplexity'], ownBrandMentioned: true },
+  { id: 'page-4', domainId: 'source-compositesworld', title: '钛合金与厚板水刀加工', summary: '材料加工场景下的钛合金、厚板和工业水刀选型信息。', questionIds: ['Q03', 'Q05', 'Q07'], citations: 8, platforms: ['chatgpt', 'perplexity', 'google-ai'], ownBrandMentioned: false },
 ]
 
 export const visibilityMonitoringData = {

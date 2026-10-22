@@ -16,8 +16,6 @@ const props = defineProps<{
   marketSetup?: boolean
   typeOptions?: readonly DropdownSelectOption[]
   stageOptions?: readonly DropdownSelectOption[]
-  companyScaleOptions?: readonly DropdownSelectOption[]
-  decisionRoleOptions?: readonly DropdownSelectOption[]
   persistPersonas?: (personas: BuyerPersona[]) => Promise<BuyerPersona[]>
   saving?: boolean
 }>()
@@ -42,6 +40,13 @@ function openEditor(mode: 'add' | 'edit') {
 
 function removePersona(id: string) {
   emit('removeRequested', id)
+}
+
+function handlePersonasSaved(personas: BuyerPersona[]) {
+  // Keep the step-level model authoritative so a parent refresh cannot leave
+  // the editor open in its empty/add-another state.
+  editorOpen.value = false
+  emit('saved', personas)
 }
 </script>
 
@@ -116,7 +121,7 @@ function removePersona(id: string) {
       </p>
     </section>
 
-    <BuyerPersonaEditorDialog v-model:open="editorOpen" :personas="personas" :mode="editorMode" :type-options="typeOptions" :stage-options="stageOptions" :company-scale-options="companyScaleOptions" :decision-role-options="decisionRoleOptions" :persist-personas="persistPersonas" @saved="emit('saved', $event)" />
+    <BuyerPersonaEditorDialog v-model:open="editorOpen" :personas="personas" :mode="editorMode" :type-options="typeOptions" :stage-options="stageOptions" :persist-personas="persistPersonas" @saved="handlePersonasSaved" />
   </div>
 </template>
 

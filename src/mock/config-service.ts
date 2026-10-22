@@ -20,6 +20,7 @@ import type {
   ProductSaveInput,
   QuestionAddInput,
   QuestionFirstSelectInput,
+  QuestionUpdateInput,
   RecommendationRecord,
   SelectedPlatformRecord,
   WizardSnapshot,
@@ -164,6 +165,13 @@ export async function addQuestion(input: QuestionAddInput): Promise<number> {
   updateMockState((draft) => { draft.config.questions.push({ id, ...input, themeId: null, isFirstSelected: 0, sourceType: 1, status: 1 }) })
   return id
 }
+export async function updateQuestion(id: number, input: QuestionUpdateInput): Promise<void> {
+  updateMockState((draft) => {
+    const row = draft.config.questions.find(item => item.id === id)
+    if (row)
+      Object.assign(row, input)
+  })
+}
 export async function updateFirstSelected(input: QuestionFirstSelectInput): Promise<void> {
   const selected = new Set(input.questionIds ?? input.candidateIds ?? [])
   updateMockState((draft) => { draft.config.questions.forEach((item) => { item.isFirstSelected = selected.has(item.id) ? 1 : 0 }) })
@@ -194,7 +202,7 @@ export async function getBrandProducts(): Promise<BrandProductRecord[]> {
 }
 export async function getActivePlan(): Promise<ActivePlanRecord> {
   await delay()
-  return { id: 1, siteId: 1001, planId: 1, quota: { planCode: 'demo', planName: '演示版', questionCountLimit: 100, aiPlatformCountLimit: 10, repeatCountLimit: 10, personaCountLimit: 6, competitorCountLimit: 5, themeCountLimit: 20, marketCountLimit: 5, monthlyReportLimit: 5 }, startDate: '2026-01-01', endDate: '2027-01-01', status: 1 }
+  return { id: 1, siteId: 1001, planId: 3, quota: { planCode: 'pro', planName: '专业版', questionCountLimit: 100, aiPlatformCountLimit: 10, repeatCountLimit: 10, personaCountLimit: 6, competitorCountLimit: 5, themeCountLimit: 20, marketCountLimit: 5, monthlyReportLimit: 5 }, startDate: '2026-01-01', endDate: '2027-01-01', status: 1 }
 }
 export async function getCurrentConfigChange(): Promise<ConfigChangeStatus> {
   await delay()

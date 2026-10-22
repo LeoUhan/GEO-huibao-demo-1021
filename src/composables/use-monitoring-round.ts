@@ -2,6 +2,16 @@ import type { BrandMetric, PageResult, PersonaMetric, PlatformMetric, QuestionHi
 import { computed, ref, shallowRef } from 'vue'
 import { getBrandMetrics, getPersonaMetrics, getPlatformMetrics, getQuestionHits, getRoundDetail, getRounds, getSourceDomains, getSourcePages } from '../api/monitoring'
 
+export interface CumulativeSamplingSummary {
+  executedCount: number
+  plannedCount: number
+  validCount: number
+  roundCount: number
+  periodStart: string
+  periodEnd: string
+  complete: boolean
+}
+
 export function useMonitoringRound() {
   const round = shallowRef<RoundSummary | null>(null)
   const detail = shallowRef<RoundDetail | null>(null)
@@ -11,6 +21,7 @@ export function useMonitoringRound() {
   const questionHits = shallowRef<QuestionHit[]>([])
   const sourceDomains = shallowRef<PageResult<SourceDomainMetric> | null>(null)
   const sourcePages = shallowRef<PageResult<SourcePageMetric> | null>(null)
+  const cumulativeSampling = shallowRef<CumulativeSamplingSummary | null>(null)
   const loading = ref(false)
   const error = ref('')
   const empty = computed(() => !loading.value && !error.value && round.value === null)
@@ -24,6 +35,7 @@ export function useMonitoringRound() {
     questionHits.value = []
     sourceDomains.value = null
     sourcePages.value = null
+    cumulativeSampling.value = null
   }
 
   async function load() {
@@ -33,8 +45,10 @@ export function useMonitoringRound() {
     error.value = ''
     clearSnapshot()
     try {
-      const rounds = await getRounds({ pageNum: 1, pageSize: 1 })
-      const latestRound = rounds.records[0]
+      const firstPage = await getRounds({ pageNum: 1, pageSize: 100 })
+      const roundPages = await Promise.all(Array.from({ length: Math.max(0, firstPage.pages - 1) }, (_, index) => getRounds({ pageNum: index + 2, pageSize: 100 })))
+      const allRounds = [...firstPage.records, ...roundPages.flatMap(result => result.records)]
+      const latestRound = allRounds[0]
       if (!latestRound) {
         loading.value = false
         return
@@ -51,6 +65,24 @@ export function useMonitoringRound() {
         getSourcePages(latestRound.id, 1, 50),
       ])
       detail.value = roundDetail
+      const historicalDetails = await Promise.allSettled(allRounds.map(item => item.id === latestRound.id ? Promise.resolve(roundDetail) : getRoundDetail(item.id)))
+      const complete = historicalDetails.every(result => result.status === 'fulfilled')
+      if (complete) {
+        const details = historicalDetails.flatMap(result => result.status === 'fulfilled' ? [result.value] : [])
+        const dates = details.map(item => item.monitorDate).sort()
+        cumulativeSampling.value = {
+          executedCount: details.reduce((total, item) => total + item.finishedSampleCount, 0),
+          plannedCount: details.reduce((total, item) => total + item.totalSample, 0),
+          validCount: details.reduce((total, item) => total + item.validSample, 0),
+          roundCount: details.length,
+          periodStart: dates[0] ?? latestRound.monitorDate,
+          periodEnd: dates.at(-1) ?? latestRound.monitorDate,
+          complete: true,
+        }
+      }
+      else {
+        cumulativeSampling.value = { executedCount: 0, plannedCount: 0, validCount: 0, roundCount: allRounds.length, periodStart: '', periodEnd: '', complete: false }
+      }
       brandMetrics.value = brands
       platformMetrics.value = platforms
       personaMetrics.value = personas
@@ -67,5 +99,5 @@ export function useMonitoringRound() {
     }
   }
 
-  return { round, detail, brandMetrics, platformMetrics, personaMetrics, questionHits, sourceDomains, sourcePages, loading, error, empty, load }
+  return { round, detail, brandMetrics, platformMetrics, personaMetrics, questionHits, sourceDomains, sourcePages, cumulativeSampling, loading, error, empty, load }
 }

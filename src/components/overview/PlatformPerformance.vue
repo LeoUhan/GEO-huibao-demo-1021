@@ -2,6 +2,7 @@
 import type { PlatformMetric } from '../../api/monitoring'
 import { computed } from 'vue'
 import AppIcon from '../ui/icons/AppIcon.vue'
+import MetricDefinitionButton from './MetricDefinitionButton.vue'
 
 const props = defineProps<{ metrics: readonly PlatformMetric[] }>()
 
@@ -65,11 +66,11 @@ const platformRows = computed(() => props.metrics.map(metric => ({
 
         <div class="platform-row__metrics">
           <div class="platform-row__metric platform-row__metric--mention">
-            <span class="platform-row__metric-label">提及率（SOA）</span>
+            <span class="platform-row__metric-label">提及率（SOA） <MetricDefinitionButton id="soa" /></span>
             <strong class="platform-row__metric-value">{{ platform.mentionLabel }}</strong>
           </div>
           <div class="platform-row__metric platform-row__metric--citation">
-            <span class="platform-row__metric-label">引用率</span>
+            <span class="platform-row__metric-label">官网引用率 <MetricDefinitionButton id="officialCitation" /></span>
             <strong class="platform-row__metric-value">{{ platform.citationLabel }}</strong>
           </div>
         </div>
@@ -106,7 +107,7 @@ const platformRows = computed(() => props.metrics.map(metric => ({
 .platform-performance__bar-fill.is-citation { background: #0891b2; }
 .platform-row__metrics { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 0.72fr); align-items: center; gap: 16px; min-width: 0; }
 .platform-row__metric { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-width: 0; white-space: nowrap; }
-.platform-row__metric-label { color: var(--text-secondary); font-size: 12px; }
+.platform-row__metric-label { display: inline-flex; align-items: center; gap: 4px; color: var(--text-secondary); font-size: 12px; }
 .platform-row__metric-value { color: var(--text-primary); font-size: 14px; font-weight: 700; }
 @media (max-width: 1000px) { .platform-row { grid-template-columns: minmax(190px, 0.9fr) minmax(260px, 2fr) minmax(240px, 1fr); gap: 14px; } .platform-row__metrics { gap: 10px; } .platform-row__metric { gap: 6px; } .platform-row__metric-label { font-size: 11px; } }
 @media (max-width: 760px) { .overview-section-heading { align-items: flex-start; flex-direction: column; } .platform-row { grid-template-columns: minmax(0, 1fr); gap: 12px; padding: 13px 14px; } .platform-row__metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; } }

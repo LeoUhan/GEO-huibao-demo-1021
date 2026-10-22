@@ -6,12 +6,14 @@ describe('report center demo data', () => {
     expect(filterReports(initialReports, 'all').map(report => report.id)).toEqual([
       'weekly-2026-09-15',
       'monthly-2026-09',
+      'adhoc-2026-09-12',
       'quarterly-2026-q3',
       'weekly-2026-09-08',
     ])
     expect(filterReports(initialReports, 'weekly')).toHaveLength(2)
     expect(filterReports(initialReports, 'monthly').map(report => report.id)).toEqual(['monthly-2026-09'])
     expect(filterReports(initialReports, 'quarterly').map(report => report.id)).toEqual(['quarterly-2026-q3'])
+    expect(filterReports(initialReports, 'adhoc').map(report => report.id)).toEqual(['adhoc-2026-09-12'])
     expect(filterReports(initialReports, 'monthly').map(report => report.date)).toEqual(['2026-09-14'])
   })
 

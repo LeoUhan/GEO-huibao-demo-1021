@@ -54,6 +54,15 @@ describe('monitoringOverview server data', () => {
     expect(wrapper.find('.vm-round-summary__metrics').exists()).toBe(false)
   })
 
+  it('derives the displayed trend grade from the confidence interval', () => {
+    const wrapper = mount(MonitoringOverview, {
+      props: { round, detail: { ...detail, confidenceLevel: '95%', ciValue: 2.8 }, variant: 'overview', showRoundNumber: false },
+    })
+
+    expect(wrapper.get('.vm-round-summary__confidence dd').text()).toBe('中 · 趋势级')
+    expect(wrapper.get('.vm-round-summary__confidence dd').attributes('title')).toContain('±2.8pp')
+  })
+
   it('leaves server fields blank when their values are missing', () => {
     const wrapper = mount(MonitoringOverview, {
       props: {

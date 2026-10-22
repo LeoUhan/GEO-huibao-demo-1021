@@ -2,7 +2,7 @@
 import type { GeoPage } from '../../../data/geo-data'
 
 defineProps<{
-  activePage: GeoPage | 'overview' | 'visibility-monitoring' | 'report-center'
+  activePage: GeoPage | 'overview' | 'visibility-monitoring' | 'report-center' | 'operations-review'
 }>()
 
 const navItems = [
@@ -11,6 +11,7 @@ const navItems = [
   { page: 'report-center', label: '报告中心', route: 'report-center' },
   { page: 'diagnosis', label: '诊断与策略', route: 'diagnosis' },
   { page: 'optimization', label: '优化中心', route: 'optimization' },
+  { page: 'operations-review', label: '运营复盘与 Agent 升级', route: 'operations-review' },
 ] as const
 </script>
 

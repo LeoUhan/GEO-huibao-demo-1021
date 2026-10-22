@@ -131,6 +131,16 @@ input:focus-visible {
   --alert-line-height: var(--typography-body-line-height);
 }
 
+.knowledge-notice__source {
+  display: inline-block;
+  margin: 0 4px;
+  padding: 0 6px;
+  border-radius: 5px;
+  background: var(--feedback-success-background);
+  color: var(--feedback-success-icon);
+  font-weight: 600;
+}
+
 /* 双写类名提高特异性，覆盖 ce 快照 .ce-alert 的无边框默认值，使提示条与面板同为卡片语言。 */
 html.ce-iframe-root .knowledge-notice.knowledge-notice {
   border: 1px solid var(--border-default);

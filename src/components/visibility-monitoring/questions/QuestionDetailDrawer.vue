@@ -2,6 +2,7 @@
 import type { MonitoringPlatformId, MonitoringQuestion } from '../../../data/visibility-monitoring-data'
 import { computed, shallowRef, watch } from 'vue'
 import { visibilityMonitoringData } from '../../../data/visibility-monitoring-data'
+import MetricDefinitionButton from '../../overview/MetricDefinitionButton.vue'
 import Drawer from '../../ui/ce/drawer/Drawer.vue'
 import AppIcon from '../../ui/icons/AppIcon.vue'
 import { getQuestionSummary } from './question-view-model'
@@ -90,9 +91,9 @@ watch(() => props.question?.id, () => {
         </div>
         <div class="vm-detail-metrics">
           <article><span>命中 AI 平台</span><strong>{{ summary?.platformHits }} / {{ question.platformResults.length }}</strong><small>{{ question.platformResults.map(result => platformName(result.platform)).join(' · ') }}</small></article>
-          <article><span>我方提及率</span><strong>{{ summary?.ownMentionRate }}%</strong><small>按当前平台结果统计</small></article>
-          <article><span>我方引用率</span><strong>{{ summary?.citationRate }}%</strong><small>引用我方官网的回答占比</small></article>
-          <article><span>平均排名</span><strong>{{ summary?.averageRank ?? '—' }}</strong><small>仅统计有排名结果</small></article>
+          <article><span>我方提及率 <MetricDefinitionButton id="soa" /></span><strong>{{ summary?.ownMentionRate }}%</strong><small>按当前平台结果统计</small></article>
+          <article><span>我方官网引用率 <MetricDefinitionButton id="officialCitation" /></span><strong>{{ summary?.citationRate }}%</strong><small>引用我方官网的有效回答占比</small></article>
+          <article><span>平均位次 <MetricDefinitionButton id="rank" /></span><strong>{{ summary?.averageRank ?? '—' }}</strong><small>仅统计有排名结果</small></article>
           <article><span>情感分布</span><strong class="metric-sentiment">{{ summary?.sentiment.positive }} / {{ summary?.sentiment.neutral }} / {{ summary?.sentiment.negative }}</strong><small>正向 · 中性 · 负向</small></article>
           <article><span>提及竞品</span><strong class="metric-competitors">{{ summary?.competitors.join('、') || '未提及' }}</strong><small>按当前平台结果统计</small></article>
         </div>
@@ -119,7 +120,7 @@ watch(() => props.question?.id, () => {
         </div>
         <div class="vm-table-scroll" role="region" tabindex="0" aria-label="品牌提及表现表，可横向滚动">
           <table>
-            <thead><tr><th>品牌</th><th>类型</th><th>提及率</th><th>提及次数</th></tr></thead>
+            <thead><tr><th>品牌</th><th>类型</th><th>提及率 <MetricDefinitionButton id="soa" /></th><th>提及次数</th></tr></thead>
             <tbody>
               <tr v-for="row in mentionRows" :key="row.name">
                 <th scope="row">

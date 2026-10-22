@@ -9,6 +9,7 @@ import AppIcon from '../ui/icons/AppIcon.vue'
 const props = defineProps<{ items: readonly OverviewQueueItem[] }>()
 const emit = defineEmits<{
   openItem: [item: OverviewQueueItem]
+  openSecondaryItem: [item: OverviewQueueItem]
 }>()
 const priorityFilter = shallowRef('all')
 const sourceFilter = shallowRef('all')
@@ -57,7 +58,7 @@ const visibleItems = computed(() => props.items.filter((item) => {
           <div class="agent-queue__item-main">
             <div class="agent-queue__tags">
               <span class="agent-queue__priority" :class="`is-${item.priority.toLowerCase()}`">{{ item.priority }}</span>
-              <span class="agent-queue__kind">{{ item.kind === 'finding' ? '诊断' : item.kind === 'strategy' ? 'Agent' : '任务' }}</span>
+              <span class="agent-queue__kind">{{ item.owner ?? (item.kind === 'finding' ? '诊断' : item.kind === 'strategy' ? 'Agent' : '任务') }}</span>
               <span class="agent-queue__origin">{{ item.source }}</span>
               <span class="agent-queue__status">{{ item.status }}</span>
             </div>
@@ -69,8 +70,11 @@ const visibleItems = computed(() => props.items.filter((item) => {
             <strong>{{ item.nextAction }}</strong>
           </div>
           <div class="agent-queue__actions">
-            <Button class="agent-queue__primary-action" variant="outline" size="sm" @click="emit('openItem', item)">
-              查看并确认 <AppIcon name="arrowRight" :size="14" aria-hidden="true" />
+            <Button class="agent-queue__primary-action" :variant="item.actionLabel ? 'primary' : 'outline'" size="sm" @click="emit('openItem', item)">
+              {{ item.actionLabel ?? '查看并确认' }} <AppIcon name="arrowRight" :size="14" aria-hidden="true" />
+            </Button>
+            <Button v-if="item.secondaryActionLabel" class="agent-queue__secondary-action" variant="outline" size="sm" @click="emit('openSecondaryItem', item)">
+              {{ item.secondaryActionLabel }}
             </Button>
           </div>
         </article>
@@ -81,7 +85,7 @@ const visibleItems = computed(() => props.items.filter((item) => {
       </div>
 
       <footer class="agent-queue__footer">
-        当前 {{ visibleItems.length }} 项待处理
+        当前有 {{ visibleItems.length }} 项需要确认
         <span>排序：P0 → P1 → P2 · 同优先级按来源模块顺序</span>
       </footer>
     </div>
@@ -116,9 +120,11 @@ const visibleItems = computed(() => props.items.filter((item) => {
 .agent-queue__next { display: grid; gap: 4px; min-width: 0; padding: 10px 12px; border-radius: 9px; background: var(--background-secondary); }
 .agent-queue__next small { color: var(--text-muted); font-size: 10px; }
 .agent-queue__next strong { overflow: hidden; color: var(--text-primary); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
-.agent-queue__actions { display: flex; min-width: 0; align-items: center; justify-content: flex-end; }
+.agent-queue__actions { display: flex; min-width: 0; align-items: center; justify-content: flex-end; gap: 8px; }
 .agent-queue__actions :deep(.ce-button) { width: auto; min-width: 0; min-height: 32px; padding-inline: 12px; border-radius: 8px; color: var(--action-accent); white-space: nowrap; }
 .agent-queue__actions :deep(.ce-button:hover:not(:disabled)) { border-color: var(--action-accent); background: var(--action-subtle-background); }
+.agent-queue__actions :deep(.ce-button.agent-queue__primary-action) { color: var(--text-on-accent, #fff); }
+.agent-queue__actions :deep(.ce-button.agent-queue__primary-action:hover:not(:disabled)) { border-color: var(--action-accent); background: var(--action-accent); }
 .agent-queue__empty { display: grid; justify-items: center; gap: 5px; padding: 38px 16px; color: var(--text-secondary); text-align: center; }
 .agent-queue__empty strong { color: var(--text-primary); font-size: var(--font-size-body); line-height: var(--line-height-body); }.agent-queue__empty span { color: var(--text-muted); font-size: var(--font-size-caption); line-height: var(--line-height-caption); }
 .agent-queue__footer { display: flex; justify-content: space-between; gap: 12px; padding: 11px 16px; border-top: 1px solid var(--border-divider); color: var(--text-muted); background: var(--background-secondary); font-size: 11px; }

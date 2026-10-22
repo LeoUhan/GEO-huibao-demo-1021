@@ -43,6 +43,8 @@ describe('geoWorkbenchLayout icon migration', () => {
         plugins: [createPinia(), router],
         stubs: {
           GeoWorkbenchToolbar: true,
+          GeoSectionNav: true,
+          RouterLink: { template: '<a><slot /></a>' },
           GeoDrawer: { props: ['open', 'title', 'subtitle', 'eyebrow', 'size', 'titleFirst'], template: '<div v-if="open" class="test-drawer" :data-size="size"><header><template v-if="titleFirst"><h2>{{ title }}</h2><small>{{ eyebrow }}</small></template><template v-else><small>{{ eyebrow }}</small><h2>{{ title }}</h2></template><p>{{ subtitle }}</p></header><slot /><footer><slot name="footer" /></footer></div>' },
         },
       },
@@ -102,6 +104,8 @@ describe('geoWorkbenchLayout icon migration', () => {
         plugins: [createPinia(), router],
         stubs: {
           GeoWorkbenchToolbar: true,
+          GeoSectionNav: true,
+          RouterLink: { template: '<a><slot /></a>' },
           GeoDrawer: { props: ['open', 'title', 'subtitle', 'eyebrow', 'size', 'titleFirst'], template: '<div v-if="open" class="test-drawer" :data-size="size"><header><template v-if="titleFirst"><h2>{{ title }}</h2><small>{{ eyebrow }}</small></template><template v-else><small>{{ eyebrow }}</small><h2>{{ title }}</h2></template><p>{{ subtitle }}</p></header><slot /><footer><slot name="footer" /></footer></div>' },
         },
       },

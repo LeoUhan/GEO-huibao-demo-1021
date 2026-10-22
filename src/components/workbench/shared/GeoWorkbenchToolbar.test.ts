@@ -18,7 +18,7 @@ function createToolbar() {
 }
 
 describe('geoWorkbenchToolbar', () => {
-  it('keeps market selection and page navigation visible as a tab row', () => {
+  it('keeps market selection and page navigation visible in the top toolbar', () => {
     const wrapper = createToolbar()
 
     expect(wrapper.find('[data-test="market-control"]').exists()).toBe(true)
@@ -27,14 +27,12 @@ describe('geoWorkbenchToolbar', () => {
     expect(wrapper.find('[aria-label="市场语言"]').exists()).toBe(false)
   })
 
-  it('keeps page tabs on the left and the market selector on the right', () => {
+  it('keeps page tabs and role controls alongside the market selector', () => {
     const wrapper = createToolbar()
     const market = wrapper.get('.geo-workbench-toolbar__market')
-    const tabs = wrapper.get('[data-test="page-tabs"]')
 
-    expect(wrapper.get('.geo-workbench-toolbar__navigation').element.firstElementChild).toBe(tabs.element)
-    expect(wrapper.get('.geo-workbench-toolbar__onboarding-demo').text()).toBe('新人引导演示')
     expect(wrapper.get('.geo-workbench-toolbar__main').element.lastElementChild).toBe(market.element)
+    expect(wrapper.find('[data-test="page-tabs"]').exists()).toBe(true)
     expect(wrapper.find('.geo-workbench-toolbar__controls').exists()).toBe(false)
     expect(wrapper.text()).not.toContain('展示时长')
   })

@@ -27,19 +27,28 @@ const props = defineProps<{
   questionLimit?: number
   selectionSaving?: boolean
   persistQuestion?: (question: MonitoringQuestion) => Promise<MonitoringQuestion>
+  persistEditedQuestion?: (question: MonitoringQuestion) => Promise<MonitoringQuestion>
 }>()
 
 const emit = defineEmits<{
   selectionChanged: [ids: string[]]
   customQuestionAdded: [question: MonitoringQuestion]
+  questionEdited: [question: MonitoringQuestion]
 }>()
 
-const candidates = computed(() => props.candidateQuestions
-  ? [...props.candidateQuestions, ...props.customQuestions.filter(custom => !props.candidateQuestions?.some(candidate => candidate.id === custom.id))]
-  : [...props.customQuestions])
+const removedQuestionIds = shallowRef<string[]>([])
+const candidates = computed(() => {
+  const unique = new Map((props.candidateQuestions ?? []).map(question => [question.id, question]))
+  props.customQuestions.forEach((question) => {
+    if (!unique.has(question.id))
+      unique.set(question.id, question)
+  })
+  return [...unique.values()].filter(question => !removedQuestionIds.value.includes(question.id))
+})
 const selectionLimit = computed(() => props.questionLimit ?? maxMonitoringQuestions)
 const selectedCount = computed(() => props.selectedIds.length)
 const customDialogOpen = shallowRef(false)
+const editingQuestion = shallowRef<MonitoringQuestion | null>(null)
 
 const columns: DataListColumn<unknown>[] = [
   { key: 'select', title: '选择', width: 64, minWidth: 64, className: 'monitoring-question-table__nowrap' },
@@ -48,8 +57,9 @@ const columns: DataListColumn<unknown>[] = [
   { key: 'type', title: '类型', width: 96, minWidth: 96, className: 'monitoring-question-table__nowrap' },
   { key: 'persona', title: '买家人设', width: 120, minWidth: 120, className: 'monitoring-question-table__nowrap' },
   { key: 'purchaseStage', title: '采购阶段', width: 110, minWidth: 110, className: 'monitoring-question-table__nowrap' },
-  { key: 'intent', title: '意图', width: 80, minWidth: 80, className: 'monitoring-question-table__nowrap' },
+  { key: 'intent', title: '意图', width: 160, minWidth: 160, className: 'monitoring-question-table__nowrap' },
   { key: 'mainConcern', title: '主要关注问题', width: 130, minWidth: 130, className: 'monitoring-question-table__nowrap' },
+  { key: 'actions', title: '操作', width: 120, minWidth: 120, className: 'monitoring-question-table__nowrap' },
 ]
 
 const labels = {
@@ -86,6 +96,23 @@ function toggleQuestion(item: unknown, event: Event) {
     ? [...props.selectedIds, question.id]
     : props.selectedIds.filter(id => id !== question.id)
   emit('selectionChanged', limitSelectedQuestionIds(next, props.selectedIds, selectionLimit.value))
+}
+
+function addMonitoringQuestion() {
+  editingQuestion.value = null
+  customDialogOpen.value = true
+}
+
+function editMonitoringQuestion(item: unknown) {
+  editingQuestion.value = asQuestion(item)
+  customDialogOpen.value = true
+}
+
+function removeMonitoringQuestion(item: unknown) {
+  const questionId = asQuestion(item).id
+  removedQuestionIds.value = [...removedQuestionIds.value, questionId]
+  if (props.selectedIds.includes(questionId))
+    emit('selectionChanged', props.selectedIds.filter(id => id !== questionId))
 }
 
 function typeTone(type: MonitoringQuestion['type']): TagTone {
@@ -127,13 +154,19 @@ function typeTone(type: MonitoringQuestion['type']): TagTone {
             {{ marketSetup ? '请选择本市场需要监测的问题；不同市场的问题配置分别保存。' : `当前共有 ${candidates.length} 条候选问题，当前套餐最多可选择 ${selectionLimit} 条加入首次监测。` }}
           </p>
         </div>
-        <div class="monitoring-question-panel__counts" aria-live="polite">
-          <Tag tone="blue" variant="soft" size="sm">
-            已选择 {{ selectedCount }} / {{ selectionLimit }}
-          </Tag>
-          <Tag tone="neutral" variant="soft" size="sm">
-            {{ candidates.length }} 条候选
-          </Tag>
+        <div class="monitoring-question-panel__header-actions">
+          <div class="monitoring-question-panel__counts" aria-live="polite">
+            <Tag tone="blue" variant="soft" size="sm">
+              已选择 {{ selectedCount }} / {{ selectionLimit }}
+            </Tag>
+            <Tag tone="neutral" variant="soft" size="sm">
+              {{ candidates.length }} 条候选
+            </Tag>
+          </div>
+          <Button variant="primary" :disabled="selectionSaving" @click="addMonitoringQuestion">
+            <AppIcon name="add" :size="16" aria-hidden="true" />
+            添加监测问题
+          </Button>
         </div>
       </div>
 
@@ -183,26 +216,32 @@ function typeTone(type: MonitoringQuestion['type']): TagTone {
           <template #cell-mainConcern="{ item }">
             {{ asQuestion(item).mainConcern }}
           </template>
+          <template #cell-actions="{ item }">
+            <div class="monitoring-question-panel__row-actions">
+              <Button variant="text" size="sm" :disabled="selectionSaving" @click="editMonitoringQuestion(item)">
+                编辑
+              </Button>
+              <Button class="is-remove" variant="text" size="sm" :disabled="selectionSaving" @click="removeMonitoringQuestion(item)">
+                移除
+              </Button>
+            </div>
+          </template>
         </DataList>
-      </div>
-
-      <div class="monitoring-question-panel__custom">
-        <Button variant="text" :disabled="selectionSaving" @click="customDialogOpen = true">
-          <AppIcon name="add" :size="16" aria-hidden="true" />
-          添加自定义问题
-        </Button>
       </div>
     </section>
 
     <CustomMonitoringQuestionDialog
       v-model:open="customDialogOpen"
+      :initial-question="editingQuestion"
       :persona-options="personaOptions"
       :type-options="typeOptions"
       :stage-options="stageOptions"
       :intent-options="intentOptions"
       :focus-options="focusOptions"
       :persist-question="persistQuestion"
+      :persist-edited-question="persistEditedQuestion"
       @added="emit('customQuestionAdded', $event)"
+      @edited="emit('questionEdited', $event)"
     />
   </div>
 </template>
@@ -217,7 +256,8 @@ function typeTone(type: MonitoringQuestion['type']): TagTone {
 .monitoring-question-panel__header { align-items: flex-start; }
 .monitoring-question-panel__title-row { display: flex; align-items: center; gap: var(--space-2); }
 .monitoring-question-panel__description { margin: var(--space-2) 0 0; color: var(--text-muted); font-size: var(--font-size-caption); line-height: var(--line-height-caption); }
-.monitoring-question-panel__counts { display: flex; flex: 0 0 auto; align-items: center; gap: var(--space-2); }
+.monitoring-question-panel__header-actions, .monitoring-question-panel__counts { display: flex; flex: 0 0 auto; align-items: center; gap: var(--space-2); }
+.monitoring-question-panel__header-actions { flex-wrap: wrap; justify-content: flex-end; }
 .monitoring-question-panel__table { padding: var(--space-4) var(--space-surface-content) 0; }
 .monitoring-question-panel__table :deep(.data-list__scroll) { border: 0; }
 .monitoring-question-panel__table :deep(.data-list__panel) { border: 0; border-radius: 0; box-shadow: none; }
@@ -226,12 +266,14 @@ function typeTone(type: MonitoringQuestion['type']): TagTone {
 .monitoring-question-panel__table :deep(.data-list .monitoring-question-table__nowrap) { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; overflow-wrap: normal; }
 .monitoring-question-panel__table :deep(.data-list .monitoring-question-table__wrap) { white-space: normal; overflow-wrap: anywhere; }
 .monitoring-question-panel__question { display: block; font-weight: var(--weight-medium); line-height: var(--line-height-body); }
-.monitoring-question-panel__custom { margin: var(--space-2) var(--space-surface-content) 0; padding: 0 0 var(--space-3); }
-.monitoring-question-panel__custom :deep(.ce-button) { display: inline-flex; align-items: center; gap: var(--space-icon-text); }
-.monitoring-question-panel__custom svg { display: block; flex: 0 0 16px; fill: none; stroke: currentColor; stroke-linecap: round; stroke-width: 1.8; }
+.monitoring-question-panel__header-actions :deep(.ce-button) { display: inline-flex; align-items: center; gap: var(--space-icon-text); }
+.monitoring-question-panel__row-actions { display: flex; align-items: center; gap: 8px; }
+.monitoring-question-panel__row-actions :deep(.is-remove) { color: var(--status-error-foreground); }
+.monitoring-question-panel__header-actions svg { display: block; flex: 0 0 16px; fill: none; stroke: currentColor; stroke-linecap: round; stroke-width: 1.8; }
 @media (max-width: 760px) {
   .monitoring-question-panel__header { flex-direction: column; }
-  .monitoring-question-panel__counts { flex-wrap: wrap; }
+  .monitoring-question-panel__header-actions, .monitoring-question-panel__counts { flex-wrap: wrap; }
+  .monitoring-question-panel__header-actions { justify-content: flex-start; }
   .monitoring-question-panel__table { padding-inline: var(--space-3); }
 }
 </style>

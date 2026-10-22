@@ -36,6 +36,7 @@ export interface BuyerPersonaRecord {
 export interface MonitoringQuestionRecord {
   id: number
   questionContent: string
+  keyword?: string
   themeId: number | null
   questionType: string
   personaId: number
@@ -80,6 +81,8 @@ export interface QuestionAddInput {
   intentType: string
   focusType: string
 }
+
+export type QuestionUpdateInput = QuestionAddInput
 
 export interface QuestionFirstSelectInput {
   questionIds?: number[]
@@ -297,4 +300,5 @@ export {
   updateCompetitor,
   updateFirstSelected,
   updatePersona,
+  updateQuestion,
 } from '../mock/config-service'

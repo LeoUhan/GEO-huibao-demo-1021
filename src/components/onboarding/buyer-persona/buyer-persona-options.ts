@@ -18,19 +18,10 @@ export const purchaseStageOptions: DropdownSelectOption[] = [
 ]
 
 export const companySizeOptions: DropdownSelectOption[] = [
-  { value: 'under-50', label: '50 人以下' },
-  { value: '50-199', label: '50–199 人' },
-  { value: '200-499', label: '200–499 人' },
-  { value: '500-999', label: '500–999 人' },
-  { value: '1000-plus', label: '1000 人以上' },
-]
-
-export const decisionRoleOptions: DropdownSelectOption[] = [
-  { value: 'user', label: '实际使用者' },
-  { value: 'technical-evaluator', label: '技术评估者' },
-  { value: 'procurement', label: '采购执行者' },
-  { value: 'budget-owner', label: '预算负责人' },
-  { value: 'final-decision-maker', label: '最终决策者' },
+  { value: '0-999', label: '0–999 人' },
+  { value: '1000-4999', label: '1,000–4,999 人' },
+  { value: '5000-9999', label: '5,000–9,999 人' },
+  { value: '10000-plus', label: '10,000 人以上' },
 ]
 
 export const maxBuyerPersonas = 6

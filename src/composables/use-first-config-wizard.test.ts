@@ -35,6 +35,7 @@ const api = vi.hoisted(() => ({
   updateCompetitor: vi.fn(),
   updateFirstSelected: vi.fn(),
   updatePersona: vi.fn(),
+  updateQuestion: vi.fn(),
   getSchedule: vi.fn(),
   saveSchedule: vi.fn(),
 }))
@@ -115,7 +116,7 @@ describe('useFirstConfigWizard', () => {
     expect(useOnboardingStore().knowledgeItems.find(item => item.id === 'product')?.summary)
       .toBe('五轴水刀切割系统 · CFRP / 航空复材切割')
     expect(useOnboardingStore().knowledgeItems.find(item => item.id === 'competitor')?.summary)
-      .toBe('已选择 0 个 / 最多 5 个')
+      .toBe('已选择 0 个 · 最多 5 个')
   })
 
   it('loads buyer persona options only when the persona step is needed', async () => {
@@ -148,7 +149,7 @@ describe('useFirstConfigWizard', () => {
 
     expect(wizard.loaded.value).toBe(true)
     expect(useOnboardingStore().knowledgeItems.find(item => item.id === 'competitor')?.summary)
-      .toBe('已选择 0 个 / 套餐上限未返回')
+      .toBe('已选择 0 个 · 套餐上限未返回')
   })
 
   it('does not block the question step when plan quota data is unavailable', async () => {
@@ -217,7 +218,7 @@ describe('useFirstConfigWizard', () => {
     await wizard.deleteCompetitor('25')
 
     expect(api.deleteCompetitor).toHaveBeenCalledWith(25)
-    expect(useOnboardingStore().knowledgeItems.find(item => item.id === 'competitor')?.summary).toBe('已选择 0 个 / 最多 5 个')
+    expect(useOnboardingStore().knowledgeItems.find(item => item.id === 'competitor')?.summary).toBe('已选择 0 个 · 最多 5 个')
   })
 
   it('saves brand, product, and competitor edits without saving market context', async () => {
@@ -450,6 +451,58 @@ describe('useFirstConfigWizard', () => {
     expect(api.updateFirstSelected).toHaveBeenCalledWith({ questionIds: [31], candidateIds: [] })
     expect(onboarding.selectedMonitoringQuestionIds).toEqual(['31'])
     expect(api.completeQuestionStep).not.toHaveBeenCalled()
+  })
+
+  it('keeps mock question keywords in the onboarding candidate rows', async () => {
+    const { useFirstConfigWizard } = await import('./use-first-config-wizard')
+    const wizard = useFirstConfigWizard()
+    api.getMarketQuestions.mockResolvedValue([
+      { id: 32, questionContent: 'Welches 5-Achs-Wasserstrahlsystem eignet sich für CFRP ohne Delamination?', keyword: '', themeId: null, questionType: 'brand', personaId: 1, purchaseStage: 'discovery', intentType: 'compare', focusType: null, isFirstSelected: 0, sourceType: 1, status: 1 },
+    ])
+
+    await wizard.load()
+    await wizard.loadStep(2)
+
+    expect(wizard.questionCandidates.value[0]?.keyword).toBe('碳纤维 / 复材切割')
+  })
+
+  it('persists edits to a monitoring question and updates its candidate row', async () => {
+    const { useFirstConfigWizard } = await import('./use-first-config-wizard')
+    const wizard = useFirstConfigWizard()
+    api.getMarketQuestions.mockResolvedValue([
+      { id: 33, questionContent: 'Original question', keyword: 'Original keyword', themeId: null, questionType: 'brand', personaId: 4, purchaseStage: 'discovery', intentType: 'compare', focusType: 'precision', isFirstSelected: 1, sourceType: 1, status: 1 },
+    ])
+    await wizard.load()
+    await wizard.loadStep(2)
+    const updated = {
+      id: '33',
+      question: 'Updated question',
+      keyword: 'Updated keyword',
+      type: '品牌词',
+      persona: '老板',
+      purchaseStage: '需求发现',
+      intent: '比较',
+      mainConcern: '精度',
+      personaId: 4,
+      questionTypeCode: 'brand',
+      purchaseStageCode: 'discovery',
+      intentCode: 'compare',
+      focusCode: 'precision',
+    }
+
+    await wizard.updateMonitoringQuestionImmediately(updated)
+
+    expect(api.updateQuestion).toHaveBeenCalledWith(33, {
+      questionContent: 'Updated question',
+      keyword: 'Updated keyword',
+      questionType: 'brand',
+      personaId: 4,
+      purchaseStage: 'discovery',
+      intentType: 'compare',
+      focusType: 'precision',
+    })
+    expect(wizard.questionCandidates.value[0]?.question).toBe('Updated question')
+    expect(wizard.questionCandidates.value[0]?.keyword).toBe('Updated keyword')
   })
 
   it('persists monitoring frequency immediately and updates local state after success', async () => {

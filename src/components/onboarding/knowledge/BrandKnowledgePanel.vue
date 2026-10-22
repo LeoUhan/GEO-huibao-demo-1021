@@ -69,7 +69,8 @@ const model = defineModel<BrandKnowledgeDraft>({ required: true })
 
 <style scoped>
 .knowledge-section { display: grid; gap: var(--space-6); }
-:deep(.ce-input), :deep(.ui-textarea) { border-color: var(--border-default); }
+.knowledge-section :deep(.ce-input:not(:focus-visible):not([aria-invalid="true"])) { border-color: var(--border-default); }
+:deep(.ui-textarea) { border-color: var(--border-default); }
 .knowledge-section__heading h3 { margin: 0; color: var(--text-primary); font-size: var(--font-size-section-title); line-height: var(--line-height-section-title); font-weight: var(--weight-semibold); }
 .knowledge-section__heading p { margin: var(--space-1) 0 0; color: var(--text-secondary); font-size: var(--font-size-body); line-height: var(--line-height-body); }
 .knowledge-form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-5) var(--space-4); }

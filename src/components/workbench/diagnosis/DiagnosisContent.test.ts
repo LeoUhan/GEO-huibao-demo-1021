@@ -22,7 +22,13 @@ describe('diagnosisContent icons', () => {
       },
     })
 
-    expect(wrapper.find('.geo-pending-icon svg.lucide-check').exists()).toBe(true)
+    expect(wrapper.get('.geo-diagnosis-summary').classes()).toContain('geo-diagnosis-summary')
+    expect(wrapper.get('.geo-diagnosis-summary__header').text()).toContain('本轮监测')
+    expect(wrapper.find('.geo-pending-entry').exists()).toBe(false)
+    expect(wrapper.get('.geo-diagnosis-summary').text()).not.toContain('暂停监测')
+    expect(wrapper.get('.geo-diagnosis-summary').text()).toContain('2026-10-02')
+    expect(wrapper.get('.geo-diagnosis-summary').text()).toContain('采样总数1138')
+    expect(wrapper.get('.geo-diagnosis-summary').text()).toContain('中 · 趋势级')
     expect(wrapper.findAll('.geo-check strong svg').length).toBe(7)
     expect(wrapper.findAll('.geo-check strong svg.lucide-triangle-alert').length).toBeGreaterThan(0)
     expect(wrapper.find('.geo-page-intro h1 svg.lucide-circle-question-mark').exists()).toBe(true)
@@ -30,6 +36,8 @@ describe('diagnosisContent icons', () => {
     expect(wrapper.get('.geo-page-intro h1 .overview-info-icon').attributes('aria-label')).toBe('诊断与策略说明')
     expect(wrapper.get('#audit-title .geo-section-heading__number').text()).toBe('1')
     expect(wrapper.get('#persona-title .geo-section-heading__number').text()).toBe('2')
+    expect(wrapper.get('#persona-title').text()).toContain('买家人设 × 决策因子：认知 GAP')
+    expect(wrapper.get('.geo-persona-panel__subtitle').text()).toBe('买家看重的因素与 AI 回答中呈现的内容之间的差距分析')
     expect(wrapper.get('#strategy-title .geo-section-heading__number').text()).toBe('3')
     expect(wrapper.get('#strategy-title .geo-help').text()).toBe('?')
     expect(wrapper.find('.geo-page-description').exists()).toBe(false)

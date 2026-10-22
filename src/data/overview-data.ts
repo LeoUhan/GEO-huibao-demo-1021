@@ -9,7 +9,51 @@ export interface OverviewQueueItem {
   source: string
   status: string
   nextAction: string
+  owner?: string
+  actionLabel?: string
+  secondaryActionLabel?: string
 }
+
+/** The initial overview snapshot mirrors the three confirmation items in the design. */
+export const overviewQueuePreview: OverviewQueueItem[] = [
+  {
+    id: 'candidate-competitors',
+    kind: 'strategy',
+    title: '发现 3 个潜在新竞品候选',
+    summary: '近 3 轮监测中，Flow X、Techni Waterjet、STM 达到系统提示条件，等待确认是否纳入正式竞品监测。',
+    priority: 'P1',
+    source: '可见性监测',
+    status: '潜在竞品',
+    nextAction: '逐个确认竞品候选',
+    owner: 'Agent',
+    actionLabel: '查看并确认',
+    secondaryActionLabel: '查看监测结果',
+  },
+  {
+    id: 'delivery-capacity-brief',
+    kind: 'task',
+    title: '交期与产能页优化',
+    summary: 'Agent 已生成 Task 草稿，Brief 与交期 / SLA 事实需要你确认。',
+    priority: 'P0',
+    source: '优化中心',
+    status: '待客户确认',
+    nextAction: '确认 Task Brief',
+    owner: '客户',
+    actionLabel: '去确认',
+  },
+  {
+    id: 'certification-entity-brief',
+    kind: 'task',
+    title: '认证与品牌实体完善',
+    summary: '认证编号及适用范围需要你确认后，Agent 才能继续执行。',
+    priority: 'P1',
+    source: '优化中心',
+    status: '待客户确认',
+    nextAction: '确认认证事实',
+    owner: '客户',
+    actionLabel: '去确认',
+  },
+]
 
 const actionableTaskProgress = new Set<GeoTask['progress']>([
   'brief',

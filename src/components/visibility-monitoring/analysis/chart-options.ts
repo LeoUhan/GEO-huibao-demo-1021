@@ -42,7 +42,7 @@ export function createHeatmapOption(input: { rows: readonly string[], columns: r
   }))
   return {
     animation: !(typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches),
-    grid: { left: 128, right: 16, top: 16, bottom: 40, containLabel: true },
+    grid: { left: 8, right: 16, top: 16, bottom: 40, containLabel: true },
     tooltip: { position: 'top', formatter: (params) => {
       const item = Array.isArray(params) ? params[0] : params
       const value = Array.isArray(item?.value) ? item.value : []

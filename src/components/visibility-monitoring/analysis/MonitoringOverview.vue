@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { RoundDetail, RoundSummary } from '../../../api/monitoring'
-import { presentCredibility } from '../../../data/credibility-presentation'
+import { presentCredibility, presentCredibilityFromInterval } from '../../../data/credibility-presentation'
 import Spinner from '../../ui/ce/spinner/Spinner.vue'
 
 withDefaults(defineProps<{
@@ -27,8 +27,10 @@ function displayValue(value: number | string | null | undefined, suffix = '') {
 }
 
 function credibility(detail: RoundDetail | null) {
+  if (detail?.ciValue !== null && detail?.ciValue !== undefined)
+    return presentCredibilityFromInterval(detail.ciValue)
   const level = detail?.confidenceLevel
-  return level?.trim() ? presentCredibility(level).label : ''
+  return level?.trim() ? presentCredibility(level) : { label: '', reason: '' }
 }
 </script>
 
@@ -64,12 +66,16 @@ function credibility(detail: RoundDetail | null) {
           <dd>{{ displayValue(metric.value, metric.suffix) }}</dd>
         </div>
         <div class="vm-round-summary__confidence">
-          <dt>可信度</dt><dd>{{ credibility(detail) }}</dd>
+          <dt>可信度</dt><dd :title="credibility(detail).reason">
+            {{ credibility(detail).label }}
+          </dd>
         </div>
       </template>
       <template v-else>
         <div class="vm-round-summary__confidence">
-          <dt>可信度</dt><dd>{{ credibility(detail) }}</dd>
+          <dt>可信度</dt><dd :title="credibility(detail).reason">
+            {{ credibility(detail).label }}
+          </dd>
         </div>
         <div v-for="metric in additionalMetrics" :key="metric.label">
           <dt>{{ metric.label }}</dt>

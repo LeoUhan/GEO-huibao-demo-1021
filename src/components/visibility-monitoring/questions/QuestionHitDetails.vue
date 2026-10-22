@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { MonitoringPlatformId, MonitoringQuestion } from '../../../data/visibility-monitoring-data'
+import MetricDefinitionButton from '../../overview/MetricDefinitionButton.vue'
 
 const props = defineProps<{ questions: readonly MonitoringQuestion[], platforms: readonly { id: MonitoringPlatformId, label: string }[] }>()
 const emit = defineEmits<{ selectQuestion: [questionId: string] }>()
@@ -20,13 +21,13 @@ function platformLabel(id: MonitoringPlatformId) {
             <th scope="col">
               监测问题
             </th><th scope="col">
-              AI 平台提及
+              AI 平台提及 <MetricDefinitionButton id="soa" />
             </th><th scope="col">
               是否提及竞品
             </th><th scope="col">
-              是否引用官网
+              是否引用官网 <MetricDefinitionButton id="officialCitation" />
             </th><th scope="col">
-              位置 / 趋势
+              位置 / 趋势 <MetricDefinitionButton id="rank" />
             </th><th scope="col">
               买家人设
             </th><th scope="col">

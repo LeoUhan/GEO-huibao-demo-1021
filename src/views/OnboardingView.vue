@@ -182,6 +182,10 @@ async function persistCustomQuestion(question: import('../components/onboarding/
   return wizard.addCustomQuestionImmediately(question)
 }
 
+async function persistEditedQuestion(question: import('../components/onboarding/monitoring-questions/monitoring-question-data').MonitoringQuestion) {
+  return wizard.updateMonitoringQuestionImmediately(question)
+}
+
 async function goNext() {
   try {
     await wizard.saveCurrentStep(store.currentStep)
@@ -227,11 +231,6 @@ onBeforeUnmount(() => {
   <main v-else-if="!wizard.loaded.value" class="onboarding-page onboarding-page__status" aria-live="polite" />
   <main v-else class="onboarding-page">
     <div class="onboarding-page__inner">
-      <div v-if="route.query.preview === '1'" class="onboarding-page__preview-actions">
-        <RouterLink :to="{ name: 'overview' }">
-          返回工作台
-        </RouterLink>
-      </div>
       <template v-if="store.currentStep === 0">
         <header class="page-header">
           <div>
@@ -242,12 +241,15 @@ onBeforeUnmount(() => {
               <OnboardingHelp label="品牌知识说明" message="请确认并完善品牌基础信息，这些信息将用于后续买家人设生成、监测问题生成与可见性监测。" />
             </div>
           </div>
-          <span class="page-header__source">数据来源：独立站超级智能体</span>
         </header>
 
         <OnboardingSteps :current-step="store.currentStep" :steps="store.steps" />
 
-        <Alert class="knowledge-notice" variant="neutral" icon-type="icon-wancheng-1" title="已同步品牌知识：独立站超级智能体" />
+        <Alert class="knowledge-notice" variant="neutral" icon-type="icon-wancheng-1">
+          <template #title>
+            已从 <span class="knowledge-notice__source">企业知识库</span> 同步品牌知识
+          </template>
+        </Alert>
 
         <section class="knowledge-panel" aria-labelledby="knowledge-panel-title">
           <div class="knowledge-panel__header">
@@ -281,8 +283,6 @@ onBeforeUnmount(() => {
         :market="currentMarket"
         :type-options="options('persona_type')"
         :stage-options="options('purchase_stage')"
-        :company-scale-options="options('company_scale')"
-        :decision-role-options="options('decision_role')"
         :persist-personas="savePersonasImmediately"
         :saving="personaSaving"
         @saved="store.updateBuyerPersonas"
@@ -297,7 +297,7 @@ onBeforeUnmount(() => {
         :language="currentLanguage"
         :selected-ids="store.selectedMonitoringQuestionIds"
         :custom-questions="store.customMonitoringQuestions"
-        :candidate-questions="[...wizard.questionCandidates.value, ...store.customMonitoringQuestions]"
+        :candidate-questions="wizard.questionCandidates.value"
         :persona-options="personaOptions"
         :type-options="options('question_type')"
         :stage-options="options('purchase_stage')"
@@ -306,6 +306,7 @@ onBeforeUnmount(() => {
         :question-limit="wizard.questionLimit.value ?? undefined"
         :selection-saving="questionSelectionSaving"
         :persist-question="persistCustomQuestion"
+        :persist-edited-question="persistEditedQuestion"
         @selection-changed="updateQuestionSelection"
         @custom-question-added="addCustomQuestion"
       />
@@ -315,6 +316,7 @@ onBeforeUnmount(() => {
         :current-step="store.currentStep"
         :steps="store.steps"
         :frequency="store.monitoringFrequency"
+        :plan-name="wizard.planName?.value"
         :platforms="store.monitoringPlatforms"
         :platform-options="options('ai_platform')"
         :saving="planSaving"
@@ -362,22 +364,6 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped>
-.onboarding-page__preview-actions {
-  display: flex;
-  justify-content: flex-end;
-  margin-bottom: 8px;
-}
-
-.onboarding-page__preview-actions a {
-  color: var(--text-secondary);
-  font-size: 14px;
-  text-decoration: none;
-}
-
-.onboarding-page__preview-actions a:hover {
-  color: var(--action-accent);
-}
-
 .onboarding-page__status {
   display: grid;
   min-height: 100vh;

@@ -53,6 +53,19 @@ describe('knowledgeEditorDialog controlled save behavior', () => {
     wrapper.unmount()
   })
 
+  it('closes the brand-only editor after a successful save even when closeOnSave is false', async () => {
+    const persistKnowledge = vi.fn().mockResolvedValue(undefined)
+    const wrapper = await mountOpen(false, 'brand', undefined, 'brand-only')
+    await wrapper.setProps({ persistKnowledge })
+
+    await save(wrapper)
+    await flushPromises()
+
+    expect(persistKnowledge).toHaveBeenCalledOnce()
+    expect(wrapper.emitted('update:open')?.at(-1)).toEqual([false])
+    wrapper.unmount()
+  })
+
   it('preserves the existing close-after-save default', async () => {
     const wrapper = await mountOpen()
     await save(wrapper)
@@ -73,7 +86,7 @@ describe('knowledgeEditorDialog controlled save behavior', () => {
     expect(persistKnowledge).toHaveBeenCalledOnce()
     expect(persistKnowledge).toHaveBeenCalledWith(expect.arrayContaining([expect.objectContaining({ id: 'brand' })]))
     expect(persistKnowledge).toHaveBeenCalledWith(expect.arrayContaining([expect.objectContaining({ id: 'product', summary: '五轴水刀 · 航空复材切割' })]))
-    expect(persistKnowledge).toHaveBeenCalledWith(expect.arrayContaining([expect.objectContaining({ id: 'competitor', summary: '已选择 1 个 / 最多 5 个' })]))
+    expect(persistKnowledge).toHaveBeenCalledWith(expect.arrayContaining([expect.objectContaining({ id: 'competitor', summary: '已选择 1 个 · Flow · 最多 5 个' })]))
     expect(wrapper.emitted('saved')).toHaveLength(1)
     wrapper.unmount()
   })

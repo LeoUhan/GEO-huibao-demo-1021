@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest'
-import { confirmRecommendation, getAvailableCompetitorRecommendations, getDictionary } from './config-service'
+import { confirmRecommendation, getAvailableCompetitorRecommendations, getDictionary, updateQuestion } from './config-service'
 import { readMockState, resetMockState } from './repository'
 
 describe('local competitor recommendation workflow', () => {
@@ -10,8 +10,8 @@ describe('local competitor recommendation workflow', () => {
     const names = available.map(item => item.competitorName)
 
     expect(names).toContain('Shopify')
-    expect(names).toContain('Flow X')
-    expect(names).not.toContain('Webflow')
+    expect(names).toContain('Webflow')
+    expect(names).not.toContain('Flow X')
   })
 
   it('moves an accepted recommendation into the manual list exactly once', async () => {
@@ -32,5 +32,28 @@ describe('local buyer persona dictionaries', () => {
 
     expect(options.find(item => item.dictValue === 'technical_lead')?.dictLabel).toBe('技术负责人')
     expect(options.find(item => item.dictValue === 'procurement_lead')?.dictLabel).toBe('采购负责人')
+  })
+})
+
+describe('local monitoring question edits', () => {
+  beforeEach(() => resetMockState())
+
+  it('updates a question and its keyword without replacing other candidates', async () => {
+    const before = readMockState().config.questions
+    const original = before[0]!
+    await updateQuestion(original.id, {
+      questionContent: 'Wie präzise schneidet ein Wasserstrahlsystem CFRP?',
+      keyword: 'CFRP Präzisionsschnitt',
+      questionType: original.questionType,
+      personaId: original.personaId,
+      purchaseStage: original.purchaseStage,
+      intentType: original.intentType,
+      focusType: original.focusType,
+    })
+    const after = readMockState().config.questions
+
+    expect(after).toHaveLength(before.length)
+    expect(after[0]).toMatchObject({ questionContent: 'Wie präzise schneidet ein Wasserstrahlsystem CFRP?', keyword: 'CFRP Präzisionsschnitt' })
+    expect(after[1]?.questionContent).toBe(before[1]?.questionContent)
   })
 })

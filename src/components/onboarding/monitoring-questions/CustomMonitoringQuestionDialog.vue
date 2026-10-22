@@ -14,10 +14,13 @@ const props = defineProps<{
   stageOptions?: readonly DropdownSelectOption[]
   intentOptions?: readonly DropdownSelectOption[]
   focusOptions?: readonly DropdownSelectOption[]
+  initialQuestion?: MonitoringQuestion | null
   persistQuestion?: (question: MonitoringQuestion) => Promise<MonitoringQuestion>
+  persistEditedQuestion?: (question: MonitoringQuestion) => Promise<MonitoringQuestion>
 }>()
 const emit = defineEmits<{
   added: [question: MonitoringQuestion]
+  edited: [question: MonitoringQuestion]
 }>()
 const open = defineModel<boolean>('open', { default: false })
 
@@ -75,9 +78,31 @@ function resetDraft() {
   })
 }
 
+function valueFor(options: readonly DropdownSelectOption[], code: string | undefined, label: string) {
+  if (code)
+    return code
+  return String(options.find(option => option.label === label || option.value === label)?.value ?? '')
+}
+
+function loadInitialQuestion(question: MonitoringQuestion) {
+  Object.assign(draft, {
+    question: question.question,
+    keyword: question.keyword,
+    type: valueFor(availableTypeOptions.value, question.questionTypeCode, question.type),
+    persona: valueFor(availablePersonaOptions.value, question.personaId ? String(question.personaId) : undefined, question.persona),
+    purchaseStage: valueFor(availableStageOptions.value, question.purchaseStageCode, question.purchaseStage),
+    intent: valueFor(availableIntentOptions.value, question.intentCode, question.intent),
+    mainConcern: valueFor(availableFocusOptions.value, question.focusCode, question.mainConcern ?? ''),
+  })
+}
+
 watch(open, (isOpen) => {
-  if (isOpen)
-    resetDraft()
+  if (isOpen) {
+    if (props.initialQuestion)
+      loadInitialQuestion(props.initialQuestion)
+    else
+      resetDraft()
+  }
 })
 
 function clearError(field: keyof CustomMonitoringQuestionDraft) {
@@ -88,13 +113,13 @@ function labelFor(options: readonly DropdownSelectOption[], value: string) {
   return options.find(option => option.value === value)?.label ?? value
 }
 
-async function addQuestion() {
+async function saveQuestion() {
   Object.assign(errors, validateCustomMonitoringQuestion(draft))
   if (Object.keys(errors).length)
     return
 
   const question: MonitoringQuestion = {
-    id: `custom-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+    id: props.initialQuestion?.id ?? `custom-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
     question: draft.question.trim(),
     keyword: draft.keyword.trim(),
     type: labelFor(availableTypeOptions.value, draft.type),
@@ -110,8 +135,14 @@ async function addQuestion() {
   }
   saving.value = true
   try {
-    const saved = props.persistQuestion ? await props.persistQuestion(question) : question
-    emit('added', saved)
+    if (props.initialQuestion) {
+      const saved = props.persistEditedQuestion ? await props.persistEditedQuestion(question) : question
+      emit('edited', saved)
+    }
+    else {
+      const saved = props.persistQuestion ? await props.persistQuestion(question) : question
+      emit('added', saved)
+    }
     open.value = false
   }
   catch {
@@ -127,16 +158,16 @@ async function addQuestion() {
   <Modal
     v-model:open="open"
     class="custom-monitoring-question-modal"
-    title="添加自定义问题"
+    :title="initialQuestion ? '编辑监测问题' : '添加监测问题'"
     width="min(860px, calc(100vw - 32px))"
-    confirm-text="添加问题"
+    :confirm-text="initialQuestion ? '保存修改' : '添加监测问题'"
     cancel-text="取消"
-    processing-text="添加中…"
+    :processing-text="initialQuestion ? '保存中…' : '添加中…'"
     :loading="saving"
-    close-label="关闭添加自定义问题弹窗"
-    @confirm="addQuestion"
+    :close-label="initialQuestion ? '关闭编辑监测问题弹窗' : '关闭添加监测问题弹窗'"
+    @confirm="saveQuestion"
   >
-    <form class="custom-monitoring-question-form" @submit.prevent="addQuestion">
+    <form class="custom-monitoring-question-form" @submit.prevent="saveQuestion">
       <div class="custom-monitoring-question-field custom-monitoring-question-field--wide">
         <label for="custom-monitoring-question">监测问题 <span aria-hidden="true">*</span></label>
         <textarea

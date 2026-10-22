@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { BuyerPersonaRecord, MarketThemeRecord, MonitoringQuestionRecord } from '../../../api/geo-config'
+import type { MonitoringQuestion } from '../../../data/visibility-monitoring-data'
 import type { BuyerPersona, KnowledgeItem } from '../../../types'
 import type { DataListColumn } from '../../ui/ce/data-list/types'
 import type { DropdownSelectOption } from '../../ui/ce/dropdown-select/types'
@@ -8,6 +9,8 @@ import { computed, shallowRef } from 'vue'
 import BuyerPersonaEditorDialog from '../../onboarding/buyer-persona/BuyerPersonaEditorDialog.vue'
 import { Button, DataList } from '../../ui/ce'
 import Spinner from '../../ui/ce/spinner/Spinner.vue'
+import AddMonitoringQuestionDialog from '../questions/AddMonitoringQuestionDialog.vue'
+import BulkMonitoringQuestionsDialog from '../questions/BulkMonitoringQuestionsDialog.vue'
 import BuyerPersonaViewDrawer from './BuyerPersonaViewDrawer.vue'
 import CurrentBrandKnowledge from './CurrentBrandKnowledge.vue'
 
@@ -27,9 +30,11 @@ const props = defineProps<{
   errors: { brand: string, competitors: string, competitorRecommendations: string, personas: string, questions: string, themes: string }
 }>()
 
-const emit = defineEmits<{ retry: [], editKnowledge: [tab: KnowledgeEditorTab], viewKnowledge: [tab: KnowledgeEditorTab], reviewCompetitors: [] }>()
+const emit = defineEmits<{ retry: [], editKnowledge: [tab: KnowledgeEditorTab], viewKnowledge: [tab: KnowledgeEditorTab], reviewCompetitors: [], addQuestion: [question: MonitoringQuestion], updateQuestions: [questions: MonitoringQuestion[]] }>()
 const selectedPersona = shallowRef<BuyerPersonaRecord | null>(null)
 const personaEditorOpen = shallowRef(false)
+const addQuestionOpen = shallowRef(false)
+const editQuestionsOpen = shallowRef(false)
 const personaDrafts = computed<BuyerPersona[]>(() => props.personas.map(persona => ({
   id: String(persona.id),
   type: persona.personaType,
@@ -74,8 +79,43 @@ function getQuestionId(item: unknown) {
 }
 
 function keywordFor(item: unknown, themes: readonly MarketThemeRecord[]) {
-  const themeId = question(item).themeId
-  return themeId === null ? '—' : themes.find(theme => theme.id === themeId)?.themeName ?? '—'
+  const record = question(item)
+  return record.keyword?.trim() || (record.themeId === null ? '' : themes.find(theme => theme.id === record.themeId)?.themeName) || '—'
+}
+
+function asQuestion(record: MonitoringQuestionRecord): MonitoringQuestion {
+  return {
+    id: `Q${String(record.id).padStart(2, '0')}`,
+    question: record.questionContent,
+    keyword: record.keyword ?? '',
+    type: record.questionType as MonitoringQuestion['type'],
+    persona: personaFor(record, props.personas),
+    stage: record.purchaseStage,
+    intent: record.intentType,
+    concern: record.focusType ?? '',
+    platformResults: [],
+    competitors: [],
+    officialSiteCited: false,
+    rank: null,
+    trend: 'flat',
+    samplingBatches: [],
+  }
+}
+
+const questionOptions = computed(() => ({
+  type: [...new Set(props.questions.map(item => item.questionType))].map(value => ({ value, label: value })),
+  persona: props.personas.map(item => ({ value: item.personaName, label: item.personaName })),
+  purchaseStage: [...new Set(props.questions.map(item => item.purchaseStage))].map(value => ({ value, label: value })),
+  intent: [...new Set(props.questions.map(item => item.intentType))].map(value => ({ value, label: value })),
+  mainConcern: [...new Set(props.questions.map(item => item.focusType).filter((value): value is string => !!value))].map(value => ({ value, label: value })),
+}))
+
+function addQuestion(question: MonitoringQuestion) {
+  emit('addQuestion', question)
+}
+
+function updateQuestions(questions: MonitoringQuestion[]) {
+  emit('updateQuestions', questions)
 }
 
 function personaFor(item: unknown, personas: readonly BuyerPersonaRecord[]) {
@@ -103,9 +143,14 @@ function personaStages(persona: BuyerPersonaRecord) {
       <Button v-if="stage === 2" variant="outline" :disabled="loading" @click="personaEditorOpen = true">
         维护买家人设
       </Button>
-      <Button v-else variant="outline" :loading="loading" @click="emit('retry')">
-        重新读取
-      </Button>
+      <div v-else class="market-config__question-actions">
+        <Button variant="outline" :disabled="loading" @click="editQuestionsOpen = true">
+          编辑问题
+        </Button>
+        <Button variant="primary" :disabled="loading" @click="addQuestionOpen = true">
+          添加监测问题
+        </Button>
+      </div>
     </header>
     <p v-if="loading" class="market-config__state" role="status">
       <Spinner variant="ring" aria-hidden="true" />
@@ -165,6 +210,9 @@ function personaStages(persona: BuyerPersonaRecord) {
     <template v-else>
       <p v-if="errors.questions" class="market-config__error" role="alert">
         {{ errors.questions }}
+        <Button variant="outline" size="sm" @click="emit('retry')">
+          重试
+        </Button>
       </p>
       <div v-else class="market-config__questions">
         <p v-if="errors.themes" class="market-config__error" role="alert">
@@ -180,6 +228,7 @@ function personaStages(persona: BuyerPersonaRecord) {
           error-message="监测问题加载失败"
           density="compact"
           :is-row-activatable="() => false"
+          @retry="emit('retry')"
         >
           <template #cell-question="{ item }">
             <span class="market-config__question"><span class="market-config__question-id">Q{{ String(question(item).id).padStart(2, '0') }}</span>{{ question(item).questionContent }}</span>
@@ -203,6 +252,8 @@ function personaStages(persona: BuyerPersonaRecord) {
             {{ question(item).focusType || '—' }}
           </template>
         </DataList>
+        <AddMonitoringQuestionDialog v-model:open="addQuestionOpen" :options="questionOptions" @added="addQuestion" />
+        <BulkMonitoringQuestionsDialog v-model:open="editQuestionsOpen" :questions="questions.map(asQuestion)" market="当前市场" :question-count="questions.length" :options="questionOptions" @saved="updateQuestions" />
       </div>
     </template>
   </section>
@@ -214,6 +265,7 @@ function personaStages(persona: BuyerPersonaRecord) {
 .market-config--brand > .market-config__state { margin: 18px; }
 .market-config--brand :deep(.vm-current-knowledge) { margin-top: 0; }
 .market-config__header,.market-config__cards article header { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+.market-config__question-actions { display: flex; gap: 8px; }
 .market-config__header h2 { display: flex; align-items: center; gap: 10px; margin: 0; font-size: var(--font-size-section-title); }
 .market-config__count { padding: 4px 10px; border-radius: 999px; color: var(--status-success-foreground); background: var(--status-success-background); font-size: 12px; line-height: 18px; font-weight: 650; }
 .market-config__header p { margin: 6px 0 0; color: var(--text-muted); }
@@ -248,5 +300,5 @@ function personaStages(persona: BuyerPersonaRecord) {
 .market-config__state,.market-config__error { margin: 0; padding: 14px; border-radius: 10px; color: var(--text-secondary); background: var(--background-subtle); }
 .market-config__state[role="status"] { display: flex; min-height: 64px; align-items: center; justify-content: center; --spinner-color: var(--action-accent); }
 .market-config__error { color: var(--status-error-foreground); background: var(--status-error-background); }
-@media (max-width: 700px) { .market-config__split { grid-template-columns: 1fr; } .market-config__persona-grid { grid-template-columns: 1fr; } .market-config__header { align-items: flex-start; flex-direction: column; } }
+@media (max-width: 700px) { .market-config__split { grid-template-columns: 1fr; } .market-config__persona-grid { grid-template-columns: 1fr; } .market-config__header { align-items: flex-start; flex-direction: column; } .market-config__question-actions { flex-wrap: wrap; } }
 </style>

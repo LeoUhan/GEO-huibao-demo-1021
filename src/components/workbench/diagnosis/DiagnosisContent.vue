@@ -175,7 +175,6 @@ function strategyCollaborationLabel(strategy: Strategy) {
 }
 const confirmedCount = computed(() => allStrategies.value.filter(strategy => strategy.confirmed && !strategy.ignored && !taskFor(strategy)).length)
 const reviewCount = computed(() => allStrategies.value.filter(strategy => !strategy.confirmed && !strategy.ignored && !taskFor(strategy)).length)
-const pendingCount = computed(() => props.findings.filter(finding => finding.status === '待处理' || finding.status === '待官网运营审核').length + (canReview.value ? reviewCount.value : 0))
 const passedCount = computed(() => auditChecks.filter(check => check.passed).length)
 watch(() => props.strategyLayer, () => queuePage.value = 1)
 watch(() => props.activePersona, () => {
@@ -219,23 +218,25 @@ function summaryText({ total, page, pages }: { total: number, page: number, page
       </template>
     </GeoPageIntro>
 
-    <section class="geo-overview-compact" aria-label="诊断概览">
-      <div class="geo-metric-strip">
-        <span class="geo-metric">
-          <span>数据更新</span><b>09/17 23:40</b>
-        </span>
-        <span class="geo-metric">
-          <span>监测轮次</span><b>4 / 7</b>
-        </span>
-        <span class="geo-metric"><span>市场</span><b>德国 / 德语</b></span>
-        <span class="geo-metric"><span>人设 / 意图</span><b>6 / 4</b></span>
-        <span class="geo-metric"><span>Query / AI</span><b>67 / 5</b></span>
-        <Tag class="geo-confidence" tone="green" variant="soft" size="sm">
-          决策级可信度
-        </Tag>
-        <Button class="geo-pending-entry" variant="outline" :aria-label="`打开待处理事项，共 ${pendingCount} 项`" @click="emit('openPending')">
-          <span class="geo-pending-icon" aria-hidden="true"><AppIcon name="check" :size="14" /></span><span>待处理</span><b v-if="pendingCount" class="geo-pending-badge">{{ pendingCount }}</b>
-        </Button>
+    <section class="geo-diagnosis-summary" aria-label="本轮监测概览">
+      <header class="geo-diagnosis-summary__header">
+        <div class="geo-diagnosis-summary__title">
+          <span class="geo-diagnosis-summary__icon" aria-hidden="true">✦</span>
+          <h2>本轮监测</h2>
+          <span class="geo-diagnosis-summary__status">进行中</span>
+        </div>
+      </header>
+      <div class="geo-diagnosis-summary__metrics">
+        <div><span>监测日期</span><b>2026-10-02</b></div>
+        <div><span>市场 / 语言</span><b>德国 / 德语</b></div>
+        <div><span>买家人设</span><b>3 类</b></div>
+        <div><span>意图</span><b>4 类</b></div>
+        <div><span>关键词</span><b>4 个</b></div>
+        <div><span>采样总数</span><b>1138</b></div>
+        <div><span>AI 平台</span><b>3 个</b></div>
+        <div class="geo-diagnosis-summary__confidence">
+          <span>可信度</span><b>中 · 趋势级</b>
+        </div>
       </div>
     </section>
 
@@ -323,13 +324,16 @@ function summaryText({ total, page, pages }: { total: number, page: number, page
       </div>
     </section>
 
-    <section class="geo-panel" aria-labelledby="persona-title">
+    <section class="geo-panel geo-persona-panel" aria-labelledby="persona-title">
       <header class="geo-panel__head">
         <div>
           <h2 id="persona-title">
             <span class="geo-section-heading__number" aria-hidden="true">2</span>
-            <span>买家人设 · 决策因子与认知 Gap</span>
+            <span>买家人设 × 决策因子：认知 GAP</span>
           </h2>
+          <p class="geo-persona-panel__subtitle">
+            买家看重的因素与 AI 回答中呈现的内容之间的差距分析
+          </p>
         </div>
       </header>
       <div class="geo-personas" role="tablist" aria-label="买家人设">

@@ -45,7 +45,9 @@ describe('sourceDetailDrawer', () => {
     })
 
     expect(wrapper.text()).toContain(source.domain)
-    expect(wrapper.text()).toContain('AI 平台引用')
+    expect(wrapper.text()).toContain('各 AI 平台引用分布')
+    expect(wrapper.text()).toContain('Flow')
+    expect(wrapper.text()).toContain('12')
     expect(wrapper.findAll('.vm-source-table-scroll[role="region"][tabindex="0"]')).toHaveLength(2)
     expect(wrapper.get('[data-select-question="Q01"]').classes()).toContain('geo-table-detail-button')
     await wrapper.get('[data-select-page="page-1"]').trigger('click')

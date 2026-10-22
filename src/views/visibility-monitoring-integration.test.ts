@@ -23,6 +23,7 @@ const monitoringApi = vi.hoisted(() => ({
 vi.mock('../api/monitoring', () => monitoringApi)
 
 const geoConfigApi = vi.hoisted(() => ({
+  getActivePlan: vi.fn(),
   getMarkets: vi.fn(),
   getMarketPlatforms: vi.fn(),
   getDictionary: vi.fn(),
@@ -44,6 +45,7 @@ const geoConfigApi = vi.hoisted(() => ({
 vi.mock('../api/geo-config', () => geoConfigApi)
 
 beforeEach(() => {
+  geoConfigApi.getActivePlan.mockReset().mockResolvedValue({ quota: { planCode: 'demo', planName: '演示版' } })
   geoConfigApi.getMarkets.mockReset().mockResolvedValue([{ id: 3, marketType: 1, status: 1, marketCountry: 'de', marketLanguage: 'de', subSiteName: null }])
   monitoringApi.getSchedule.mockReset().mockResolvedValue(null)
   monitoringApi.saveSchedule.mockReset().mockResolvedValue(77)
@@ -198,7 +200,7 @@ describe('visibility monitoring integration', () => {
     await wrapper.get('#visibility-step-3').trigger('click')
     expect(wrapper.text()).toContain('question service down')
     expect(wrapper.text()).not.toContain('67 条')
-    await wrapper.get('.market-config__header button').trigger('click')
+    await wrapper.get('.market-config__error button').trigger('click')
     await flushPromises()
     expect(geoConfigApi.getMarketQuestions).toHaveBeenCalledTimes(2)
     expect(wrapper.text()).toContain('Real server question?')
@@ -297,20 +299,18 @@ describe('visibility monitoring integration', () => {
     wrapper.unmount()
   })
 
-  it('persists monitoring frequency, time and platform selection to backend APIs', async () => {
+  it('keeps plan-controlled frequency fixed and persists platform selection to backend APIs', async () => {
     monitoringApi.getSchedule.mockResolvedValue({ id: 6, scheduleType: 'weekly', executeTime: '05:00', repeatCount: 4, enabled: 1, timezone: 'Asia/Shanghai', nextFireTime: null, lastFireTime: null, lastExecuteStatus: null, lastRoundId: null })
     const wrapper = mountView()
     await flushPromises()
     await wrapper.get('#visibility-step-4').trigger('click')
     await wrapper.get('.sampling-summary__header button').trigger('click')
-    await wrapper.get('input[type="radio"][value="monthly"]').setValue()
-    await wrapper.get('input[type="time"]').setValue('09:30')
     await wrapper.get('input[type="checkbox"][value="chatgpt"]').setValue(false)
     await wrapper.get('button.is-primary').trigger('click')
     await flushPromises()
 
     expect(geoConfigApi.removePlatform).toHaveBeenCalledWith(2)
-    expect(monitoringApi.saveSchedule).toHaveBeenCalledWith({ scheduleType: 'monthly', executeTime: '09:30', repeatCount: 4 })
+    expect(monitoringApi.saveSchedule).toHaveBeenCalledWith({ scheduleType: 'weekly', executeTime: '05:00', repeatCount: 4 })
     expect(wrapper.find('.vm-settings').attributes('open')).toBeUndefined()
     wrapper.unmount()
   })

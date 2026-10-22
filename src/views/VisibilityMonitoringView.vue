@@ -1,13 +1,14 @@
 <script setup lang="ts">
 import type { DropdownSelectOption } from '../components/ui/ce/dropdown-select/types'
 import type { KnowledgeEditorTab } from '../components/visibility-monitoring/settings/CurrentBrandKnowledge.vue'
-import type { SamplingFrequency, VisibilityTab } from '../data/visibility-monitoring-data'
+import type { MonitoringQuestion, SamplingFrequency, VisibilityTab } from '../data/visibility-monitoring-data'
 import type { BuyerPersona, KnowledgeItem } from '../types'
 import { computed, onMounted, ref, shallowRef } from 'vue'
-import { addPersona, deleteBrandProduct, deleteCompetitor, deletePersona, getDictionary, getMarkets, saveBrandInfo, updatePersona } from '../api/geo-config'
+import { addPersona, addQuestion, deleteBrandProduct, deleteCompetitor, deletePersona, getActivePlan, getDictionary, getMarkets, saveBrandInfo, updatePersona, updateQuestion } from '../api/geo-config'
 import { triggerRound } from '../api/monitoring'
 import KnowledgeEditorDialog from '../components/onboarding/knowledge/KnowledgeEditorDialog.vue'
 import KnowledgeViewDialog from '../components/onboarding/knowledge/KnowledgeViewDialog.vue'
+import { defaultMonitoringPlatformsForPlan, frequencyForPlan } from '../components/onboarding/monitoring-plan/monitoring-plan'
 import { Button, Modal } from '../components/ui/ce'
 import Spinner from '../components/ui/ce/spinner/Spinner.vue'
 import MonitoringOverview from '../components/visibility-monitoring/analysis/MonitoringOverview.vue'
@@ -64,6 +65,8 @@ const overviewStats = computed(() => toMonitoringOverviewMetrics({
 const settingsOpen = shallowRef(false)
 const frequencyChoice = shallowRef<SamplingFrequency>('weekly')
 const executionTime = shallowRef<string>('05:00')
+const activePlanName = shallowRef('')
+const activePlanCode = shallowRef('')
 const settingsError = shallowRef('')
 const enableConfirmationOpen = shallowRef(false)
 const setupTabs = [
@@ -147,11 +150,15 @@ const pendingCompetitorNames = computed(() => marketConfiguration.competitorReco
 onMounted(() => {
   void loadMarketLabel()
   void loadPersonaDictionaries()
-  void monitoringSchedule.load().then(() => {
-    if (monitoringSchedule.schedule.value) {
-      frequencyChoice.value = monitoringSchedule.schedule.value.scheduleType
-      executionTime.value = monitoringSchedule.schedule.value.executeTime
+  void Promise.allSettled([getActivePlan(), monitoringSchedule.load()]).then(([planResult]) => {
+    if (planResult.status === 'fulfilled') {
+      activePlanName.value = planResult.value.quota.planName
+      activePlanCode.value = planResult.value.quota.planCode
     }
+    const schedule = monitoringSchedule.schedule.value
+    if (schedule)
+      executionTime.value = schedule.executeTime
+    frequencyChoice.value = frequencyForPlan(activePlanCode.value, activePlanName.value, schedule?.scheduleType ?? 'weekly')
   })
   void monitoringRound.load()
   void monitoringPlatforms.load()
@@ -180,6 +187,25 @@ async function loadPersonaDictionaries() {
   purchaseStageOptions.value = options[1] ?? []
   companyScaleOptions.value = options[2] ?? []
   decisionRoleOptions.value = options[3] ?? []
+}
+async function addCurrentMonitoringQuestion(question: MonitoringQuestion) {
+  const persona = marketConfiguration.personas.value.find(item => item.personaName === question.persona)
+  if (!persona)
+    return
+  await addQuestion({ questionContent: question.question, keyword: question.keyword, questionType: question.type, personaId: persona.id, purchaseStage: question.stage, intentType: question.intent, focusType: question.concern })
+  await marketConfiguration.load()
+}
+async function updateCurrentMonitoringQuestions(questions: MonitoringQuestion[]) {
+  const saved = await Promise.allSettled(questions.map((question) => {
+    const id = Number(question.id.match(/\d+/)?.[0])
+    const persona = marketConfiguration.personas.value.find(item => item.personaName === question.persona)
+    if (!Number.isFinite(id) || !persona)
+      return Promise.reject(new Error('问题编号或买家人设无效'))
+    return updateQuestion(id, { questionContent: question.question, keyword: question.keyword, questionType: question.type, personaId: persona.id, purchaseStage: question.stage, intentType: question.intent, focusType: question.concern })
+  }))
+  if (saved.some(result => result.status === 'rejected'))
+    return
+  await marketConfiguration.load()
 }
 function openKnowledgeEditor(tab: KnowledgeEditorTab) {
   brandKnowledgeTab.value = tab
@@ -265,20 +291,22 @@ function refreshCompetitorRecommendations() {
 function switchTab(tab: VisibilityTab) {
   activeTab.value = tab
 }
-async function saveSettings(settings: { frequency: SamplingFrequency, platforms: string[], time: string }) {
+const settingsPlatformSelection = computed(() => monitoringPlatforms.selected.value.length
+  ? monitoringPlatforms.selected.value
+  : defaultMonitoringPlatformsForPlan(activePlanCode.value, activePlanName.value))
+
+async function saveSettings(settings: { frequency: SamplingFrequency, platforms: string[] }) {
   settingsError.value = ''
   const platformsSaved = await monitoringPlatforms.save(settings.platforms)
   if (!platformsSaved) {
     settingsError.value = monitoringPlatforms.error.value || 'AI 平台配置保存失败'
     return
   }
-  const scheduleSaved = await monitoringSchedule.save({ scheduleType: settings.frequency, executeTime: settings.time })
+  const scheduleSaved = await monitoringSchedule.save({ scheduleType: frequencyChoice.value, executeTime: executionTime.value })
   if (!scheduleSaved) {
     settingsError.value = monitoringSchedule.error.value || '监测计划保存失败'
     return
   }
-  frequencyChoice.value = settings.frequency
-  executionTime.value = settings.time
   settingsOpen.value = false
 }
 function toggleMonitoring() {
@@ -351,11 +379,13 @@ async function launchManualRound() {
         @edit-knowledge="openKnowledgeEditor"
         @view-knowledge="openKnowledgeViewer"
         @review-competitors="competitorReviewOpen = true"
+        @add-question="addCurrentMonitoringQuestion"
+        @update-questions="updateCurrentMonitoringQuestions"
       />
     </div>
 
     <section v-else-if="activeStep === 4" id="visibility-stage-4" class="visibility-stage-four" role="tabpanel" aria-labelledby="visibility-step-4">
-      <SamplingTrustSection :schedule="monitoringSchedule.schedule.value" :round="monitoringRound.detail.value" :loading="monitoringSchedule.loading.value || monitoringRound.loading.value" :error="monitoringSchedule.error.value || monitoringRound.error.value" @edit-settings="settingsOpen = true" />
+      <SamplingTrustSection :schedule="monitoringSchedule.schedule.value" :round="monitoringRound.detail.value" :cumulative="monitoringRound.cumulativeSampling.value" :question-count="marketConfiguration.questions.value.length" :platform-count="monitoringPlatforms.selected.value.length" :loading="monitoringSchedule.loading.value || monitoringRound.loading.value" :error="monitoringSchedule.error.value || monitoringRound.error.value" @edit-settings="settingsOpen = true" />
     </section>
 
     <section v-else id="visibility-stage-5" class="visibility-results" role="tabpanel" aria-labelledby="visibility-step-5">
@@ -381,17 +411,13 @@ async function launchManualRound() {
         v-else-if="monitoringRound.round.value && monitoringRound.detail.value && monitoringRound.sourceDomains.value && monitoringRound.sourcePages.value"
         :active-tab="activeTab"
         :round="monitoringRound.round.value"
-        :detail="monitoringRound.detail.value"
-        :brand-metrics="monitoringRound.brandMetrics.value"
-        :platform-metrics="monitoringRound.platformMetrics.value"
-        :persona-metrics="monitoringRound.personaMetrics.value"
         :question-hits="monitoringRound.questionHits.value"
         :source-domains="monitoringRound.sourceDomains.value"
         :source-pages="monitoringRound.sourcePages.value"
       />
     </section>
 
-    <MonitoringSettingsDialog :open="settingsOpen" :frequency="frequencyChoice" :platforms="monitoringPlatforms.options.value" :selected-platforms="monitoringPlatforms.selected.value" :time="executionTime" :saving="monitoringPlatforms.saving.value || monitoringSchedule.saving.value" :error="settingsError || monitoringPlatforms.error.value" @close="settingsOpen = false" @save="saveSettings" />
+    <MonitoringSettingsDialog :open="settingsOpen" :frequency="frequencyChoice" :selected-platforms="settingsPlatformSelection" :plan-name="activePlanName" :saving="monitoringPlatforms.saving.value || monitoringSchedule.saving.value" :error="settingsError || monitoringPlatforms.error.value" @close="settingsOpen = false" @save="saveSettings" />
     <KnowledgeEditorDialog
       v-model:open="brandKnowledgeEditorOpen"
       :items="brandKnowledgeItems"

@@ -191,6 +191,7 @@ export interface RoundDetail extends RoundSummary {
   repeatablePp: number | null
   ciValue: number | null
   finishedAt: string | null
+  measurementTier?: 'trend' | 'decision' | null
 }
 
 export interface SourceDomainMetric {

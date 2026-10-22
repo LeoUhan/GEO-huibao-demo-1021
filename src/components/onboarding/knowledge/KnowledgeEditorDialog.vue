@@ -9,6 +9,7 @@ import { confirmRecommendation, generateCompetitorCandidates, getMarketCompetito
 import { Button, Modal } from '../../ui/ce'
 import BrandKnowledgePanel from './BrandKnowledgePanel.vue'
 import { persistCompetitorDraft } from './competitor-persistence'
+import { buildCompetitorSummary } from './competitor-summary'
 import CompetitorKnowledgePanel from './CompetitorKnowledgePanel.vue'
 import { validateKnowledgeItems } from './knowledge-validation'
 import MarketLanguagePanel from './MarketLanguagePanel.vue'
@@ -360,10 +361,7 @@ function summaryFor(item: KnowledgeItem) {
   if (item.id === 'market') {
     return `${item.marketLanguage?.market || '未设置市场'} · ${item.marketLanguage?.language || '未设置语言'}`
   }
-  const count = item.competitors?.length ?? 0
-  return props.competitorCountLimit === null || props.competitorCountLimit === undefined
-    ? `已选择 ${count} 个 / 套餐上限未返回`
-    : `已选择 ${count} 个 / 最多 ${props.competitorCountLimit} 个`
+  return buildCompetitorSummary(item.competitors ?? [], props.competitorCountLimit)
 }
 
 async function save() {
@@ -386,7 +384,7 @@ async function save() {
   try {
     await props.persistKnowledge?.(saved)
     emit('saved', saved)
-    if (props.closeOnSave !== false)
+    if (props.footerMode === 'brand-only' || props.closeOnSave !== false)
       open.value = false
   }
   catch (cause) {

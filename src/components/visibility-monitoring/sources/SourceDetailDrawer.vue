@@ -37,6 +37,7 @@ const platformLabels = computed(() => {
   const ids = domain.value?.platforms ?? page.value?.platforms ?? []
   return ids.map(id => props.platforms.find(item => item.id === id)?.label ?? id)
 })
+const platformStats = computed(() => domain.value?.platformStats ?? page.value?.platformStats ?? [])
 
 function domainName(domainId: string) {
   return props.sources.find(item => item.id === domainId)?.domain ?? domainId
@@ -57,24 +58,42 @@ function domainName(domainId: string) {
   >
     <div v-if="source" class="vm-source-body">
       <section class="vm-source-section">
+        <div v-if="domain?.competitors.length" class="vm-competitor-line">
+          <strong>竞品引用</strong><span v-for="competitor in domain.competitors" :key="competitor">{{ competitor }}</span>
+        </div>
         <div class="vm-source-metrics">
-          <article><span>引用次数</span><strong>{{ domain?.citationCount ?? page?.citations }}</strong><small>当前监测周期累计</small></article>
-          <article><span>关联问题</span><strong>{{ domain?.questionCount ?? page?.questionIds.length }} 条</strong><small>命中该信源的问题</small></article>
-          <article><span>引用平台</span><strong>{{ platformLabels.length }} 个</strong><small>{{ platformLabels.join(' · ') || '暂无平台记录' }}</small></article>
-          <article><span>我方是否提及</span><strong :class="(domain?.ownBrandMentioned ?? page?.ownBrandMentioned) ? 'is-yes' : 'is-no'">{{ (domain?.ownBrandMentioned ?? page?.ownBrandMentioned) ? '是' : '否' }}</strong><small>按当前证据记录</small></article>
+          <article><span>命中问题数</span><strong>{{ domain?.questionCount ?? page?.questionIds.length }}</strong></article>
+          <article><span>引用次数</span><strong>{{ domain?.citationCount ?? page?.citations }}</strong></article>
+          <article><span>引用平台</span><strong>{{ platformLabels.length }} 个</strong></article>
+          <article><span>我方是否提及</span><strong :class="(domain?.ownBrandMentioned ?? page?.ownBrandMentioned) ? 'is-yes' : 'is-no'">{{ (domain?.ownBrandMentioned ?? page?.ownBrandMentioned) ? '是' : '否' }}</strong></article>
         </div>
       </section>
 
       <section class="vm-source-section">
         <div class="vm-source-heading">
-          <div><h3>AI 平台引用</h3><p>当前演示数据可确认的平台范围</p></div>
+          <div><h3>{{ domain ? '各 AI 平台引用分布' : '引用内容明细' }}</h3><p>{{ domain ? '当前来源域名的引用拆分' : '被引页面的 AI 引用记录' }}</p></div>
         </div>
-        <div class="vm-platform-chips">
+        <div v-if="platformStats.length" class="vm-source-table-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th>AI 平台</th><th>引用次数</th><th>命中问题数</th><th v-if="domain">
+                  被引页面数
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="stat in platformStats" :key="stat.platform">
+                <td>{{ platforms.find(item => item.id === stat.platform)?.label ?? stat.platform }}</td><td>{{ stat.citationCount }}</td><td>{{ stat.questionCount }}</td><td v-if="domain">
+                  {{ 'pageCount' in stat ? stat.pageCount : '—' }}
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div v-else class="vm-platform-chips">
           <span v-for="label in platformLabels" :key="label">{{ label }}</span><span v-if="!platformLabels.length" class="vm-muted-chip">暂无平台记录</span>
         </div>
-        <p class="vm-data-note">
-          未提供单个域名或页面的分平台引用次数，因此这里只列平台范围，不推算各平台数量。
-        </p>
       </section>
 
       <section v-if="domain" class="vm-source-section">
@@ -102,9 +121,6 @@ function domainName(domainId: string) {
       </section>
 
       <section v-if="page" class="vm-source-section">
-        <div class="vm-source-heading">
-          <div><h3>页面摘要</h3><p>本轮采样中被 AI 回答引用的页面</p></div>
-        </div>
         <p class="vm-page-summary">
           {{ page.summary }}
         </p>
@@ -141,6 +157,8 @@ function domainName(domainId: string) {
 .vm-source-drawer { --ce-drawer-size: min(960px, 94vw); }
 .vm-source-body { display: grid; gap: 16px; min-width: 0; }
 .vm-source-section { min-width: 0; padding: 17px; border: 1px solid var(--border-default); border-radius: 13px; background: var(--background-primary); }
+.vm-competitor-line { display: flex; align-items: center; gap: 8px; margin-bottom: 14px; color: var(--text-secondary); font-size: 12px; }
+.vm-competitor-line span { padding: 4px 9px; border-radius: 999px; color: var(--action-accent); background: var(--action-subtle-background); font-weight: 600; }
 .vm-source-metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
 .vm-source-metrics article { display: grid; min-width: 0; align-content: start; gap: 7px; padding: 13px; border: 1px solid var(--border-default); border-radius: 10px; background: var(--background-subtle); }
 .vm-source-metrics article > span { color: var(--text-muted); font-size: 12px; }

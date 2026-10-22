@@ -5,16 +5,19 @@ import type { DropdownSelectOption } from '../components/ui/ce/dropdown-select/t
 import type { BuyerPersona } from '../types'
 import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { addPersona, addQuestion, bindMarket, completeBrandStep, completePersonaStep, completeQuestionStep, completeWizardStep, createWizard, deletePersona, getActivePlan, getBrandInfo, getDictionary, getMarketPersonas, getMarketPlatforms, getMarketQuestions, getMarketThemes, removePlatform, saveBrandInfo, selectPlatform, switchMarket, updateFirstSelected, updatePersona } from '../api/geo-config'
+import { addPersona, addQuestion, bindMarket, completeBrandStep, completePersonaStep, completeQuestionStep, completeWizardStep, createWizard, deletePersona, getActivePlan, getBrandInfo, getDictionary, getMarketPersonas, getMarketPlatforms, getMarketQuestions, getMarketThemes, removePlatform, saveBrandInfo, selectPlatform, switchMarket, updateFirstSelected, updatePersona, updateQuestion } from '../api/geo-config'
 import { getSchedule, saveSchedule } from '../api/monitoring'
 import BuyerPersonaStep from '../components/onboarding/buyer-persona/BuyerPersonaStep.vue'
+import { defaultMonitoringPlatformsForPlan, monitoringPlatformOptions, normalizeMonitoringPlatform } from '../components/onboarding/monitoring-plan/monitoring-plan'
 import MonitoringPlanStep from '../components/onboarding/monitoring-plan/MonitoringPlanStep.vue'
+import { inferMonitoringKeyword } from '../components/onboarding/monitoring-questions/monitoring-question-data'
 import MonitoringQuestionStep from '../components/onboarding/monitoring-questions/MonitoringQuestionStep.vue'
 import OnboardingSteps from '../components/onboarding/shared/OnboardingSteps.vue'
 import DropdownSelect from '../components/ui/ce/dropdown-select/DropdownSelect.vue'
 import Spinner from '../components/ui/ce/spinner/Spinner.vue'
 import AppIcon from '../components/ui/icons/AppIcon.vue'
 import { useServerMarkets } from '../composables/use-server-markets'
+import { visibilityMonitoringData } from '../data/visibility-monitoring-data'
 import { marketSetupSteps, useMarketContextStore } from '../stores/market-context'
 
 const route = useRoute()
@@ -35,6 +38,7 @@ const backendPlatforms = ref<SelectedPlatformRecord[]>([])
 const dictionaries = ref<Record<string, GeoDictionaryItem[]>>({})
 const serverSchedule = ref<Awaited<ReturnType<typeof getSchedule>>>(null)
 const questionLimit = ref<number | undefined>()
+const activePlanName = ref('')
 const draft = computed(() => marketContext.setupDraft)
 const currentMarket = computed(() => draft.value?.market ?? '')
 const currentLanguage = computed(() => draft.value?.language ?? '')
@@ -45,12 +49,9 @@ const selectedMarketLanguage = computed(() => selectedMarketId.value ? String(se
 const dictionaryOptions = (name: string) => (dictionaries.value[name] ?? []).map(item => ({ value: item.dictValue, label: item.dictLabel }))
 const personaTypeOptions = computed(() => dictionaryOptions('persona_type'))
 const purchaseStageOptions = computed(() => dictionaryOptions('purchase_stage'))
-const companyScaleOptions = computed(() => dictionaryOptions('company_scale'))
-const decisionRoleOptions = computed(() => dictionaryOptions('decision_role'))
 const intentOptions = computed(() => dictionaryOptions('intent_type'))
 const questionTypeOptions = computed(() => dictionaryOptions('question_type'))
 const focusOptions = computed(() => dictionaryOptions('focus_type'))
-const platformOptions = computed(() => dictionaryOptions('ai_platform'))
 const personaQuestionOptions = computed<DropdownSelectOption[]>(() => backendPersonas.value.map(persona => ({ value: String(persona.id), label: persona.personaName })))
 const serverQuestionCandidates = computed<MonitoringQuestion[]>(() => {
   const personaById = new Map(backendPersonas.value.map(item => [item.id, item.personaName]))
@@ -59,7 +60,7 @@ const serverQuestionCandidates = computed<MonitoringQuestion[]>(() => {
   return [...backendQuestions.value.map(question => ({
     id: String(question.id),
     question: question.questionContent,
-    keyword: question.themeId ? themeById.get(question.themeId) ?? '' : '',
+    keyword: question.keyword?.trim() || (question.themeId ? themeById.get(question.themeId) ?? '' : '') || visibilityMonitoringData.questions.find(candidate => candidate.question === question.questionContent)?.keyword || inferMonitoringKeyword(question.questionContent),
     type: label('question_type', question.questionType),
     persona: personaById.get(question.personaId) ?? String(question.personaId),
     purchaseStage: label('purchase_stage', question.purchaseStage),
@@ -107,6 +108,7 @@ async function loadBoundMarketConfiguration() {
   backendPlatforms.value = platforms
   serverSchedule.value = schedule
   questionLimit.value = activePlan.quota.questionCountLimit
+  activePlanName.value = activePlan.quota.planName
   dictionaries.value = Object.fromEntries(dictionaryTypes.map((type, index) => [type, dicts[index] as GeoDictionaryItem[]]))
   const personasForEditor: BuyerPersona[] = personas.map(persona => ({
     id: String(persona.id),
@@ -123,7 +125,11 @@ async function loadBoundMarketConfiguration() {
   }))
   marketContext.updateSetupPersonas(personasForEditor)
   marketContext.updateSetupQuestionSelection(questions.filter(question => question.isFirstSelected === 1).map(question => String(question.id)))
-  marketContext.updateSetupPlatforms(platforms.filter(platform => platform.enabled === 1).map(platform => platform.platform) as never)
+  const savedPlatforms = platforms.filter(platform => platform.enabled === 1).map(platform => platform.platform)
+  const selectablePlatformIds = new Set(monitoringPlatformOptions.filter(platform => !platform.disabled).map(platform => platform.value))
+  marketContext.updateSetupPlatforms(savedPlatforms.length
+    ? savedPlatforms.map(normalizeMonitoringPlatform).filter(platform => selectablePlatformIds.has(platform)) as never
+    : defaultMonitoringPlatformsForPlan(activePlan.quota.planCode, activePlan.quota.planName))
   if (schedule)
     marketContext.updateSetupFrequency(schedule.scheduleType)
 }
@@ -374,6 +380,36 @@ async function addCustomQuestion(question: MonitoringQuestion) {
   await handleQuestionSelection([...draft.value!.selectedMonitoringQuestionIds, question.id])
 }
 
+async function persistEditedQuestion(question: MonitoringQuestion) {
+  const id = Number(question.id)
+  if (!Number.isSafeInteger(id) || !question.personaId || !question.questionTypeCode || !question.purchaseStageCode || !question.intentCode || !question.focusCode)
+    throw new Error('该监测问题缺少可保存的后端字段，请重新读取后重试。')
+  await updateQuestion(id, {
+    questionContent: question.question,
+    keyword: question.keyword,
+    questionType: question.questionTypeCode,
+    personaId: question.personaId,
+    purchaseStage: question.purchaseStageCode,
+    intentType: question.intentCode,
+    focusType: question.focusCode,
+  })
+  backendQuestions.value = backendQuestions.value.map((item) => {
+    if (item.id !== id)
+      return item
+    return {
+      ...item,
+      questionContent: question.question,
+      keyword: question.keyword,
+      questionType: question.questionTypeCode!,
+      personaId: question.personaId!,
+      purchaseStage: question.purchaseStageCode!,
+      intentType: question.intentCode!,
+      focusType: question.focusCode!,
+    }
+  })
+  return question
+}
+
 async function persistCustomQuestion(question: MonitoringQuestion) {
   workflowError.value = ''
   try {
@@ -530,8 +566,6 @@ function cancel() {
         market-setup
         :type-options="personaTypeOptions"
         :stage-options="purchaseStageOptions"
-        :company-scale-options="companyScaleOptions"
-        :decision-role-options="decisionRoleOptions"
         :persist-personas="persistPersonasImmediately"
         :saving="personaSaving"
         @saved="marketContext.updateSetupPersonas"
@@ -556,6 +590,7 @@ function cancel() {
         :question-limit="questionLimit"
         :selection-saving="questionSelectionSaving"
         :persist-question="persistCustomQuestion"
+        :persist-edited-question="persistEditedQuestion"
         @selection-changed="handleQuestionSelection"
         @custom-question-added="addCustomQuestion"
       />
@@ -566,8 +601,8 @@ function cancel() {
         :steps="marketSetupSteps"
         :frequency="draft.frequency"
         :platforms="draft.platforms"
-        :platform-options="platformOptions"
         market-setup
+        :plan-name="activePlanName"
         :market="currentMarket"
         :saving="planSaving"
         @frequency-changed="handleFrequencyChange"

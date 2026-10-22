@@ -3,8 +3,12 @@ import type { MonitoringPlatform } from '../components/onboarding/monitoring-pla
 import type { MonitoringQuestion } from '../components/onboarding/monitoring-questions/monitoring-question-data'
 import type { BuyerPersona, CompetitorKnowledgeDraft, KnowledgeItem, ProductKnowledgeDraft } from '../types'
 import { computed, shallowRef } from 'vue'
-import { addBrandProduct, addCompetitor, addPersona, addQuestion, bindMarket, completeBrandStep, completePersonaStep, completeQuestionStep, completeWizardStep, createWizard, deleteBrandProduct, deleteCompetitor, deletePersona, generateQuestionCandidates, getActivePlan, getBrandInfo, getBrandProducts, getDictionary, getMarketCompetitors, getMarketEntryStatus, getMarketPersonas, getMarketPlatforms, getMarketQuestions, getMarkets, getMarketThemes, removePlatform, saveBrandInfo, selectPlatform, switchMarket, updateBrandProduct, updateCompetitor, updateFirstSelected, updatePersona } from '../api/geo-config'
+import { addBrandProduct, addCompetitor, addPersona, addQuestion, bindMarket, completeBrandStep, completePersonaStep, completeQuestionStep, completeWizardStep, createWizard, deleteBrandProduct, deleteCompetitor, deletePersona, generateQuestionCandidates, getActivePlan, getBrandInfo, getBrandProducts, getDictionary, getMarketCompetitors, getMarketEntryStatus, getMarketPersonas, getMarketPlatforms, getMarketQuestions, getMarkets, getMarketThemes, removePlatform, saveBrandInfo, selectPlatform, switchMarket, updateBrandProduct, updateCompetitor, updateFirstSelected, updatePersona, updateQuestion } from '../api/geo-config'
 import { getSchedule, saveSchedule } from '../api/monitoring'
+import { buildCompetitorSummary } from '../components/onboarding/knowledge/competitor-summary'
+import { defaultMonitoringPlatformsForPlan, frequencyForPlan, monitoringPlatformOptions, normalizeMonitoringPlatform } from '../components/onboarding/monitoring-plan/monitoring-plan'
+import { inferMonitoringKeyword } from '../components/onboarding/monitoring-questions/monitoring-question-data'
+import { visibilityMonitoringData } from '../data/visibility-monitoring-data'
 import { useGeoContextStore } from '../stores/geo-context'
 import { useOnboardingStore } from '../stores/onboarding'
 
@@ -52,6 +56,9 @@ export function useFirstConfigWizard() {
   const loaded = shallowRef(false)
   const questionLimit = shallowRef<number | null>(null)
   const competitorCountLimit = shallowRef<number | null>(null)
+  const planName = shallowRef('')
+  const planCode = shallowRef('')
+  const planFrequency = shallowRef<import('../components/onboarding/monitoring-plan/monitoring-plan').MonitoringFrequency>('weekly')
   const brand = shallowRef<BrandInfoRecord | null>(null)
   const products = shallowRef<BrandProductRecord[]>([])
   const competitors = shallowRef<CompetitorRecord[]>([])
@@ -71,7 +78,7 @@ export function useFirstConfigWizard() {
     return questions.value.map(question => ({
       id: String(question.id),
       question: question.questionContent,
-      keyword: question.themeId ? themeLabels.get(question.themeId) ?? '' : '',
+      keyword: question.keyword?.trim() || (question.themeId ? themeLabels.get(question.themeId) ?? '' : '') || visibilityMonitoringData.questions.find(candidate => candidate.question === question.questionContent)?.keyword || inferMonitoringKeyword(question.questionContent),
       type: label('question_type', question.questionType),
       persona: personaLabels.get(question.personaId) ?? '',
       purchaseStage: label('purchase_stage', question.purchaseStage),
@@ -128,7 +135,7 @@ export function useFirstConfigWizard() {
       { id: 'brand', index: '01', title: '品牌信息', summary: `${brand.value.brandName} · ${brand.value.industry}`, requirements: '品牌名称 · 主营行业 · 品牌定位 · 品牌别名', brand: { name: brand.value.brandName, alias: brand.value.aliasNames ?? '', website: brand.value.siteUrl, industry: brand.value.industry, description: brand.value.positioning ?? '' } },
       { id: 'product', index: '02', title: '核心产品', summary: productSummary, requirements: '核心产品 · 使用场景', products: productDrafts },
       { id: 'market', index: '03', title: '市场与语言', summary: `${geoContext.entryStatus?.marketId ?? ''}`, requirements: '当前上下文市场', marketLanguage: { market: '', language: '' } },
-      { id: 'competitor', index: '04', title: '竞争对手', summary: competitorSummary(competitorDrafts.length), requirements: '竞品名称 · 竞品域名', competitors: competitorDrafts },
+      { id: 'competitor', index: '04', title: '竞争对手', summary: buildCompetitorSummary(competitorDrafts, competitorCountLimit.value), requirements: '竞品名称 · 竞品域名', competitors: competitorDrafts },
     ]
     const market = geoContext.entryStatus?.marketId
     if (market) {
@@ -152,15 +159,12 @@ export function useFirstConfigWizard() {
       discoveryChannel: persona.infoChannels ?? '',
     })))
     onboarding.updateMonitoringQuestionSelection(questions.value.filter(question => question.isFirstSelected === 1).map(question => String(question.id)))
-    onboarding.updateMonitoringPlatforms(platforms.value.filter(platform => platform.enabled === 1).map(platform => platform.platform as MonitoringPlatform))
-    if (schedule.value)
-      onboarding.updateMonitoringFrequency(schedule.value.scheduleType)
-  }
-
-  function competitorSummary(count: number) {
-    return competitorCountLimit.value === null
-      ? `已选择 ${count} 个 / 套餐上限未返回`
-      : `已选择 ${count} 个 / 最多 ${competitorCountLimit.value} 个`
+    const savedPlatforms = platforms.value.filter(platform => platform.enabled === 1).map(platform => normalizeMonitoringPlatform(platform.platform))
+    const selectablePlatforms = new Set(monitoringPlatformOptions.filter(platform => !platform.disabled).map(platform => platform.value))
+    onboarding.updateMonitoringPlatforms(savedPlatforms.length
+      ? savedPlatforms.filter(platform => selectablePlatforms.has(platform))
+      : defaultMonitoringPlatformsForPlan(planCode.value, planName.value))
+    onboarding.updateMonitoringFrequency(planFrequency.value)
   }
 
   function registerAcceptedProduct(product: BrandProductRecord) {
@@ -217,6 +221,10 @@ export function useFirstConfigWizard() {
       themes.value = marketThemes
       questionLimit.value = plan?.quota.questionCountLimit ?? null
       competitorCountLimit.value = plan?.quota.competitorCountLimit ?? null
+      planName.value = plan?.quota.planName ?? ''
+      planCode.value = plan?.quota.planCode ?? ''
+      planFrequency.value = frequencyForPlan(planCode.value, planName.value, onboarding.monitoringFrequency)
+      onboarding.updateMonitoringFrequency(planFrequency.value)
       if (!questionRecords.length) {
         await generateQuestionCandidates()
         questions.value = await getMarketQuestions()
@@ -230,6 +238,8 @@ export function useFirstConfigWizard() {
       ])
       platforms.value = platformRecords
       schedule.value = currentSchedule
+      planFrequency.value = frequencyForPlan(planCode.value, planName.value, currentSchedule?.scheduleType ?? onboarding.monitoringFrequency)
+      onboarding.updateMonitoringFrequency(planFrequency.value)
     }
 
     loadedSteps.add(step)
@@ -260,6 +270,10 @@ export function useFirstConfigWizard() {
         loadDictionaries(marketDictionaryTypes),
         onboarding.currentStep === 2 ? Promise.resolve(null) : getActivePlan().catch(() => null),
       ])
+      planName.value = activePlan?.quota.planName ?? ''
+      planCode.value = activePlan?.quota.planCode ?? ''
+      planFrequency.value = frequencyForPlan(planCode.value, planName.value, onboarding.monitoringFrequency)
+      onboarding.updateMonitoringFrequency(planFrequency.value)
       competitorCountLimit.value = activePlan?.quota.competitorCountLimit ?? null
       brand.value = brandInfo
       products.value = productRecords
@@ -507,9 +521,42 @@ export function useFirstConfigWizard() {
     return saved
   }
 
+  async function updateMonitoringQuestionImmediately(question: MonitoringQuestion) {
+    const id = Number(question.id)
+    if (!Number.isSafeInteger(id))
+      throw new Error('当前问题无法编辑，请刷新问题列表后重试。')
+    if (!question.personaId || !question.questionTypeCode || !question.purchaseStageCode || !question.intentCode || !question.focusCode)
+      throw new Error(`问题“${question.question}”缺少后端必填选项`)
+    await updateQuestion(id, {
+      questionContent: question.question,
+      keyword: question.keyword,
+      questionType: question.questionTypeCode,
+      personaId: question.personaId,
+      purchaseStage: question.purchaseStageCode,
+      intentType: question.intentCode,
+      focusType: question.focusCode,
+    })
+    questions.value = questions.value.map((item) => {
+      if (item.id !== id)
+        return item
+      return {
+        ...item,
+        questionContent: question.question,
+        keyword: question.keyword,
+        questionType: question.questionTypeCode!,
+        personaId: question.personaId!,
+        purchaseStage: question.purchaseStageCode!,
+        intentType: question.intentCode!,
+        focusType: question.focusCode!,
+      }
+    })
+    return question
+  }
+
   async function savePlan() {
     if (!onboarding.monitoringPlatforms.length)
       throw new Error('请至少选择一个 AI 平台后再继续。')
+    await saveMonitoringFrequencyImmediately(planFrequency.value)
     await completeWizardStep(4)
     const status = await geoContext.refreshEntryStatus()
     if (status.entryStatus !== 'CONFIGURED')
@@ -603,5 +650,5 @@ export function useFirstConfigWizard() {
     installKnowledgeItems()
   }
 
-  return { loading, saving, error, loaded, questionLimit, competitorCountLimit, dictionaries, dictionaryOptions, questionCandidates, load, loadStep, saveCurrentStep, saveKnowledgeItems, savePersonasImmediately, saveQuestionSelection, addCustomQuestionImmediately, saveMonitoringFrequencyImmediately, saveMonitoringPlatformsImmediately, registerAcceptedProduct, registerAcceptedCompetitor, syncSavedProduct, deleteProduct, syncSavedCompetitor, deleteCompetitor: deleteCompetitorDraft }
+  return { loading, saving, error, loaded, questionLimit, competitorCountLimit, planName, planFrequency, dictionaries, dictionaryOptions, questionCandidates, load, loadStep, saveCurrentStep, saveKnowledgeItems, savePersonasImmediately, saveQuestionSelection, addCustomQuestionImmediately, updateMonitoringQuestionImmediately, saveMonitoringFrequencyImmediately, saveMonitoringPlatformsImmediately, registerAcceptedProduct, registerAcceptedCompetitor, syncSavedProduct, deleteProduct, syncSavedCompetitor, deleteCompetitor: deleteCompetitorDraft }
 }
