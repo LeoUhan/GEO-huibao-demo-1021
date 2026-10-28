@@ -11,14 +11,16 @@ const props = withDefaults(defineProps<{
   heading?: string
   fullWidth?: boolean
   aiOptimize?: boolean
+  aiCallsRemaining?: number
 }>(), {
   editable: true,
   label: '内容正文',
   heading: '',
   fullWidth: false,
   aiOptimize: false,
+  aiCallsRemaining: 2,
 })
-const emit = defineEmits<{ 'update:modelValue': [value: string] }>()
+const emit = defineEmits<{ 'update:modelValue': [value: string], 'ai-call': [] }>()
 defineSlots<{ supplement?: () => any }>()
 
 function editorContent(value: string) {
@@ -132,10 +134,16 @@ function useSuggestion(value: string) {
 }
 
 function generatePreview() {
+  if (props.aiCallsRemaining <= 0) {
+    aiError.value = '本篇内容在当前角色下的 AI 优化次数已用完。'
+    aiPreviewOpen.value = false
+    return
+  }
   if (!aiInstruction.value.trim()) {
     aiError.value = '请先填写希望 AI 如何调整。'
     return
   }
+  emit('ai-call')
   // This prototype exposes the complete review flow without invoking a generation service.
   previewText.value = selectedText.value
   aiError.value = ''
@@ -195,6 +203,7 @@ defineExpose({ focusEditor })
       <button v-if="aiOptimize" type="button" class="task-rich-editor__ai-regenerate" data-test="regenerate-article" @mousedown.prevent @click="openAiOptimize('article')">
         重新生成文章
       </button>
+      <span v-if="aiOptimize" class="task-rich-editor__ai-quota" data-test="ai-quota" aria-live="polite">剩余 {{ aiCallsRemaining }}/2 次</span>
       <span class="task-rich-editor__shortcut-hint" data-test="editor-shortcuts">快捷键：⌘/Ctrl+B 加粗 · ⌘/Ctrl+I 斜体 · ⌘/Ctrl+U 下划线 · ⌘/Ctrl+Z 撤销</span>
     </div>
     <section v-if="aiPanelOpen" class="task-rich-editor__ai-panel" data-test="ai-optimize-panel" aria-label="段落 AI 优化">
@@ -214,7 +223,7 @@ defineExpose({ focusEditor })
         </div>
         <div class="task-rich-editor__ai-foot">
           <small>本次优化会计入内容生成额度</small>
-          <button type="button" class="task-rich-editor__ai-generate" data-test="generate-ai-preview" @click="generatePreview">生成优化稿</button>
+          <button type="button" class="task-rich-editor__ai-generate" data-test="generate-ai-preview" :disabled="aiCallsRemaining <= 0" @click="generatePreview">生成优化稿 · 剩余 {{ aiCallsRemaining }} 次</button>
         </div>
         <div v-if="aiPreviewOpen" class="task-rich-editor__ai-preview" data-test="ai-optimize-preview">
           <div class="task-rich-editor__ai-preview-head"><strong>优化稿预览</strong><span>交互原型 · 生成服务待接入</span></div>
@@ -290,6 +299,7 @@ defineExpose({ focusEditor })
 
 .task-rich-editor__toolbar button.task-rich-editor__ai-trigger, .task-rich-editor__toolbar button.task-rich-editor__ai-regenerate { display: inline-flex; min-height: 30px; align-items: center; gap: 6px; padding: 0 10px; border: 1px solid #d8ddff; background: #fff; color: var(--action-accent); font-size: 12px; font-weight: 600; }
 .task-rich-editor__toolbar button.task-rich-editor__ai-regenerate { border-color: var(--action-accent); background: var(--action-accent); color: #fff; }
+.task-rich-editor__ai-quota { margin-left: 2px; color: #77849a; font-size: 11px; white-space: nowrap; }
 .task-rich-editor__ai-panel { display: grid; gap: 10px; margin: 12px 14px; padding: 14px; border: 1px solid #dce2f0; border-radius: 10px; background: #fbfcff; }
 .task-rich-editor__ai-head, .task-rich-editor__ai-foot, .task-rich-editor__ai-preview-head, .task-rich-editor__ai-preview-actions { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .task-rich-editor__ai-head > div { display: grid; gap: 2px; }

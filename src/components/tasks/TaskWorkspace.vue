@@ -41,6 +41,31 @@ const validationToastMessageId = shallowRef(0)
 const directInstruction = shallowRef('')
 const webSupplement = shallowRef(false)
 const draft = reactive<{ brief: TaskBrief, methods: string[], knowledge: TaskKnowledge[], title: string, body: string }>({ brief: {} as TaskBrief, methods: [], knowledge: [], title: '', body: '' })
+const aiCallsRemaining = shallowRef(2)
+function aiQuotaStorageKey(taskId: string, role: UserRole) {
+  return `geo-task-ai-quota:${taskId}:${role}`
+}
+function refreshAiQuota(taskId: string, role: UserRole) {
+  try {
+    const raw = window.localStorage.getItem(aiQuotaStorageKey(taskId, role))
+    const stored = raw === null ? Number.NaN : Number(raw)
+    aiCallsRemaining.value = Number.isInteger(stored) ? Math.max(0, Math.min(2, stored)) : 2
+  }
+  catch {
+    aiCallsRemaining.value = 2
+  }
+}
+function consumeAiCall() {
+  if (aiCallsRemaining.value <= 0)
+    return
+  aiCallsRemaining.value -= 1
+  try {
+    window.localStorage.setItem(aiQuotaStorageKey(props.task.id, props.role), String(aiCallsRemaining.value))
+  }
+  catch {
+    // Keep the quota for the current view even when browser storage is unavailable.
+  }
+}
 const briefFields: Array<{ key: 'goal' | 'persona' | 'factor' | 'executionTarget', label: string }> = [{ key: 'goal', label: '任务目标' }, { key: 'persona', label: '目标人设' }, { key: 'factor', label: '决策因子' }, { key: 'executionTarget', label: '执行对象' }]
 const methodOptions = ['对比表', 'FAQ / Q&A', '统计数据注入', '专家观点', '案例证明', '定义框', 'JSON-LD', 'sameAs', '页面结构优化']
 const ignoreReasonOptions: DropdownSelectOption[] = [
@@ -71,6 +96,7 @@ watch(() => props.task, (task) => {
   draft.title = task.workflow?.output.title || ''
   draft.body = task.workflow?.output.body || ''
 }, { immediate: true })
+watch(() => [props.task.id, props.role] as const, ([taskId, role]) => refreshAiQuota(taskId, role), { immediate: true })
 const flow = computed(() => props.task.workflow!)
 const ignoredTask = computed(() => ignoredTaskFor(props.task))
 const canIgnoreCurrentStep = computed(() => ignoreOwner(props.task, props.serviceMode) === props.role)
@@ -539,7 +565,7 @@ function versionDiff(index: number) {
               <template v-if="flow.output.body">
                 <div class="tw-output-review-layout">
                   <div class="tw-output-review-main">
-                    <TaskRichTextEditor v-model="draft.body" :editable="reviewing" :ai-optimize="contentReviewVisible" :full-width="true" :heading="flow.output.title" label="生成内容正文编辑器">
+                    <TaskRichTextEditor v-model="draft.body" :editable="reviewing" :ai-optimize="contentReviewVisible" :ai-calls-remaining="aiCallsRemaining" :full-width="true" :heading="flow.output.title" label="生成内容正文编辑器" @ai-call="consumeAiCall">
                       <template #supplement>
                         <section class="tw-internet-supplement" data-test="internet-supplement" aria-label="AI 联网内容状态">
                           <header class="tw-internet-supplement__head">
