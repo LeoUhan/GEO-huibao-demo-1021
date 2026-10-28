@@ -116,6 +116,7 @@ const taskSubtitle = computed(() => props.task.progress === 'brief' && props.tas
   : `${props.task.id}${props.task.type === 'repair' ? ' · 官网技术修复' : ''}`)
 const editableBrief = computed(() => canEditBrief(props.task, props.role, props.serviceMode))
 const reviewing = computed(() => ['client_content_review', 'human', 'client_review'].includes(props.task.progress) && reviewOwner(props.task, props.serviceMode) === props.role && !(props.serviceMode === 'agent' && props.role === 'ops'))
+const contentReviewVisible = computed(() => ['todo', 'running', 'client_content_review', 'human', 'client_review'].includes(props.task.progress))
 const operationsContentReview = computed(() => props.task.progress === 'human' && props.role === 'ops')
 const canEditWebSupplement = computed(() => editableBrief.value || reviewing.value || (props.role === 'client' && ['todo', 'running'].includes(props.task.progress)))
 const outputDirty = computed(() => draft.title !== flow.value.output.title || draft.body !== flow.value.output.body)
@@ -538,7 +539,7 @@ function versionDiff(index: number) {
               <template v-if="flow.output.body">
                 <div class="tw-output-review-layout">
                   <div class="tw-output-review-main">
-                    <TaskRichTextEditor v-model="draft.body" :editable="reviewing" :ai-optimize="reviewing" :full-width="true" :heading="flow.output.title" label="生成内容正文编辑器">
+                    <TaskRichTextEditor v-model="draft.body" :editable="reviewing" :ai-optimize="contentReviewVisible" :full-width="true" :heading="flow.output.title" label="生成内容正文编辑器">
                       <template #supplement>
                         <section class="tw-internet-supplement" data-test="internet-supplement" aria-label="AI 联网内容状态">
                           <header class="tw-internet-supplement__head">
@@ -577,7 +578,7 @@ function versionDiff(index: number) {
                       </template>
                     </TaskRichTextEditor>
                   </div>
-                  <TaskReviewInsights v-if="reviewing" />
+                  <TaskReviewInsights v-if="contentReviewVisible" />
                 </div>
               </template><p v-else class="tw-empty">
                 确认 Brief 后，Agent 将自动生成本任务产物。
