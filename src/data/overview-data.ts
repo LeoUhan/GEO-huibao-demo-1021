@@ -1,3 +1,4 @@
+import { isReadOnlyFinding } from '../workflows/finding-treatment'
 import type { AuditFinding, GeoTask, Priority, Strategy } from './geo-data'
 
 export interface OverviewQueueItem {
@@ -92,7 +93,7 @@ export function buildOverviewQueue(
   tasks: readonly GeoTask[],
 ): OverviewQueueItem[] {
   const findingItems = findings
-    .filter(finding => ['待处理', '待官网运营审核'].includes(finding.status))
+    .filter(finding => !isReadOnlyFinding(finding) && ['待处理', '待官网运营审核'].includes(finding.status))
     .map(finding => ({
       id: finding.id,
       kind: 'finding' as const,

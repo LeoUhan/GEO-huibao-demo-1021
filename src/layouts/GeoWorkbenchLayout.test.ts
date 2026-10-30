@@ -254,3 +254,45 @@ it.each(['client', 'managed'])('persists reviewer priority changes including P3 
   }
   finally { wrapper.unmount(); localStorage.clear() }
 })
+
+it.each(['managed', 'agent'] as const)('restores advice into %s without putting it into pending work or allowing approval', async (mode) => {
+  localStorage.clear()
+  // An existing browser snapshot predates the new advice category.
+  localStorage.setItem(`geo-workbench:${mode}`, JSON.stringify({ findings: auditFindings.filter(item => item.route !== 'advice'), strategies, tasks: [], reviews: {} }))
+  let context: import('../composables/workbench-route-context').GeoWorkbenchRouteContext | undefined
+  const Probe = defineComponent({ setup() {
+    context = inject(geoWorkbenchRouteContextKey)!
+    return () => h('div')
+  } })
+  const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/diagnosis', name: 'diagnosis', component: Probe }] })
+  await router.push(`/diagnosis?version=${mode === 'agent' ? 'client' : 'managed'}`)
+  const wrapper = mount(GeoWorkbenchLayout, { global: { plugins: [createPinia(), router], stubs: {
+    GeoWorkbenchToolbar: true, RouterLink: { template: '<a><slot /></a>' },
+    GeoDrawer: { props: ['open'], template: '<div v-if="open" class="test-drawer"><slot /><footer><slot name="footer" /></footer></div>' },
+  } } })
+  try {
+    await flushPromises()
+    const items = context!.findings.filter(item => item.route === 'advice')
+    expect(items).toHaveLength(2)
+    const taskCount = context!.tasks.length
+    const strategyCount = context!.strategies.length
+    context!.selectAllFindings(items.map(item => item.id))
+    expect(items.every(item => !item.checked)).toBe(true)
+    for (const item of items) {
+      context!.openAudit(item)
+      await flushPromises()
+      const drawer = wrapper.get('.test-drawer')
+      expect(drawer.text()).toContain(item.advice!)
+      expect(drawer.text()).toContain(item.evidence!)
+      expect(drawer.text()).toContain('无需处理')
+      expect(drawer.findAll('footer button').map(button => button.text())).toEqual(['关闭'])
+    }
+    context!.openPending()
+    await flushPromises()
+    for (const item of items) expect(wrapper.get('.test-drawer').text()).not.toContain(item.title)
+    context!.approveSelectedFindings()
+    expect(context!.tasks.length).toBe(taskCount)
+    expect(context!.strategies.length).toBe(strategyCount)
+  }
+  finally { wrapper.unmount(); localStorage.clear() }
+})

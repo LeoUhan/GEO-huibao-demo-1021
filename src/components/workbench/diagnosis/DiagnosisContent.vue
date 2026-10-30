@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { pendingReviewLabel, strategyReviewStatus } from '../../../workflows/review-status'
+import { findingRouteLabel, isAdviceFinding, isKnowledgeFinding, isReadOnlyFinding } from '../../../workflows/finding-treatment'
 import { directRepairStatus, isDirectRepairFinding } from '../../../workflows/direct-repair'
 import type { AuditCheck, AuditFinding, GeoTask, Persona, Strategy, StrategyLayer } from '../../../data/geo-data'
 import type { DataListColumn } from '../../ui/ce/data-list/types'
@@ -61,7 +62,7 @@ const tableLabels = {
 }
 const findingColumns: DataListColumn<unknown>[] = [
   { key: 'select', title: '', width: '5%', minWidth: 48, className: 'geo-finding-select' },
-  { key: 'finding', title: '异常', width: '26%', minWidth: 245 },
+  { key: 'finding', title: '问题 / 建议', width: '26%', minWidth: 245 },
   { key: 'route', title: '处理方式与类型', width: '17%', minWidth: 180 },
   { key: 'check', title: '所属检查项', width: '16%', minWidth: 160 },
   { key: 'priority', title: '优先级', width: '7%', minWidth: 64 },
@@ -84,6 +85,7 @@ const queuePage = shallowRef(1)
 const auditPage = shallowRef(1)
 const pageSize = 5
 const auditFilter = shallowRef('all')
+const treatmentFilter = shallowRef('all')
 const allStrategies = computed(() => props.allStrategies ?? props.strategies)
 const canReview = computed(() => props.role === (props.serviceMode === 'agent' ? 'client' : 'ops'))
 const gapAliases: Record<string, string[]> = {
@@ -128,7 +130,14 @@ const sortedStrategies = computed(() => {
 const queuePages = computed(() => Math.max(1, Math.ceil(sortedStrategies.value.length / pageSize)))
 const visibleStrategies = computed(() => sortedStrategies.value.slice((queuePage.value - 1) * pageSize, queuePage.value * pageSize))
 const activeAuditCheck = computed(() => auditChecks.find(check => check.id === auditFilter.value))
-const filteredFindings = computed(() => activeAuditCheck.value ? props.findings.filter(finding => finding.check === activeAuditCheck.value?.label) : props.findings)
+const filteredFindings = computed(() => props.findings.filter(finding => {
+  if (activeAuditCheck.value && finding.check !== activeAuditCheck.value.label) return false
+  if (treatmentFilter.value === 'knowledge') return isKnowledgeFinding(finding)
+  if (treatmentFilter.value === 'advice') return isAdviceFinding(finding)
+  if (treatmentFilter.value === 'repair') return isDirectRepairFinding(finding)
+  if (treatmentFilter.value === 'review') return !isReadOnlyFinding(finding) && !isDirectRepairFinding(finding)
+  return true
+}))
 const auditPages = computed(() => Math.max(1, Math.ceil(filteredFindings.value.length / pageSize)))
 const visibleFindings = computed(() => filteredFindings.value.slice((auditPage.value - 1) * pageSize, auditPage.value * pageSize))
 function findingFromRow(item: unknown) {
@@ -138,19 +147,16 @@ function strategyFromRow(item: unknown) {
   return item as Strategy
 }
 function isActionable(finding: AuditFinding) {
-  return !isDirectRepairFinding(finding) && finding.status === '待处理'
-}
-function findingRouteLabel(finding: AuditFinding) {
-  if (finding.route === 'strategy')
-    return '官网内容 · 需要审核'
-  if (finding.id === 'F9')
-    return '信息口径 · 确认后处理'
-  return '官网技术 · 直接处理'
+  return !isReadOnlyFinding(finding) && !isDirectRepairFinding(finding) && finding.status === '待处理'
 }
 function findingActionLabel(finding: AuditFinding) {
+  if (isKnowledgeFinding(finding)) return '查看补充要求'
+  if (isAdviceFinding(finding)) return '查看建议'
   return canReview.value && !isDirectRepairFinding(finding) && ['待处理', '待官网运营审核'].includes(finding.status) ? '审核' : '查看详情'
 }
 function findingStatusLabel(finding: AuditFinding) {
+  if (isKnowledgeFinding(finding)) return '待补充知识'
+  if (isAdviceFinding(finding)) return '无需处理'
   if (isDirectRepairFinding(finding))
     return directRepairStatus(finding.status === '已修复')
   if (finding.status === '已修复')
@@ -188,6 +194,7 @@ watch(() => props.activePersona, () => {
   queuePage.value = 1
 })
 watch(queuePages, pages => queuePage.value = Math.min(queuePage.value, pages))
+watch(treatmentFilter, () => auditPage.value = 1)
 watch(auditPages, pages => auditPage.value = Math.min(auditPage.value, pages))
 function openCheck(check: AuditCheck) {
   auditFilter.value = check.id
@@ -213,7 +220,7 @@ function summaryText({ total, page, pages }: { total: number, page: number, page
 
 <template>
   <div class="geo-content geo-diagnosis">
-    <GeoPageIntro variant="workbench" title="诊断与策略" help-label="诊断与策略说明" description="网站基础问题生成修复任务；内容与认知问题进入统一策略队列，确认后由 Agent 扫描去重，再进入优化中心。">
+    <GeoPageIntro variant="workbench" title="诊断与策略" help-label="诊断与策略说明" description="需要处理的问题按类型进入修复或策略流程；仅提供建议的条目保留依据与参考建议，无需审核或生成任务。">
       <template #actions>
         <div class="geo-page-head__actions">
           <span class="geo-stage">当前阶段 · 确认问题与处理方向</span>
@@ -267,9 +274,16 @@ function summaryText({ total, page, pages }: { total: number, page: number, page
         </button>
       </div>
       <div class="geo-audit-filter">
-        <span><b>当前查看：</b>{{ activeAuditCheck ? `${['①', '②', '③', '④', '⑤', '⑥', '⑦'][Number(activeAuditCheck.id) - 1]} ${activeAuditCheck.label}` : '全部异常' }}</span>
+        <select v-model="treatmentFilter" class="geo-treatment-filter" aria-label="处理方式筛选">
+          <option value="all">全部处理方式</option>
+          <option value="repair">直接处理</option>
+          <option value="review">需要审核</option>
+          <option value="knowledge">待补充知识</option>
+          <option value="advice">仅提供建议</option>
+        </select>
+        <span><b>当前查看：</b>{{ activeAuditCheck ? `${['①', '②', '③', '④', '⑤', '⑥', '⑦'][Number(activeAuditCheck.id) - 1]} ${activeAuditCheck.label}` : '全部问题与建议' }}</span>
         <Button v-if="auditFilter !== 'all'" variant="text" size="sm" @click="clearAuditFilter">
-          查看全部异常
+          查看全部问题与建议
         </Button>
       </div>
       <div class="geo-finding-table-frame">
@@ -288,9 +302,9 @@ function summaryText({ total, page, pages }: { total: number, page: number, page
             :columns="findingColumns"
             :get-row-id="item => findingFromRow(item).id"
             :is-row-activatable="() => false"
-            label="官网异常"
+            label="诊断问题与建议"
             :labels="tableLabels"
-            empty-message="当前检查项没有异常"
+            empty-message="当前筛选下没有问题或建议"
             error-message="异常数据加载失败"
             density="compact"
           >
@@ -310,7 +324,7 @@ function summaryText({ total, page, pages }: { total: number, page: number, page
               <span class="geo-chip" :class="findingFromRow(finding).priority === 'P0' ? 'geo-chip--danger' : ''">{{ findingFromRow(finding).priority }}</span>
             </template>
             <template #cell-status="{ item: finding }">
-              <span class="geo-finding-status" :class="{ 'is-review': findingActionLabel(findingFromRow(finding)) === '审核', 'is-done': findingStatusLabel(findingFromRow(finding)) === '已生成候选策略' || findingStatusLabel(findingFromRow(finding)) === '已修复' || findingStatusLabel(findingFromRow(finding)) === '已完成处理', 'is-deferred': findingStatusLabel(findingFromRow(finding)) === '暂不修复' }">{{ findingStatusLabel(findingFromRow(finding)) }}</span>
+              <span class="geo-finding-status" :class="{ 'is-advice': isAdviceFinding(findingFromRow(finding)), 'is-review': findingActionLabel(findingFromRow(finding)) === '审核', 'is-done': findingStatusLabel(findingFromRow(finding)) === '已生成候选策略' || findingStatusLabel(findingFromRow(finding)) === '已修复' || findingStatusLabel(findingFromRow(finding)) === '已完成处理', 'is-deferred': findingStatusLabel(findingFromRow(finding)) === '暂不修复' }">{{ findingStatusLabel(findingFromRow(finding)) }}</span>
             </template>
             <template #cell-actions="{ item: finding }">
               <Button class="geo-finding-detail-button geo-table-detail-button" :class="{ 'geo-review-button': findingActionLabel(findingFromRow(finding)) === '审核' }" variant="secondary" size="md" type="button" @click="emit('openAudit', findingFromRow(finding))">
@@ -319,13 +333,13 @@ function summaryText({ total, page, pages }: { total: number, page: number, page
             </template>
             <template #empty>
               <div class="geo-empty-state">
-                <strong>当前检查项没有异常</strong><span>该检查项当前为通过状态，或所有异常已经处理。</span>
+                <strong>当前筛选下没有问题或建议</strong><span>可调整检查项或处理方式筛选。</span>
               </div>
             </template>
           </DataList>
         </div>
         <footer class="geo-diagnosis-pagination">
-          <Pagination v-model="auditPage" :total="filteredFindings.length" :page-size="pageSize" size="sm" label="官网异常分页" previous-label="异常上一页" next-label="异常下一页" :page-label="page => `异常第 ${page} 页`" :summary-text="summaryText" :format-value="String" />
+          <Pagination v-model="auditPage" :total="filteredFindings.length" :page-size="pageSize" size="sm" label="诊断问题与建议分页" previous-label="问题上一页" next-label="问题下一页" :page-label="page => `问题第 ${page} 页`" :summary-text="summaryText" :format-value="String" />
         </footer>
       </div>
     </section>

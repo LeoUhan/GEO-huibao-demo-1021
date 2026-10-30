@@ -17,6 +17,7 @@ import { auditChecks, auditFindings, baselineMetrics, cloneGeoTask, displayObjec
 import { createRepairTask, generateFindingStrategy, orchestrateStrategy } from '../services/geo-orchestration'
 import { useWorkbenchTasksStore } from '../stores/workbench-tasks'
 import { pendingReviewLabel, strategyReviewStatus } from '../workflows/review-status'
+import { findingRouteLabel, isAdviceFinding, isKnowledgeFinding, isReadOnlyFinding } from '../workflows/finding-treatment'
 import { directRepairStatus, isDirectRepairFinding, isDirectRepairTask } from '../workflows/direct-repair'
 import { advanceAutomatic, ensureWorkflow, knowledgeLibrary } from '../workflows/task-workflow'
 import '../styles/geo-workbench.css'
@@ -105,14 +106,14 @@ const reviewNotes = reactive<Record<string, ReviewNote[]>>({
 })
 const visibleTasks = computed(() => filterTasks(tasks, taskFilter.value))
 const pendingItems = computed(() => [
-  ...findings.filter(finding => ['待处理', '待官网运营审核'].includes(finding.status)).map(finding => ({ kind: 'audit' as const, id: finding.id, title: finding.title, status: findingStatusLabel(finding), priority: finding.priority, source: finding.check, summary: finding.detail, finding })),
+  ...findings.filter(finding => !isReadOnlyFinding(finding) && ['待处理', '待官网运营审核'].includes(finding.status)).map(finding => ({ kind: 'audit' as const, id: finding.id, title: finding.title, status: findingStatusLabel(finding), priority: finding.priority, source: finding.check, summary: finding.detail, finding })),
   ...(canReview.value ? strategyState.filter(strategy => !strategy.confirmed && !strategy.ignored).map(strategy => ({ kind: 'strategy' as const, id: strategy.id, title: strategy.title, status: pendingReviewLabel(serviceMode.value), priority: strategy.priority, source: strategy.source, summary: strategy.evidence, strategy })) : []),
   ...tasks.filter(task => ['brief', 'human', 'client_review', 'publish', 'site_submit', 'site_failed', 'site_publish'].includes(task.progress)).map(task => ({ kind: 'task' as const, id: task.id, title: task.name, status: task.progress === 'brief' ? 'Brief 待确认' : task.progress === 'human' ? '待结果审核' : task.progress === 'site_submit' ? '待提交 AI 建站' : task.progress === 'site_failed' ? '验证未通过' : task.progress === 'site_publish' || task.progress === 'publish' ? '待发布确认' : '待客户审核', priority: 'P1', source: task.source, summary: '进入任务处理当前阶段。', task })),
 ])
 const managedFlowSteps: Record<FlowType, Array<{ title: string, description: string }>> = {
   diagnosis: [
     { title: '监测形成诊断', description: 'Agent 根据监测、官网体检与买家 Gap 形成 Finding。' },
-    { title: '判断处理出口', description: '确定性问题直接生成修复 Task；策略型问题生成候选策略。' },
+    { title: '判断处理出口', description: '确定性问题直接生成修复 Task；策略型问题生成候选策略；仅提供建议项无需审核或执行。' },
     { title: '完成策略整理', description: '运营审核策略；客户只确认影响业务事实和执行范围的事项。' },
     { title: '进入优化中心', description: 'Agent 在后台去重、编排并创建 Task 草稿。' },
     { title: '执行与效果回流', description: '任务发布后 Re-check，结果回写诊断与 Agent 学习。' },
@@ -207,7 +208,16 @@ function restore(mode: ServiceMode) {
       resetSnapshot()
       return false
     }
-    findings.splice(0, findings.length, ...data.findings)
+    const restoredFindings = data.findings.filter(finding => !(finding.route === 'advice' && (finding.id === 'F9-1' || (finding.category as string) === '第三方信源')))
+    for (const example of auditFindings.filter(isReadOnlyFinding)) {
+      if (!restoredFindings.some(finding => finding.id === example.id)) restoredFindings.push({ ...example })
+    }
+    for (const finding of restoredFindings.filter(isAdviceFinding)) {
+      finding.status = '无需处理'
+      finding.checked = false
+    }
+    for (const finding of restoredFindings.filter(isKnowledgeFinding)) { finding.status = '待补充知识'; finding.checked = false }
+    findings.splice(0, findings.length, ...restoredFindings)
     const restoredStrategies = data.strategies.filter(item => ['内容', '实体与信任', '外部信源'].includes(item.layer) || item.id === 'GS5')
     for (const item of restoredStrategies) {
       if (!['GS5', 'GS1'].includes(item.id)) continue
@@ -314,7 +324,7 @@ function toggleFinding(id: string) {
     return
   }
   const finding = findings.find(item => item.id === id)
-  if (finding?.status === '待处理')
+  if (finding && !isReadOnlyFinding(finding) && finding.status === '待处理')
     finding.checked = !finding.checked
 }
 function selectAllFindings(ids: string[]) {
@@ -322,7 +332,7 @@ function selectAllFindings(ids: string[]) {
     notify('当前为客户角色，诊断问题由运营审核')
     return
   }
-  const selected = findings.filter(finding => ids.includes(finding.id) && finding.status === '待处理')
+  const selected = findings.filter(finding => ids.includes(finding.id) && !isReadOnlyFinding(finding) && finding.status === '待处理')
   const checked = !selected.every(finding => finding.checked)
   selected.forEach(finding => finding.checked = checked)
 }
@@ -331,7 +341,7 @@ function approveSelectedFindings() {
     notify('当前为客户角色，诊断问题由运营审核')
     return
   }
-  const selected = findings.filter(finding => finding.checked && finding.status === '待处理')
+  const selected = findings.filter(finding => !isReadOnlyFinding(finding) && finding.checked && finding.status === '待处理')
   if (!selected.length) {
     notify('请选择至少一条可审核的问题')
     return
@@ -412,6 +422,7 @@ function openAudit(finding: AuditFinding) {
   drawer.item = finding
 }
 function taskForFinding(finding: AuditFinding) {
+  if (isReadOnlyFinding(finding)) return undefined
   const directTask = tasks.find(task => task.source.split(/[\s/·]+/).includes(finding.id))
   if (directTask)
     return directTask
@@ -419,11 +430,12 @@ function taskForFinding(finding: AuditFinding) {
   return strategy ? tasks.find(task => task.strategy === strategy.id || task.relatedStrategies.includes(strategy.id)) : undefined
 }
 function strategyForFinding(finding: AuditFinding) {
+  if (isReadOnlyFinding(finding)) return undefined
   const mappedId = /专家|作者/.test(finding.title) ? 'GS14' : undefined
   return strategyState.find(strategy => strategy.source.split(' / ').includes(finding.id) || (mappedId && strategy.id === mappedId))
 }
 function canApproveFinding(finding: AuditFinding) {
-  if (isDirectRepairFinding(finding) || !canReview.value)
+  if (isReadOnlyFinding(finding) || isDirectRepairFinding(finding) || !canReview.value)
     return false
   if (finding.status === '待处理')
     return true
@@ -431,7 +443,7 @@ function canApproveFinding(finding: AuditFinding) {
   return Boolean(strategy && !strategy.confirmed && !strategy.ignored && finding.status !== '暂不修复' && finding.status !== '已修复')
 }
 function canIgnoreFinding(finding: AuditFinding) {
-  if (!canReview.value)
+  if (isReadOnlyFinding(finding) || !canReview.value)
     return false
   const strategy = finding.route === 'strategy' ? strategyForFinding(finding) : undefined
   return Boolean(strategy && !strategy.confirmed && !strategy.ignored)
@@ -476,7 +488,7 @@ function changeReviewPriority(value: Priority) {
   reviewNotes[item.id].push({ role: role.value, name: role.value === 'ops' ? '运营' : '客户', time: '刚刚', text: `调整优先级：${previous} → ${value}` })
 }
 function processFinding(finding: AuditFinding, showNotification = true) {
-  if (!canReview.value) return
+  if (isReadOnlyFinding(finding) || !canReview.value) return
   if (finding.route === 'strategy') {
     if (!canApproveFinding(finding))
       return
@@ -498,7 +510,7 @@ function processFinding(finding: AuditFinding, showNotification = true) {
   drawer.type = null
 }
 function deferFinding(finding: AuditFinding) {
-  if (!canReview.value) return
+  if (isReadOnlyFinding(finding) || !canReview.value) return
   if (!deferReason.value) {
     notify('请选择暂不修复原因')
     return
@@ -559,7 +571,7 @@ function drawerTitle() {
   if (drawer.type === 'strategy')
     return (drawer.item as Strategy).title
   if (drawer.type === 'audit-finding')
-    return `异常处理 · ${(drawer.item as AuditFinding).title}`
+    return `${isKnowledgeFinding(drawer.item as AuditFinding) ? '补充知识提醒' : isAdviceFinding(drawer.item as AuditFinding) ? '参考建议' : '异常处理'} · ${(drawer.item as AuditFinding).title}`
   if (drawer.type === 'audit-check')
     return (drawer.item as AuditCheck).label
   if (drawer.type === 'pending')
@@ -595,7 +607,7 @@ function drawerEyebrow() {
   if (drawer.type !== 'audit-finding')
     return undefined
   const index = findings.findIndex(finding => finding.id === (drawer.item as AuditFinding).id)
-  return `异常${Math.max(1, index + 1)}`
+  return isAdviceFinding(drawer.item as AuditFinding) ? '仅提供建议' : `异常${Math.max(1, index + 1)}`
 }
 function strategyStatusLabel(strategy: Strategy) {
   return strategyReviewStatus(strategy, tasks, serviceMode.value)
@@ -621,6 +633,8 @@ function findingCheckLabel(finding: AuditFinding) {
   return `${circledNumbers[checkIndex] ?? ''} ${finding.check}`.trim()
 }
 function findingStatusLabel(finding: AuditFinding) {
+  if (isKnowledgeFinding(finding)) return '待补充知识'
+  if (isAdviceFinding(finding)) return '无需处理'
   if (isDirectRepairFinding(finding))
     return directRepairStatus(finding.status === '已修复')
   const strategy = finding.route === 'strategy' ? strategyForFinding(finding) : undefined
@@ -759,15 +773,19 @@ provide(geoWorkbenchRouteContextKey, {
       <template v-else-if="drawer.type === 'audit-finding'">
         <div class="geo-detail-section geo-audit-finding-detail">
           <div class="geo-detail-heading">
-            <strong>问题性质与处理方式</strong><span class="geo-route-badge" :class="(drawer.item as AuditFinding).route">{{ (drawer.item as AuditFinding).id === 'F9' ? '信息口径 · 确认后处理' : (drawer.item as AuditFinding).route === 'repair' ? '官网技术 · 直接处理' : '官网内容 · 需要审核' }}</span>
+            <strong>问题性质与处理方式</strong><span class="geo-route-badge" :class="(drawer.item as AuditFinding).route">{{ findingRouteLabel(drawer.item as AuditFinding) }}</span>
           </div><dl>
             <dt>优先级</dt><dd>
               <PrioritySelect v-if="canApproveFinding(drawer.item as AuditFinding)" :model-value="(drawer.item as AuditFinding).priority" @update:model-value="changeReviewPriority" />
               <template v-else>{{ (drawer.item as AuditFinding).priority }}</template>
             </dd>
+            <template v-if="isReadOnlyFinding(drawer.item as AuditFinding)">
+              <dt>问题依据</dt><dd>{{ (drawer.item as AuditFinding).evidence || (drawer.item as AuditFinding).detail }}</dd>
+              <dt>{{ isKnowledgeFinding(drawer.item as AuditFinding) ? '补充要求' : '参考建议' }}</dt><dd>{{ (drawer.item as AuditFinding).advice || (drawer.item as AuditFinding).routeReason }}</dd>
+            </template>
             <dt>所属检查项</dt><dd>{{ findingCheckLabel(drawer.item as AuditFinding) }}</dd>
-            <dt>当前状态</dt><dd><span class="geo-finding-status" :class="{ 'is-done': findingStatusLabel(drawer.item as AuditFinding) === '已修复', 'is-deferred': findingStatusLabel(drawer.item as AuditFinding) === '暂不修复' }">{{ findingStatusLabel(drawer.item as AuditFinding) }}</span></dd>
-            <dt>异常说明</dt><dd>{{ (drawer.item as AuditFinding).detail }}</dd><dt>为什么这样处理</dt><dd>{{ (drawer.item as AuditFinding).routeReason }}</dd><dt v-if="(drawer.item as AuditFinding).decisionReason">
+            <dt>当前状态</dt><dd><span class="geo-finding-status" :class="{ 'is-advice': isAdviceFinding(drawer.item as AuditFinding), 'is-done': findingStatusLabel(drawer.item as AuditFinding) === '已修复', 'is-deferred': findingStatusLabel(drawer.item as AuditFinding) === '暂不修复' }">{{ findingStatusLabel(drawer.item as AuditFinding) }}</span></dd>
+            <dt>{{ isAdviceFinding(drawer.item as AuditFinding) ? '观察说明' : '异常说明' }}</dt><dd>{{ (drawer.item as AuditFinding).detail }}</dd><dt>为什么这样处理</dt><dd>{{ (drawer.item as AuditFinding).routeReason }}</dd><dt v-if="(drawer.item as AuditFinding).decisionReason">
               暂缓原因
             </dt><dd v-if="(drawer.item as AuditFinding).decisionReason">
               {{ (drawer.item as AuditFinding).decisionReason }}

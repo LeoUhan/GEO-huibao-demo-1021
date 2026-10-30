@@ -40,11 +40,15 @@ export interface AuditFinding {
   check: string
   method: string
   priority: Priority
-  status: '待处理' | '已生成策略' | '待官网运营审核' | '暂不修复' | '已修复'
+  status: '待处理' | '已生成策略' | '待官网运营审核' | '暂不修复' | '已修复' | '无需处理' | '待补充知识'
   feedback?: string
   decisionReason?: string
   checked: boolean
-  route: 'repair' | 'strategy'
+  route: 'repair' | 'strategy' | 'advice' | 'knowledge'
+  category?: '官网结构' | '官网内容'
+  knowledgeTopic?: string
+  advice?: string
+  evidence?: string
   routeReason: string
 }
 
@@ -112,6 +116,9 @@ export const auditFindings: AuditFinding[] = [
   { id: 'F8-2', title: '专家作者档案待补', detail: '2 位工程师已有内容贡献，但缺少可验证的专业背景、经验与作者介绍。', check: '品牌实体', method: '实体修复', priority: 'P1', status: '待处理', checked: false, route: 'strategy', routeReason: '需要确认专家范围、身份事实和对外介绍方式。' },
   { id: 'F8-3', title: 'Organization sameAs 不完整', detail: 'Organization 已部署，但品牌官方外部实体关联仍不完整。', check: '品牌实体', method: '实体修复', priority: 'P1', status: '待处理', checked: false, route: 'repair', routeReason: '官方实体来源明确，可补齐 sameAs 关联。' },
   { id: 'F9', title: '跨平台地址口径不一致', detail: '官网 / LinkedIn / 行业名录存在 1 处地址字段口径冲突。', check: '跨平台一致性', method: '外部信源', priority: 'P1', status: '待处理', checked: false, route: 'repair', routeReason: '地址字段有冲突，先确认哪一个地址正确，再交 AI 建站修改并复核。' },
+  { id: 'F7-3', title: '产品页分组导航建议', detail: '长产品页当前可正常读取，可在后续常规改版时评估增加分组锚点导航。', check: '结构化数据', method: '仅提供建议', priority: 'P3', status: '无需处理', checked: false, route: 'advice', category: '官网结构', evidence: '演示检查记录：主要产品内容可读取，当前未发现由分组导航缺失造成的抓取或信息抽取阻断。', advice: '后续常规改版时，可评估为规格、应用和问答区域增加锚点导航；本轮无需修改官网结构。', routeReason: '属于可选的浏览体验建议，本轮无需修复，不进入审核或执行流程。' },
+  { id: 'F8-4', title: '案例页摘要表达建议', detail: '案例页已有材料、工艺与应用说明，可在下次内容维护时评估补充简短摘要。', check: '信任信号', method: '仅提供建议', priority: 'P3', status: '无需处理', checked: false, route: 'advice', category: '官网内容', evidence: '演示检查记录：现有案例包含材料、工艺和应用背景，未发现必须在本轮补齐的事实缺失。', advice: '下次更新案例时，可考虑在正文前加入材料、加工需求和适用场景摘要；本轮无需改写或重新生成内容。', routeReason: '现有内容已具备基本信息，摘要属于可选表达建议，仅供后续维护参考。' },
+  { id: 'F8-5', title: '产品技术参数缺少核对依据', detail: '官网已展示产品技术参数，但知识库缺少对应的标准化资料，暂时无法核对型号、参数与适用范围。', check: '品牌实体', method: '补充知识提醒', priority: 'P2', status: '待补充知识', checked: false, route: 'knowledge', category: '官网内容', knowledgeTopic: '产品技术参数', evidence: '演示检查记录：知识库未提供包含产品型号、技术参数和适用范围的结构化资料。当前无法据此判定官网参数是否准确。', advice: '请补充「产品技术参数」相关知识库内容。补充后，系统将在下一次监测时重新核对官网中的对应信息。', routeReason: '因缺少标准化核对依据，当前仅提醒补充知识，不判定为内容错误，也不触发内容改写或官网修复。' },
 ]
 
 export const auditChecks: AuditCheck[] = [
@@ -235,7 +242,7 @@ export function cloneGeoTask(task: GeoTask): GeoTask {
 }
 
 export function displayObjectCodes(value: string) {
-  const auditCount = Math.max(6, auditFindings.length)
+  const auditCount = Math.max(6, auditFindings.filter(finding => !['advice', 'knowledge'].includes(finding.route)).length)
   return value
     .replace(/\bAF-(\d+)\b/g, (_match, number: string) => `F-${Number(number)}`)
     .replace(/\bGS(\d+)\b/g, (_match, number: string) => `S-${Number(number)}`)

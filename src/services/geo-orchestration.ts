@@ -1,5 +1,6 @@
 import type { AuditFinding, GeoTask, Strategy } from '../data/geo-data'
 
+import { isReadOnlyFinding } from '../workflows/finding-treatment'
 import { isDirectRepairFinding } from '../workflows/direct-repair'
 
 export const currentPeriod = '09/14–09/20'
@@ -59,6 +60,7 @@ export function orchestrateStrategy(tasks: GeoTask[], strategy: Strategy): GeoTa
 }
 
 export function createRepairTask(tasks: GeoTask[], finding: AuditFinding): GeoTask {
+  if (isReadOnlyFinding(finding)) throw new Error('仅提供建议的条目不生成修复任务')
   const existing = tasks.find(task => task.source.split(/[\s/·]+/).includes(finding.id))
   if (existing)
     return existing
@@ -84,6 +86,7 @@ export function createRepairTask(tasks: GeoTask[], finding: AuditFinding): GeoTa
 }
 
 export function generateFindingStrategy(items: Strategy[], finding: AuditFinding): Strategy {
+  if (isReadOnlyFinding(finding)) throw new Error('仅提供建议的条目不生成候选策略')
   const mappedId = /专家|作者/.test(finding.title) ? 'GS14' : undefined
   const existing = items.find(item => item.source.split(' / ').includes(finding.id) || (mappedId && item.id === mappedId))
   if (existing) {

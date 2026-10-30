@@ -146,3 +146,49 @@ describe('diagnosisContent icons', () => {
     expect(linkedTask!.classes()).toContain('geo-table-detail-button')
   })
 })
+
+describe('advice-only findings in both products', () => {
+  it.each([
+    ['managed', 'ops'], ['managed', 'client'], ['agent', 'client'],
+  ] as const)('shows read-only advice in %s / %s', async (serviceMode, role) => {
+    const wrapper = mount(DiagnosisContent, {
+      props: {
+        findings: auditFindings.map(item => ({ ...item })), personas, activePersona: personas[0]!.id,
+        strategies, strategyLayer: '全部', serviceMode, role,
+      },
+      global: { plugins: [createPinia()], stubs: { DeferredGeoRadarChart: true, Tooltip: { template: '<span><slot /></span>' } } },
+    })
+    await wrapper.get('[aria-label="处理方式筛选"]').setValue('advice')
+    const rows = wrapper.findAll('.geo-finding-table tbody tr')
+    expect(rows).toHaveLength(2)
+    expect(rows.map(row => row.get('.geo-route-badge').text())).toEqual([
+      '官网结构 · 仅提供建议', '官网内容 · 仅提供建议',
+    ])
+    for (const row of rows) {
+      expect(row.get('.geo-finding-status').text()).toBe('无需处理')
+      expect(row.get('button').text()).toBe('查看建议')
+      const checkbox = row.find('input[type="checkbox"]')
+      if (checkbox.exists()) expect(checkbox.attributes('disabled')).toBeDefined()
+    }
+    expect(wrapper.find('.geo-finding-approve-button').exists()).toBe(false)
+    await rows[1]!.get('button').trigger('click')
+    expect(wrapper.emitted('openAudit')?.[0]?.[0]).toMatchObject({ id: 'F8-4', route: 'advice' })
+    wrapper.unmount()
+  })
+})
+
+it('shows knowledge supplementation as a reminder without an approval action', async () => {
+  const wrapper = mount(DiagnosisContent, {
+    props: { findings: auditFindings.map(item => ({ ...item })), personas, activePersona: personas[0]!.id, strategies, strategyLayer: '全部', serviceMode: 'agent', role: 'client' },
+    global: { plugins: [createPinia()], stubs: { DeferredGeoRadarChart: true, Tooltip: { template: '<span><slot /></span>' } } },
+  })
+  await wrapper.get('[aria-label="处理方式筛选"]').setValue('knowledge')
+  const rows = wrapper.findAll('.geo-finding-table tbody tr')
+  expect(rows).toHaveLength(1)
+  expect(rows[0]!.text()).toContain('待补充知识')
+  expect(rows[0]!.get('button').text()).toBe('查看补充要求')
+  expect(rows[0]!.get('input').attributes('disabled')).toBeDefined()
+  await rows[0]!.get('button').trigger('click')
+  expect(wrapper.emitted('openAudit')?.[0]?.[0]).toMatchObject({ route: 'knowledge' })
+  wrapper.unmount()
+})
