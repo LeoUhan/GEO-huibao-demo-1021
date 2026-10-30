@@ -236,8 +236,18 @@ describe('prototype task ownership and backend-driven repair status', () => {
     expect(task.progress).toBe('running')
   })
 
-  it('does not auto-advance technical repair statuses returned by the website service', () => {
-    expect(hasAutomaticStep(makeTask('repair', 'site_running'))).toBe(false)
+  it.each(['agent', 'managed'] as const)('automatically completes direct repair in %s without approval', (mode) => {
+    const task = makeTask('repair', 'human')
+    ensureWorkflow(task)
+    expect(hasAutomaticStep(task, mode)).toBe(true)
+    expect(applyAction(task, 'client', mode, 'submit_site')).toContain('无需人工操作')
+    expect(taskStageLabel(task, mode)).toBe('AI建站处理中')
+    advanceAutomatic(task, mode)
+    expect(task.progress).toBe('site_running')
+    advanceAutomatic(task, mode)
+    expect(taskStageLabel(task, mode)).toBe('已完成处理')
+    expect(getTaskBucket(task)).toBe('done')
+    expect(hasAutomaticStep(task, mode)).toBe(false)
   })
 
   it('keeps Re-check waiting for an explicit monitoring completion action', () => {
@@ -270,5 +280,74 @@ describe('prototype task ownership and backend-driven repair status', () => {
     expect(normalized.site.targetPage).toBe('相关官网页面 / 全站实体配置')
     expect(normalized.site.changeType).toBe('技术修复')
     expect(normalized.site.factBoundary).toBe('不得改写已确认的企业、认证与产品事实')
+  })
+})
+
+// These paths exercise the new customer-only flow while the existing tests protect managed mode.
+describe('customer-only review journeys', () => {
+  it.each(['web', 'external'] as const)('completes %s after one customer review without an operations handoff', (type) => {
+    const task = makeTask(type, 'brief')
+    const flow = ensureWorkflow(task)
+    flow.brief.webSupplement = true
+    expect(applyAction(task, 'client', 'agent', 'confirm_brief')).toBeNull()
+    advanceAutomatic(task, 'agent')
+    advanceAutomatic(task, 'agent')
+    expect(task.progress).toBe('client_review')
+    expect(applyAction(task, 'client', 'agent', 'approve_client')).toBeNull()
+    if (type === 'web') {
+      expect(task.progress).toBe('site_submitted')
+      advanceAutomatic(task, 'agent')
+      advanceAutomatic(task, 'agent')
+      advanceAutomatic(task, 'agent')
+    }
+    expect(task.progress).toBe('done')
+    expect(flow.reviews.some(item => item.actor === '运营')).toBe(false)
+    expect(flow.output.body).toContain('任务目标')
+  })
+
+  it('allows knowledge and instruction supplements while protecting AI-defined methods and goals', () => {
+    const task = makeTask('web', 'brief')
+    const flow = ensureWorkflow(task)
+    const body = { brief: { ...flow.brief, contentInstruction: '使用已确认服务范围' }, methods: [...task.methods], knowledge: [{ ...knowledgeLibrary[0]! }] }
+    expect(applyAction(task, 'client', 'agent', 'save_brief', body)).toBeNull()
+    expect(flow.brief.contentInstruction).toBe('使用已确认服务范围')
+    expect(applyAction(task, 'client', 'agent', 'save_brief', { ...body, methods: ['未经确认的方法'] })).toContain('专业方法')
+    expect(applyAction(task, 'client', 'agent', 'save_brief', { ...body, brief: { ...body.brief, goal: '替换目标' } })).toContain('专业方法')
+    expect(applyAction(task, 'ops', 'agent', 'confirm_brief')).toContain('客户角色')
+  })
+
+  it('returns customer change requests to the same review step', () => {
+    const task = makeTask('external', 'client_review')
+    ensureWorkflow(task)
+    expect(applyAction(task, 'client', 'agent', 'request_output_changes', { note: '保留已确认的服务范围' })).toBeNull()
+    advanceAutomatic(task, 'agent')
+    expect(task.progress).toBe('client_review')
+    expect(task.workflow!.output.body).toContain('保留已确认的服务范围')
+    expect(applyAction(task, 'client', 'agent', 'approve_client')).toBeNull()
+    expect(task.progress).toBe('done')
+  })
+
+  it('keeps factual conflicts requiring confirmation and supports retry', () => {
+    const task = makeTask('repair', 'human')
+    task.source = 'F9'
+    const flow = ensureWorkflow(task)
+    expect(hasAutomaticStep(task, 'agent')).toBe(false)
+    expect(applyAction(task, 'client', 'agent', 'submit_site', { simulateFailure: true })).toBeNull()
+    for (let i = 0; i < 3; i++) advanceAutomatic(task, 'agent')
+    expect(task.progress).toBe('site_failed')
+    expect(applyAction(task, 'client', 'agent', 'retry_site', { note: '仅更新已确认的结构字段', simulateFailure: false })).toBeNull()
+    for (let i = 0; i < 3; i++) advanceAutomatic(task, 'agent')
+    expect(task.progress).toBe('done')
+    expect(flow.site.attempts).toBe(2)
+    expect(flow.site.requirements).toContain('仅更新已确认的结构字段')
+  })
+
+  it('keeps an ignored customer Brief from running and records the customer decision', () => {
+    const task = makeTask('web', 'brief')
+    ensureWorkflow(task)
+    expect(applyAction(task, 'client', 'agent', 'ignore_task', { ignoreReason: '时机不合适', note: '待下次排期确认' })).toBeNull()
+    expect(hasAutomaticStep(task, 'agent')).toBe(false)
+    expect(advanceAutomatic(task, 'agent')).toBe(false)
+    expect(task.workflow!.ignoredTask?.actor).toBe('客户')
   })
 })

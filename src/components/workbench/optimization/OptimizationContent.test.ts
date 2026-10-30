@@ -25,11 +25,11 @@ describe('optimization content task table', () => {
     })
 
     expect(wrapper.find('.geo-optimization-period').exists()).toBe(false)
-    expect(wrapper.findAll('.geo-stat-card').map(card => card.text())).toEqual([
-      '2项全部任务',
-      '1项官网内容',
-      '1项外部内容',
-      '0项基础修复',
+    expect(wrapper.findAll('.geo-task-metric').map(card => card.text().replace(/\s/g, ''))).toEqual([
+      '全部任务2项',
+      '官网内容1项',
+      '外部内容1项',
+      '基础修复0项',
     ])
     expect(wrapper.findAll('tbody tr')).toHaveLength(2)
     wrapper.unmount()
@@ -91,11 +91,33 @@ describe('optimization content task table', () => {
       props: { tasks, allTasks: tasks, filter: 'all', role: 'client' },
     })
 
-    expect(wrapper.get('.geo-action-card').text()).toContain('当前 0 项')
+    expect(wrapper.find('.geo-action-card').exists()).toBe(false)
+    expect(wrapper.get('.geo-optimization-no-pending').text()).toBe('当前暂无待处理任务')
     expect(wrapper.get('tbody').text()).toContain('已忽略')
     await wrapper.get('input[value="ignored"]').trigger('change')
     expect(wrapper.get('tbody').text()).toContain('已忽略任务')
 
     wrapper.unmount()
   })
+})
+
+
+it.each([
+  ['managed', 'ops', 2],
+  ['managed', 'client', 1],
+  ['agent', 'client', 3],
+  ['agent', 'ops', 0],
+] as const)('counts only tasks owned by the current reviewer in %s/%s', async (mode, role, expected) => {
+  const tasks: GeoTask[] = ['brief', 'human', 'client_review', 'running', 'done'].map((progress, index) => ({
+    ...initialTasks[0]!, id: `ROLE-${index}`, name: `角色任务${index}`, type: 'web', workflow: undefined, progress: progress as GeoTask['progress'],
+  }))
+  tasks.push({ ...tasks[0]!, id: 'REPAIR', type: 'repair', source: 'F7-1', progress: 'human' })
+  const wrapper = mount(OptimizationContent, { props: { tasks, allTasks: tasks, filter: 'all', role, serviceMode: mode } })
+  expect(wrapper.get('.geo-my-tasks-count').text()).toBe(String(expected))
+  expect(wrapper.findAll('.geo-action-card').every(card => !card.text().includes('暂无待办'))).toBe(true)
+  if (mode === 'managed' && role === 'ops') {
+    await wrapper.findAll('.geo-action-card').find(card => card.text().includes('审核内容'))!.trigger('click')
+    expect(wrapper.emitted('openTask')?.[0]?.[0]).toMatchObject({ id: 'ROLE-1' })
+  }
+  wrapper.unmount()
 })

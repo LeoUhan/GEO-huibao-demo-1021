@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { pendingReviewLabel, strategyReviewStatus } from '../../../workflows/review-status'
+import { directRepairStatus, isDirectRepairFinding } from '../../../workflows/direct-repair'
 import type { AuditCheck, AuditFinding, GeoTask, Persona, Strategy, StrategyLayer } from '../../../data/geo-data'
 import type { DataListColumn } from '../../ui/ce/data-list/types'
 import { storeToRefs } from 'pinia'
@@ -44,7 +46,7 @@ const emit = defineEmits<{
   openPending: []
 }>()
 
-const layers: StrategyLayer[] = ['全部', '内容', '结构', '实体与信任', '外部信源']
+const layers: StrategyLayer[] = ['全部', '内容', '实体与信任', '外部信源']
 const diagnosisStore = useDiagnosisStore()
 const { selectedGap } = storeToRefs(diagnosisStore)
 const tableLabels = {
@@ -83,7 +85,7 @@ const auditPage = shallowRef(1)
 const pageSize = 5
 const auditFilter = shallowRef('all')
 const allStrategies = computed(() => props.allStrategies ?? props.strategies)
-const canReview = computed(() => props.serviceMode === 'managed' && props.role === 'ops')
+const canReview = computed(() => props.role === (props.serviceMode === 'agent' ? 'client' : 'ops'))
 const gapAliases: Record<string, string[]> = {
   本地服务与培训: ['本地服务', '培训', '售后', '服务网络', '服务'],
   认证与合规: ['认证', '合规', 'sameAs', 'Organization', '实体与信任'],
@@ -93,7 +95,7 @@ const gapAliases: Record<string, string[]> = {
   本地服务: ['本地服务', '服务', '代理', '培训'],
   代理支持: ['代理', '本地服务', '服务'],
   交期稳定: ['交期', '交付', '产能'],
-  维护难度: ['维护', 'FAQ', '提问式H2', '内容切片', '结构优化'],
+  维护难度: ['维护', 'FAQ', '选型问答', '分段改写'],
   停机风险: ['停机', '维护', '快速恢复', '稳定性'],
   培训成本: ['培训', '视频', 'YouTube', '支持机制'],
 }
@@ -113,7 +115,7 @@ function strategyGaps(strategy: Strategy) {
 function personaScore(strategy: Strategy) {
   const matchedGaps = activePersonaData.value?.gaps.filter(gap => matchesGap(strategy, gap.name)) ?? []
   const maxGap = matchedGaps.length ? Math.max(...matchedGaps.map(gap => gap.value)) : 0
-  const priorityBase = strategy.priority === 'P0' ? 300 : strategy.priority === 'P1' ? 200 : 100
+  const priorityBase = (3 - Number(strategy.priority.slice(1))) * 100
   return priorityBase + maxGap * 1.6 + (matchesPersona(strategy) ? 28 : 0)
 }
 const sortedStrategies = computed(() => {
@@ -136,7 +138,7 @@ function strategyFromRow(item: unknown) {
   return item as Strategy
 }
 function isActionable(finding: AuditFinding) {
-  return finding.status === '待处理'
+  return !isDirectRepairFinding(finding) && finding.status === '待处理'
 }
 function findingRouteLabel(finding: AuditFinding) {
   if (finding.route === 'strategy')
@@ -145,16 +147,19 @@ function findingRouteLabel(finding: AuditFinding) {
     return '信息口径 · 确认后处理'
   return '官网技术 · 直接处理'
 }
+function findingActionLabel(finding: AuditFinding) {
+  return canReview.value && !isDirectRepairFinding(finding) && ['待处理', '待官网运营审核'].includes(finding.status) ? '审核' : '查看详情'
+}
 function findingStatusLabel(finding: AuditFinding) {
+  if (isDirectRepairFinding(finding))
+    return directRepairStatus(finding.status === '已修复')
   if (finding.status === '已修复')
     return '已修复'
   if (finding.status === '暂不修复')
     return '暂不修复'
   if (finding.status === '已生成策略')
     return '已生成候选策略'
-  if (finding.route === 'repair')
-    return '待官网运营审核'
-  return props.serviceMode === 'agent' ? '待客户审核诊断' : '待运营审核诊断'
+  return pendingReviewLabel(props.serviceMode)
 }
 function findingCheckLabel(finding: AuditFinding) {
   const index = auditChecks.findIndex(check => check.label === finding.check)
@@ -169,12 +174,13 @@ function taskFor(strategy: Strategy) {
   return props.tasks?.find(task => task.strategy === strategy.id || task.relatedStrategies.includes(strategy.id))
 }
 function strategyCollaborationLabel(strategy: Strategy) {
-  if (strategy.ignored)
-    return '已忽略'
-  return props.serviceMode === 'managed' ? '运营审核' : 'Agent 编排'
+  return strategyReviewStatus(strategy, props.tasks ?? [], props.serviceMode)
 }
-const confirmedCount = computed(() => allStrategies.value.filter(strategy => strategy.confirmed && !strategy.ignored && !taskFor(strategy)).length)
-const reviewCount = computed(() => allStrategies.value.filter(strategy => !strategy.confirmed && !strategy.ignored && !taskFor(strategy)).length)
+function strategyNeedsReview(strategy: Strategy) {
+  return !strategy.ignored && !strategy.confirmed && !taskFor(strategy)
+}
+const confirmedCount = computed(() => allStrategies.value.filter(strategy => !strategy.ignored && (strategy.confirmed || taskFor(strategy))).length)
+const reviewCount = computed(() => allStrategies.value.filter(strategy => !!strategy.ignored && (strategy.confirmed || taskFor(strategy))).length)
 const passedCount = computed(() => auditChecks.filter(check => check.passed).length)
 watch(() => props.strategyLayer, () => queuePage.value = 1)
 watch(() => props.activePersona, () => {
@@ -246,7 +252,7 @@ function summaryText({ total, page, pages }: { total: number, page: number, page
           <h2 id="audit-title">
             <span class="geo-section-heading__number" aria-hidden="true">1</span>
             <span>官网 GEO 体检</span>
-          </h2><span class="geo-muted">官网技术诊断不需要用户审核，确定性问题会直接生成任务；推送到官网后进入“待官网运营审核”。</span>
+          </h2><span class="geo-muted">确定性技术问题由 AI 建站直接处理，完成后自动更新结果。</span>
         </div><div class="geo-inline-tags">
           <Tag tone="green" variant="soft" size="sm">
             {{ passedCount }} 通过
@@ -270,7 +276,7 @@ function summaryText({ total, page, pages }: { total: number, page: number, page
         <div class="geo-finding-head">
           <label v-if="canReview"><input :key="`${auditFilter}-${auditPage}`" type="checkbox" :checked="allSelected" :disabled="!actionableFindings.length" :indeterminate="pageSelectedCount > 0 && !allSelected" @change="emit('selectAllFindings', actionableFindings.map(finding => finding.id))"> 全选当前页</label><span v-else class="geo-muted">客户角色可查看诊断；审核由运营处理</span><div class="geo-finding-actions">
             <span v-if="canReview && selectedCount" class="geo-finding-selection-count" aria-live="polite">已选 {{ selectedCount }}</span>
-            <Button v-if="canReview && selectedCount" class="geo-finding-approve-button geo-table-detail-button" variant="secondary" size="md" type="button" @click="emit('approveSelectedFindings')">
+            <Button v-if="canReview && selectedCount" class="geo-finding-approve-button geo-table-detail-button geo-review-button" variant="secondary" size="md" type="button" @click="emit('approveSelectedFindings')">
               审核通过并生成任务
             </Button>
           </div>
@@ -304,11 +310,11 @@ function summaryText({ total, page, pages }: { total: number, page: number, page
               <span class="geo-chip" :class="findingFromRow(finding).priority === 'P0' ? 'geo-chip--danger' : ''">{{ findingFromRow(finding).priority }}</span>
             </template>
             <template #cell-status="{ item: finding }">
-              <span class="geo-finding-status" :class="{ 'is-done': findingStatusLabel(findingFromRow(finding)) === '已生成候选策略' || findingStatusLabel(findingFromRow(finding)) === '已修复', 'is-deferred': findingStatusLabel(findingFromRow(finding)) === '暂不修复' }">{{ findingStatusLabel(findingFromRow(finding)) }}</span>
+              <span class="geo-finding-status" :class="{ 'is-review': findingActionLabel(findingFromRow(finding)) === '审核', 'is-done': findingStatusLabel(findingFromRow(finding)) === '已生成候选策略' || findingStatusLabel(findingFromRow(finding)) === '已修复' || findingStatusLabel(findingFromRow(finding)) === '已完成处理', 'is-deferred': findingStatusLabel(findingFromRow(finding)) === '暂不修复' }">{{ findingStatusLabel(findingFromRow(finding)) }}</span>
             </template>
             <template #cell-actions="{ item: finding }">
-              <Button class="geo-finding-detail-button geo-table-detail-button" variant="secondary" size="md" type="button" @click="emit('openAudit', findingFromRow(finding))">
-                查看详情
+              <Button class="geo-finding-detail-button geo-table-detail-button" :class="{ 'geo-review-button': findingActionLabel(findingFromRow(finding)) === '审核' }" variant="secondary" size="md" type="button" @click="emit('openAudit', findingFromRow(finding))">
+                {{ findingActionLabel(findingFromRow(finding)) }}
               </Button>
             </template>
             <template #empty>
@@ -360,7 +366,7 @@ function summaryText({ total, page, pages }: { total: number, page: number, page
           </h2>
           <div class="geo-candidate-guide">
             <p>
-              <strong>候选策略由官网检测结果和 GEO 优化规则生成。</strong> 每条策略都关联具体的检测发现，并说明判断依据和建议处理方向。候选策略无需逐条审核；如需确认业务信息或执行范围，请在后续 Brief 中处理。 <span class="geo-candidate-link"><Button variant="text" size="xs" @click="emit('goOptimization')">
+              <strong>候选策略由官网检测结果和 GEO 优化规则生成。</strong> {{ serviceMode === 'agent' ? '查看策略依据与建议，采纳后自动编排任务；忽略时请填写原因。' : '每条策略都关联具体的检测发现，并说明判断依据和建议处理方向。候选策略无需逐条审核；如需确认业务信息或执行范围，请在后续 Brief 中处理。' }} <span class="geo-candidate-link"><Button variant="text" size="xs" @click="emit('goOptimization')">
                 查看任务 <AppIcon name="arrowRight" :size="14" />
               </Button></span>
             </p>
@@ -371,7 +377,7 @@ function summaryText({ total, page, pages }: { total: number, page: number, page
           </Tag><Tag tone="green" variant="soft" size="sm">
             已通过 {{ confirmedCount }}
           </Tag><Tag tone="orange" variant="soft" size="sm">
-            待运营审核 {{ reviewCount }}
+            {{ pendingReviewLabel(serviceMode) }} {{ reviewCount }}
           </Tag>
         </div>
       </header>
@@ -428,13 +434,13 @@ function summaryText({ total, page, pages }: { total: number, page: number, page
             <span v-else>当前人设不直接加权，仍按基础优先级保留</span>
           </template>
           <template #cell-status="{ item: strategy }">
-            <Tag :tone="strategyFromRow(strategy).ignored ? 'neutral' : 'orange'" variant="soft" size="sm">
+            <Tag :class="{ 'geo-review-status': canReview && strategyNeedsReview(strategyFromRow(strategy)) }" :tone="strategyFromRow(strategy).ignored ? 'neutral' : strategyNeedsReview(strategyFromRow(strategy)) ? 'orange' : 'green'" variant="soft" size="sm">
               {{ strategyCollaborationLabel(strategyFromRow(strategy)) }}
             </Tag>
           </template>
           <template #cell-actions="{ item: strategy }">
-            <Button v-if="canReview && !strategyFromRow(strategy).confirmed && !strategyFromRow(strategy).ignored" class="geo-table-detail-button" variant="secondary" size="md" type="button" @click="emit('openStrategy', strategyFromRow(strategy))">
-              查看详情
+            <Button v-if="canReview && strategyNeedsReview(strategyFromRow(strategy))" class="geo-table-detail-button geo-review-button" variant="secondary" size="md" type="button" @click="emit('openStrategy', strategyFromRow(strategy))">
+              审核
             </Button><Button v-else-if="taskFor(strategyFromRow(strategy))" class="geo-table-detail-button" variant="secondary" size="md" type="button" @click="emit('confirmStrategy', strategyFromRow(strategy))">
               查看任务
             </Button>

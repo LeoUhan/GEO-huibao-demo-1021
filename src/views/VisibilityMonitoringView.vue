@@ -12,7 +12,7 @@ import { defaultMonitoringPlatformsForPlan, frequencyForPlan } from '../componen
 import { Button, Modal } from '../components/ui/ce'
 import Spinner from '../components/ui/ce/spinner/Spinner.vue'
 import MonitoringOverview from '../components/visibility-monitoring/analysis/MonitoringOverview.vue'
-import MonitoringRoundResults from '../components/visibility-monitoring/analysis/MonitoringRoundResults.vue'
+import ReferenceMonitoringResults from '../components/visibility-monitoring/analysis/ReferenceMonitoringResults.vue'
 import PotentialCompetitorReviewDialog from '../components/visibility-monitoring/analysis/PotentialCompetitorReviewDialog.vue'
 import SamplingTrustSection from '../components/visibility-monitoring/sampling/SamplingTrustSection.vue'
 import MarketConfigurationPanel from '../components/visibility-monitoring/settings/MarketConfigurationPanel.vue'
@@ -24,6 +24,7 @@ import { useMonitoringPlatforms } from '../composables/use-monitoring-platforms'
 import { useMonitoringRound } from '../composables/use-monitoring-round'
 import { useMonitoringSchedule } from '../composables/use-monitoring-schedule'
 import { marketLanguageLabels, toMonitoringOverviewMetrics } from '../data/monitoring-overview-summary'
+import { referenceMonitoringResults } from '../data/reference-monitoring-results'
 import { useGeoContextStore } from '../stores/geo-context'
 
 const activeTab = shallowRef<VisibilityTab>('brand')
@@ -391,7 +392,7 @@ async function launchManualRound() {
     <section v-else id="visibility-stage-5" class="visibility-results" role="tabpanel" aria-labelledby="visibility-step-5">
       <nav class="visibility-tabs" aria-label="监测结果分类" role="tablist">
         <button v-for="tab in tabs" :id="`visibility-tab-${tab.id}`" :key="tab.id" type="button" role="tab" :aria-selected="activeTab === tab.id" :aria-controls="`visibility-panel-${tab.id}`" :class="{ 'is-active': activeTab === tab.id }" @click="switchTab(tab.id)">
-          {{ tab.label }}<span v-if="tab.id === 'questions'">{{ monitoringRound.questionHits.value.length }}</span>
+          {{ tab.label }}<span v-if="tab.id === 'questions'">{{ monitoringRound.round.value ? referenceMonitoringResults.questions.length : 0 }}</span>
         </button>
       </nav>
 
@@ -407,13 +408,10 @@ async function launchManualRound() {
       <section v-else-if="monitoringRound.empty.value" class="visibility-api-state" role="status">
         当前市场暂无监测轮次，完成首轮采集后此处会显示真实结果。
       </section>
-      <MonitoringRoundResults
-        v-else-if="monitoringRound.round.value && monitoringRound.detail.value && monitoringRound.sourceDomains.value && monitoringRound.sourcePages.value"
+      <ReferenceMonitoringResults
+        v-else-if="monitoringRound.round.value"
+        :key="geoContext.marketId ?? 'default'"
         :active-tab="activeTab"
-        :round="monitoringRound.round.value"
-        :question-hits="monitoringRound.questionHits.value"
-        :source-domains="monitoringRound.sourceDomains.value"
-        :source-pages="monitoringRound.sourcePages.value"
       />
     </section>
 

@@ -152,3 +152,38 @@ html.ce-iframe-root .geo-diagnosis .geo-strategy-factor .geo-gap-link.ce-button[
   .geo-diagnosis .geo-check,
   .geo-diagnosis .geo-gap-row { transition: none; }
 }
+
+/* Pair actionable review statuses with amber review actions. */
+.geo-diagnosis .geo-finding-status:not(.is-done):not(.is-deferred):not(.is-review) {
+  color: var(--geo-info);
+  background: var(--geo-info-soft);
+}
+html.ce-iframe-root .geo-diagnosis .geo-finding-status.is-review,
+html.ce-iframe-root .geo-diagnosis .ce-tag.geo-review-status {
+  color: var(--geo-warning);
+  background: var(--geo-warning-soft);
+  border: 0;
+  box-shadow: none;
+  --tag-border-color: transparent;
+  font-weight: 600;
+}
+html.ce-iframe-root .geo-diagnosis .geo-table-detail-button.geo-review-button {
+  color: var(--geo-warning);
+  background: var(--geo-warning-soft);
+  border: 0;
+  box-shadow: none;
+  --button-border-color: transparent;
+  --button-hover-border: transparent;
+  --button-active-border: transparent;
+  font-weight: 600;
+}
+html.ce-iframe-root .geo-diagnosis .geo-table-detail-button.geo-review-button:hover:not(:disabled),
+html.ce-iframe-root .geo-diagnosis .geo-table-detail-button.geo-review-button:active:not(:disabled) {
+  color: var(--geo-warning);
+  background: color-mix(in srgb, var(--geo-warning-soft) 85%, var(--geo-warning) 15%);
+  border-color: transparent;
+  box-shadow: none;
+}
+html.ce-iframe-root .geo-diagnosis .geo-table-detail-button.geo-review-button:focus-visible {
+  outline-color: var(--geo-warning);
+}

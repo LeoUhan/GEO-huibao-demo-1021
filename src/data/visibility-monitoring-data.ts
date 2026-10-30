@@ -24,6 +24,8 @@ export interface PlatformResult {
   officialSiteCited: boolean
   rank: number | null
   sentiment: 'positive' | 'neutral' | 'negative'
+  htmlSnapshot?: string
+  citations?: Array<{ url: string, excerpt: string }>
   answer: string
   citedPages: string[]
 }
@@ -50,6 +52,10 @@ export interface MonitoringQuestion {
   officialSiteCited: boolean
   rank: number | null
   trend: QuestionTrend
+  samplingSummary?: { batches: number, valid: number, total: number, interval: string }
+  batchResults?: Record<string, PlatformResult[]>
+  trendWeeks?: string[]
+  platformTrends?: TrendSeries[]
   samplingBatches: SamplingBatch[]
 }
 
@@ -66,6 +72,7 @@ export interface SourceDomain {
 }
 
 export interface CitedPage {
+  href?: string
   id: string
   domainId: string
   title: string

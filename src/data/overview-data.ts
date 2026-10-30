@@ -1,11 +1,11 @@
-import type { AuditFinding, GeoTask, Strategy } from './geo-data'
+import type { AuditFinding, GeoTask, Priority, Strategy } from './geo-data'
 
 export interface OverviewQueueItem {
   id: string
   kind: 'finding' | 'strategy' | 'task'
   title: string
   summary: string
-  priority: 'P0' | 'P1' | 'P2'
+  priority: Priority
   source: string
   status: string
   nextAction: string
@@ -65,7 +65,7 @@ const actionableTaskProgress = new Set<GeoTask['progress']>([
   'site_failed',
   'site_publish',
 ])
-const priorityRank = { P0: 0, P1: 1, P2: 2 } as const
+const priorityRank = { P0: 0, P1: 1, P2: 2, P3: 3 } as const
 
 const taskStatus: Record<GeoTask['progress'], { status: string, nextAction: string }> = {
   brief: { status: 'Brief 待确认', nextAction: '确认任务 Brief' },

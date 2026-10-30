@@ -1,12 +1,13 @@
 import { flushPromises, mount } from '@vue/test-utils'
 import { createPinia } from 'pinia'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { defineComponent, h, inject } from 'vue'
 import { createMemoryHistory, createRouter } from 'vue-router'
 import { geoWorkbenchRouteContextKey } from '../composables/workbench-route-context'
 import { auditFindings, strategies } from '../data/geo-data'
 import { useWorkbenchTasksStore } from '../stores/workbench-tasks'
 import GeoWorkbenchLayout from './GeoWorkbenchLayout.vue'
+import PrioritySelect from '../components/workbench/shared/PrioritySelect.vue'
 
 function makeRouteProbe() {
   return defineComponent({
@@ -70,8 +71,8 @@ describe('geoWorkbenchLayout icon migration', () => {
     const countBeforeBulkApproval = taskStore.tasks.length
     await wrapper.get('[data-test="select-bulk-findings"]').trigger('click')
     await wrapper.get('[data-test="approve-bulk-findings"]').trigger('click')
-    expect(taskStore.tasks.length).toBe(countBeforeBulkApproval + 2)
-    expect(wrapper.find('.geo-toast').text()).toContain('已审核通过并生成关联任务')
+    expect(taskStore.tasks.length).toBe(countBeforeBulkApproval)
+    expect(wrapper.find('.geo-toast').text()).toContain('请选择至少一条可审核的问题')
 
     await wrapper.get('[data-test="open-strategy-finding"]').trigger('click')
     const findingDrawer = wrapper.get('.test-drawer')
@@ -120,11 +121,11 @@ describe('geoWorkbenchLayout icon migration', () => {
     expect(drawer.get('p').text()).toBe('')
     expect(drawer.get('h2').text()).toBe('交期页增加汽车工艺停机风险与服务问答')
     expect(drawer.findAll('.geo-strategy-detail-card__header').map(header => header.text())).toEqual([
-      '认知缺口策略待运营审核',
+      '认知缺口策略已生成任务',
       'Agent 建议方法',
     ])
     expect(drawer.find('.geo-strategy-status').exists()).toBe(false)
-    expect(drawer.find('.geo-strategy-drawer__status').text()).toBe('待运营审核')
+    expect(drawer.find('.geo-strategy-drawer__status').text()).toBe('已生成任务')
     expect(drawer.get('.geo-strategy-detail-grid').text()).toContain('策略类型官网内容')
     expect(drawer.get('.geo-strategy-detail-grid').text()).toContain('目标人设汽车工艺、车间主管')
     expect(drawer.get('.geo-strategy-recommendation').text()).toBe('建议采用停机风险 Q&A、服务问答、买家场景补充等方式，完成本次官网内容优化。')
@@ -135,4 +136,121 @@ describe('geoWorkbenchLayout icon migration', () => {
     expect(wrapper.find('.geo-strategy-ignore-form').exists()).toBe(false)
     wrapper.unmount()
   })
+})
+
+it('separates product versions from roles and keeps changes scoped to the two review modules', async () => {
+  localStorage.clear()
+  const probe = defineComponent({
+    setup() {
+      const context = inject(geoWorkbenchRouteContextKey)!
+      return () => h('div', [
+        h('span', { 'data-test': 'mode-role' }, `${context.serviceMode.value}/${context.role.value}`),
+        h('span', { 'data-test': 'selected' }, String(context.findings.find(item => item.id === 'F8-2')?.checked)),
+        h('button', { 'data-test': 'choose-finding', onClick: () => context.toggleFinding('F8-2') }, '选择诊断'),
+        h('button', { 'data-test': 'adopt-strategy', onClick: () => context.confirmStrategy(context.strategies.find(item => item.id === 'GS4')!) }, '采纳策略'),
+      ])
+    },
+  })
+  const router = createRouter({ history: createMemoryHistory(), routes: [
+    { path: '/diagnosis', name: 'diagnosis', component: probe },
+    { path: '/overview', name: 'overview', component: probe },
+  ] })
+  await router.push('/diagnosis')
+  await router.isReady()
+  const wrapper = mount(GeoWorkbenchLayout, { global: { plugins: [createPinia(), router], stubs: {
+    GeoWorkbenchToolbar: { emits: ['update:serviceMode'], template: '<button data-test="select-client" @click="$emit(\'update:serviceMode\', \'agent\')">客户版</button>' },
+    GeoDrawer: true, RouterLink: true,
+  } } })
+  await wrapper.get('[data-test="select-client"]').trigger('click')
+  await flushPromises()
+  expect(wrapper.get('[data-test="mode-role"]').text()).toBe('agent/client')
+  await wrapper.get('[data-test="choose-finding"]').trigger('click')
+  expect(wrapper.get('[data-test="selected"]').text()).toBe('true')
+  await wrapper.get('[data-test="adopt-strategy"]').trigger('click')
+  await flushPromises()
+  const customerState = JSON.parse(localStorage.getItem('geo-workbench:agent')!)
+  expect(customerState.strategies.find((item: { id: string }) => item.id === 'GS4').confirmed).toBe(true)
+  expect(customerState.reviews.GS4.at(-1).name).toBe('客户')
+  await router.push('/overview')
+  await flushPromises()
+  expect(wrapper.get('[data-test="mode-role"]').text()).toBe('managed/ops')
+  expect(wrapper.get('[data-test="selected"]').text()).toBe('false')
+  await router.push('/diagnosis')
+  await flushPromises()
+  expect(wrapper.get('[data-test="mode-role"]').text()).toBe('agent/client')
+  expect(wrapper.get('[data-test="selected"]').text()).toBe('true')
+  wrapper.unmount()
+  localStorage.clear()
+})
+
+
+it.each(['client', 'managed'])('runs direct technical repairs without human approval in %s version', async (version) => {
+  localStorage.clear()
+  vi.useFakeTimers()
+  const probe = defineComponent({
+    setup() {
+      const context = inject(geoWorkbenchRouteContextKey)!
+      return () => h('div', context.findings.filter(f => f.route === 'repair' && f.id !== 'F9').map(f =>
+        h('button', { 'data-test': f.id, onClick: () => context.openAudit(f) }, f.status)))
+    },
+  })
+  const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/diagnosis', name: 'diagnosis', component: probe }] })
+  await router.push(`/diagnosis?version=${version}`)
+  const wrapper = mount(GeoWorkbenchLayout, { global: { plugins: [createPinia(), router], stubs: {
+    GeoWorkbenchToolbar: true, RouterLink: true,
+    GeoDrawer: { props: ['open'], template: '<div v-if="open" class="test-drawer"><slot /><footer><slot name="footer" /></footer></div>' },
+  } } })
+  try {
+    await wrapper.get('[data-test="F7-1"]').trigger('click')
+    expect(wrapper.get('.test-drawer').text()).toContain('AI建站处理中')
+    expect(wrapper.get('.test-drawer footer').text()).not.toContain('审核通过')
+    expect(wrapper.get('.test-drawer footer').text()).not.toContain('暂不修复')
+    await vi.advanceTimersByTimeAsync(10000)
+    expect(wrapper.get('.test-drawer').text()).toContain('AI建站处理中')
+    for (const id of ['F7-1', 'F7-2', 'F8-1'])
+      expect(wrapper.get(`[data-test="${id}"]`).text()).toBe('待官网运营审核')
+    await wrapper.get('[data-test="F8-3"]').trigger('click')
+    expect(wrapper.get('.test-drawer').text()).toContain('已完成处理')
+    const repairs = useWorkbenchTasksStore().tasks.filter(t => t.type === 'repair' && t.source.includes('F7-'))
+    expect(repairs).toHaveLength(1)
+    expect(repairs[0]?.progress).toBe('site_running')
+  }
+  finally { wrapper.unmount(); vi.useRealTimers() }
+})
+
+
+it.each(['client', 'managed'])('persists reviewer priority changes including P3 in %s version', async (version) => {
+  localStorage.clear()
+  const probe = defineComponent({ setup() {
+    const context = inject(geoWorkbenchRouteContextKey)!
+    return () => h('button', { 'data-test': 'review-priority', onClick: () => context.openStrategy(context.strategies.find(item => item.id === 'GS11')!) }, '审核')
+  } })
+  const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/diagnosis', name: 'diagnosis', component: probe }] })
+  await router.push(`/diagnosis?version=${version}`)
+  const mountLayout = () => mount(GeoWorkbenchLayout, { global: { plugins: [createPinia(), router], stubs: {
+    GeoWorkbenchToolbar: true, RouterLink: true,
+    GeoDrawer: { props: ['open'], template: '<div v-if="open"><slot /><slot name="footer" /></div>' },
+  } } })
+  let wrapper = mountLayout()
+  try {
+    await wrapper.get('[data-test="review-priority"]').trigger('click')
+    wrapper.getComponent(PrioritySelect).vm.$emit('update:modelValue', 'P3')
+    await flushPromises()
+    const key = `geo-workbench:${version === 'client' ? 'agent' : 'managed'}`
+    const state = JSON.parse(localStorage.getItem(key)!)
+    expect(state.strategies.find((item: { id: string }) => item.id === 'GS11').priority).toBe('P3')
+    expect(state.reviews.GS11.at(-1).text).toContain('→ P3')
+    wrapper.unmount()
+    wrapper = mountLayout()
+    await router.push(`/diagnosis?version=${version}`)
+    await flushPromises()
+    await wrapper.get('[data-test="review-priority"]').trigger('click')
+    expect(wrapper.getComponent(PrioritySelect).props('modelValue')).toBe('P3')
+    if (version === 'managed') {
+      wrapper.findComponent({ name: 'GeoWorkbenchToolbar' }).vm.$emit('update:role', 'client')
+      await flushPromises()
+      expect(wrapper.findComponent(PrioritySelect).exists()).toBe(false)
+    }
+  }
+  finally { wrapper.unmount(); localStorage.clear() }
 })

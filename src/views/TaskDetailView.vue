@@ -42,10 +42,10 @@ const task = computed(() => {
 })
 const testRole = shallowRef<UserRole | null>(null)
 const clientPreview = computed(() => testRole.value === 'client')
-const role = computed(() => testRole.value ?? context.role.value)
+const role = computed(() => context.serviceMode.value === 'agent' ? 'client' : testRole.value ?? context.role.value)
 const serviceMode = computed(() => context.serviceMode.value)
 
-watch(() => route.params.taskId, (taskId) => {
+watch(() => [route.params.taskId, context.tasks.some(item => item.id === route.params.taskId)] as const, ([taskId]) => {
   testRole.value = null
   if (!context.tasks.some(item => item.id === taskId))
     void router.replace({ name: 'optimization' })

@@ -105,7 +105,6 @@ html.ce-iframe-root[data-density="compact"] { --geo-table-cell-padding-y: 8px; }
 .geo-panel { margin-top: var(--space-module-stack); overflow: hidden; background: var(--geo-surface); border: 1px solid var(--geo-border); border-radius: var(--radius-card); }
 .geo-overview-compact { margin-top: 16px; margin-bottom: 20px; overflow: visible; background: var(--geo-surface); border: 1px solid var(--geo-border); border-radius: var(--radius-card); }
 .geo-diagnosis-summary { position: relative; margin: 16px 0 20px; overflow: hidden; padding: 16px 24px 18px; border: 1px solid color-mix(in srgb, var(--geo-brand) 28%, var(--geo-border)); border-radius: 16px; background: radial-gradient(ellipse at 0% 0%, color-mix(in srgb, var(--geo-brand) 8%, transparent), transparent 48%), var(--geo-surface); }
-.geo-diagnosis-summary::before { position: absolute; top: 0; left: 24px; width: 96px; height: 3px; border-radius: 0 0 4px 4px; background: linear-gradient(90deg, var(--geo-brand), color-mix(in srgb, var(--geo-brand) 35%, white)); content: ''; }
 .geo-diagnosis-summary__header, .geo-diagnosis-summary__title { display: flex; min-width: 0; align-items: center; }
 .geo-diagnosis-summary__header { justify-content: space-between; gap: 16px; padding-bottom: 14px; border-bottom: 1px solid color-mix(in srgb, var(--geo-brand) 20%, var(--geo-border)); }
 .geo-diagnosis-summary__title { gap: 12px; }

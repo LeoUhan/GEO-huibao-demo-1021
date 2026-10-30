@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { onMounted } from 'vue'
+import GeoProductGuide from './components/guide/GeoProductGuide.vue'
 import Spinner from './components/ui/ce/spinner/Spinner.vue'
 import { useGeoContextStore } from './stores/geo-context'
 
@@ -22,7 +23,10 @@ onMounted(initializeContext)
     </section>
     <Spinner v-else />
   </main>
-  <RouterView v-else />
+  <template v-else>
+    <RouterView />
+    <GeoProductGuide />
+  </template>
 </template>
 
 <style scoped>

@@ -1,5 +1,7 @@
 import type { AuditFinding, GeoTask, Strategy } from '../data/geo-data'
 
+import { isDirectRepairFinding } from '../workflows/direct-repair'
+
 export const currentPeriod = '09/14–09/20'
 
 export function nextTaskId(tasks: GeoTask[]) {
@@ -57,7 +59,7 @@ export function orchestrateStrategy(tasks: GeoTask[], strategy: Strategy): GeoTa
 }
 
 export function createRepairTask(tasks: GeoTask[], finding: AuditFinding): GeoTask {
-  const existing = tasks.find(task => task.source.split(' / ').includes(finding.id))
+  const existing = tasks.find(task => task.source.split(/[\s/·]+/).includes(finding.id))
   if (existing)
     return existing
   const task: GeoTask = {
@@ -70,7 +72,7 @@ export function createRepairTask(tasks: GeoTask[], finding: AuditFinding): GeoTa
     factor: finding.check,
     methods: [finding.method],
     destination: 'AI 建站协同',
-    progress: 'human',
+    progress: isDirectRepairFinding(finding) ? 'site_submitted' : 'human',
     relatedStrategies: [],
     baselineVersion: 'V2',
     strategyWindow: currentPeriod,

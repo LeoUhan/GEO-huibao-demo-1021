@@ -1,7 +1,9 @@
 <script setup lang="ts">
-import type { MonitoringPlatformId, MonitoringQuestion } from '../../../data/visibility-monitoring-data'
+import type { CitedPage, MonitoringPlatformId, MonitoringQuestion, SourceDomain } from '../../../data/visibility-monitoring-data'
 import { computed, shallowRef, watch } from 'vue'
 import { visibilityMonitoringData } from '../../../data/visibility-monitoring-data'
+import MonitoringEChart from '../analysis/MonitoringEChart.vue'
+import { createTrendOption } from '../analysis/chart-options'
 import MetricDefinitionButton from '../../overview/MetricDefinitionButton.vue'
 import Drawer from '../../ui/ce/drawer/Drawer.vue'
 import AppIcon from '../../ui/icons/AppIcon.vue'
@@ -11,6 +13,9 @@ const props = defineProps<{
   question: MonitoringQuestion | null
   open: boolean
   platforms: readonly { id: MonitoringPlatformId, label: string }[]
+  pages?: readonly CitedPage[]
+  sources?: readonly SourceDomain[]
+  brand?: string
 }>()
 const emit = defineEmits<{
   close: []
@@ -19,12 +24,16 @@ const emit = defineEmits<{
 
 const selectedBatchId = shallowRef<string | null>(null)
 const expandedPlatform = shallowRef<MonitoringPlatformId | null>(null)
+const pages = computed(() => props.pages ?? visibilityMonitoringData.citedPages)
+const sources = computed(() => props.sources ?? visibilityMonitoringData.sources)
+const platformResults = computed(() => props.question?.batchResults?.[selectedBatchId.value ?? ''] ?? props.question?.platformResults ?? [])
+const trendOption = computed(() => createTrendOption({ weeks: props.question?.trendWeeks ?? [], series: props.question?.platformTrends ?? [] }))
 const summary = computed(() => props.question ? getQuestionSummary(props.question) : null)
 const selectedBatch = computed(() => props.question?.samplingBatches.find(batch => batch.id === selectedBatchId.value)
   ?? props.question?.samplingBatches[0]
   ?? null)
-const totalResponses = computed(() => props.question?.samplingBatches.reduce((total, batch) => total + batch.totalResponses, 0) ?? 0)
-const validResponses = computed(() => props.question?.samplingBatches.reduce((total, batch) => total + batch.validResponses, 0) ?? 0)
+const totalResponses = computed(() => props.question?.samplingSummary?.total ?? props.question?.samplingBatches.reduce((total, batch) => total + batch.totalResponses, 0) ?? 0)
+const validResponses = computed(() => props.question?.samplingSummary?.valid ?? props.question?.samplingBatches.reduce((total, batch) => total + batch.validResponses, 0) ?? 0)
 const samplingRange = computed(() => {
   const batches = props.question?.samplingBatches ?? []
   return batches.length ? `${batches[0]!.date} 至 ${batches[batches.length - 1]!.date}` : '暂无采样范围'
@@ -35,7 +44,7 @@ const mentionRows = computed(() => {
     return []
   const total = question.platformResults.length
   const rows = [{
-    name: visibilityMonitoringData.overview.brand,
+    name: props.brand ?? visibilityMonitoringData.overview.brand,
     type: '我方品牌',
     hits: question.platformResults.filter(result => result.ownBrandMentioned).length,
   }, ...question.competitors.map(name => ({
@@ -49,14 +58,24 @@ const citedPages = computed(() => {
   const question = props.question
   if (!question)
     return []
-  const pageIds = [...new Set(question.platformResults.flatMap(result => result.citedPages))]
+  const allResults = question.batchResults ? Object.values(question.batchResults).flat() : question.platformResults
+  const pageIds = [...new Set(allResults.flatMap(result => result.citedPages))]
   return pageIds.map((id) => {
-    const page = visibilityMonitoringData.citedPages.find(item => item.id === id)
-    const domain = visibilityMonitoringData.sources.find(item => item.id === page?.domainId)
-    const platformIds = question.platformResults.filter(result => result.citedPages.includes(id)).map(result => result.platform)
+    const page = pages.value.find(item => item.id === id)
+    const domain = sources.value.find(item => item.id === page?.domainId)
+    const platformIds = allResults.filter(result => result.citedPages.includes(id)).map(result => result.platform)
     return { id, title: page?.title ?? id, domain: domain?.domain ?? '未知域名', platformIds: [...new Set(platformIds)] }
   })
 })
+
+function downloadSnapshot(html: string, platform: string) {
+  const url = URL.createObjectURL(new Blob([html], { type: 'text/html;charset=utf-8' }))
+  const link = document.createElement('a')
+  link.href = url
+  link.download = `${props.question?.id}-${selectedBatchId.value}-${platform}.html`
+  link.click()
+  setTimeout(() => URL.revokeObjectURL(url), 1000)
+}
 
 function platformName(id: MonitoringPlatformId) {
   return props.platforms.find(platform => platform.id === id)?.label ?? id
@@ -105,10 +124,10 @@ watch(() => props.question?.id, () => {
             <h3>问题采样</h3>
             <p>该问题在本轮监测中的累计采样情况</p>
           </div>
-          <span class="vm-section-kicker">{{ question.samplingBatches.length }} 次采集</span>
+          <span class="vm-section-kicker">{{ question.samplingSummary?.batches ?? question.samplingBatches.length }} 次采集</span>
         </div>
         <div class="vm-detail-metrics">
-          <article><span>累计采集批次</span><strong>{{ question.samplingBatches.length }} 次</strong><small>该问题累计执行次数</small></article>
+          <article><span>累计采集批次</span><strong>{{ question.samplingSummary?.batches ?? question.samplingBatches.length }} 次</strong><small>该问题累计执行次数</small></article>
           <article><span>有效回答</span><strong>{{ validResponses }} / {{ totalResponses }}</strong><small>有效回答 / 总回答</small></article>
           <article><span>累计采样范围</span><strong class="metric-range">{{ samplingRange }}</strong><small>当前统计时间范围</small></article>
         </div>
@@ -136,7 +155,8 @@ watch(() => props.question?.id, () => {
         <div class="vm-drawer-section__heading">
           <div><h3>提及度变化趋势</h3><p>按采样批次查看 AI 平台提及率变化</p></div>
         </div>
-        <div class="vm-trend-empty" role="status">
+        <MonitoringEChart v-if="question.platformTrends?.length" :option="trendOption" label="问题在各 AI 平台的提及度变化趋势" />
+        <div v-else class="vm-trend-empty" role="status">
           <span class="vm-trend-empty__icon" aria-hidden="true"><AppIcon name="chart" :size="20" /></span>
           <div><strong>暂缺平台级历史趋势</strong><p>当前演示数据仅包含最新平台结果和批次采样量，不提供逐批次平台提及率，因此不绘制推算曲线。</p></div>
         </div>
@@ -168,7 +188,7 @@ watch(() => props.question?.id, () => {
 
       <section class="vm-drawer-section">
         <div class="vm-drawer-section__heading">
-          <div><h3>回答明细</h3><p>采样批次只影响本模块的采样统计；以下为当前监测快照中的平台原始回答</p></div>
+          <div><h3>回答明细</h3><p>{{ question.batchResults ? '按采集批次查看平台原始回答' : '以下为当前监测快照中的平台原始回答' }}</p></div>
         </div>
         <nav class="vm-batch-tabs" aria-label="采样批次">
           <span class="vm-batch-tabs__label">采样批次</span>
@@ -185,7 +205,7 @@ watch(() => props.question?.id, () => {
           </button>
         </nav>
         <div class="vm-answer-list">
-          <details v-for="result in question.platformResults" :key="result.platform" class="vm-answer" :open="expandedPlatform === result.platform">
+          <details v-for="result in platformResults" :key="result.platform" class="vm-answer" :open="expandedPlatform === result.platform">
             <summary @click.prevent="expandedPlatform = expandedPlatform === result.platform ? null : result.platform">
               <span class="vm-platform-mark" :class="`is-${result.platform}`">{{ platformName(result.platform).slice(0, 1) }}</span>
               <strong>{{ platformName(result.platform) }}</strong>
@@ -201,9 +221,13 @@ watch(() => props.question?.id, () => {
                 平台返回原文
               </p>
               <blockquote>{{ result.answer }}</blockquote>
+              <div v-if="result.citations?.length" class="vm-answer__citations">
+                <a v-for="citation in result.citations" :key="citation.url" :href="citation.url" target="_blank" rel="noopener noreferrer">{{ citation.excerpt }}</a>
+              </div>
+              <button v-if="result.htmlSnapshot" type="button" class="vm-link" @click="downloadSnapshot(result.htmlSnapshot, result.platform)">下载回答快照</button>
               <div v-if="result.citedPages.length" class="vm-answer__citations">
                 <span>引用页面</span><button v-for="pageId in result.citedPages" :key="pageId" type="button" class="vm-link" :data-cited-page="pageId" @click="emit('selectSource', pageId)">
-                  {{ visibilityMonitoringData.citedPages.find(page => page.id === pageId)?.title ?? pageId }} <AppIcon name="openExternal" :size="14" aria-hidden="true" />
+                  {{ pages.find(page => page.id === pageId)?.title ?? pageId }} <AppIcon name="openExternal" :size="14" aria-hidden="true" />
                 </button>
               </div>
               <p v-else class="vm-inline-empty">

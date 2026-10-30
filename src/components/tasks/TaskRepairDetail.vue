@@ -2,6 +2,7 @@
 import type { GeoTask } from '../../data/geo-data'
 import type { TaskWorkflow } from '../../workflows/task-workflow'
 import { computed } from 'vue'
+import { isDirectRepairTask } from '../../workflows/direct-repair'
 import Card from '../ui/ce/card/Card.vue'
 import Tag from '../ui/ce/tag/Tag.vue'
 import AppIcon from '../ui/icons/AppIcon.vue'
@@ -29,7 +30,7 @@ const resultIcon = computed(() => props.task.progress === 'site_failed' ? 'warni
           <h2>官网处理结果</h2>
         </div>
         <Tag :tone="statusTone">
-          已返回
+          {{ statusLabel }}
         </Tag>
       </header>
       <div class="tw-repair-result-card__content" :class="`is-${statusTone}`">
@@ -53,7 +54,7 @@ const resultIcon = computed(() => props.task.progress === 'site_failed' ? 'warni
       </header>
       <dl class="tw-repair-fields">
         <div class="tw-repair-field">
-          <dt>问题性质与处理方式</dt><dd>技术修复 · 官网直接处理</dd>
+          <dt>问题性质与处理方式</dt><dd>{{ isDirectRepairTask(task) ? '官网技术 · 直接处理' : '信息口径 · 确认后处理' }}</dd>
         </div>
         <div class="tw-repair-field">
           <dt>所属检查项</dt><dd>{{ task.factor || '官网 GEO 体检' }}</dd>

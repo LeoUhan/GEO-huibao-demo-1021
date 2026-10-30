@@ -19,6 +19,7 @@ const role = computed(() => context.role.value)
     :strategies="context.strategies"
     :filter="taskFilter"
     :role="role"
+    :service-mode="context.serviceMode.value"
     @set-filter="taskFilter = $event"
     @open-task="context.openTask"
     @open-flow="context.openFlow('optimization')"

@@ -366,6 +366,7 @@ describe('task workspace task confirmation', () => {
     const task = makeTask()
     task.id = 'T-2501'
     task.name = '工程师专家档案实体统一与同名消歧'
+    task.source = 'F9'
     task.type = 'repair'
     task.destination = '技术修复'
     task.factor = '实体可信度'
@@ -407,7 +408,7 @@ describe('task workspace task confirmation', () => {
     task.progress = 'site_failed'
     const failed = mountWorkspace('ops', task)
     expect(failed.get('.tw-title-line .ce-tag').attributes('data-tone')).toBe('red')
-    expect(failed.get('[data-test="repair-result"] .tw-repair-result-card__heading').text()).toContain('已返回')
+    expect(failed.get('[data-test="repair-result"] .tw-repair-result-card__heading').text()).toContain('官网已返回处理结果')
   })
 
   it('uses a rich-text editor for the generated content review step', async () => {
@@ -740,4 +741,28 @@ describe('task workspace task confirmation', () => {
     expect(task.progress).toBe('todo')
     expect(task.workflow?.briefStatus).toBe('confirmed')
   })
+})
+
+it.each(['web', 'external'] as const)('lets the customer confirm a %s Brief and review generated content in customer-only mode', async (type) => {
+  vi.useFakeTimers()
+  const task = reactive(makeTask())
+  task.type = type
+  ensureWorkflow(task).brief.webSupplement = true
+  const wrapper = mountWorkspace('client', task)
+  await wrapper.setProps({ serviceMode: 'agent' })
+  expect(wrapper.find('[data-test="workflow-role-switch"]').exists()).toBe(false)
+  expect(wrapper.find('[data-test="adjust-materials"]').exists()).toBe(true)
+  expect(wrapper.get('.tw-brief-confirm').text()).toContain('确认并生成内容')
+  await wrapper.get('.tw-brief-confirm button[data-variant="primary"]').trigger('click')
+  expect(task.progress).toBe('todo')
+  await vi.advanceTimersByTimeAsync(3400)
+  expect(task.progress).toBe('client_review')
+  expect(wrapper.get('[data-test="review-insights"]').text()).toContain('七项自动质检')
+  expect(wrapper.find('[data-test="regenerate-article"]').exists()).toBe(true)
+  expect(wrapper.find('[data-test="save-inline-output"]').exists()).toBe(true)
+  expect(wrapper.get('.tw-actionbar').text()).toContain('提交修改意见')
+  await wrapper.get('.tw-actionbar button[data-variant="primary"]').trigger('click')
+  if (type === 'web') await vi.advanceTimersByTimeAsync(5000)
+  expect(task.progress).toBe('done')
+  wrapper.unmount()
 })

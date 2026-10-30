@@ -1,11 +1,13 @@
 <script setup lang="ts">
+import type { ServiceMode } from '../../data/geo-data'
+import { computed } from 'vue'
 import Button from '../ui/ce/button/Button.vue'
 import Drawer from '../ui/ce/drawer/Drawer.vue'
 
-defineProps<{ open: boolean }>()
+const props = defineProps<{ open: boolean, serviceMode?: ServiceMode }>()
 const emit = defineEmits<{ close: [] }>()
 
-const permissions = [
+const managedPermissions = [
   { ability: '读取监测原始数据', agent: '自动读取', ops: '只读', client: '只读' },
   { ability: '修改监测原始数据', agent: '不可修改事实', ops: '不可修改', client: '不可修改' },
   { ability: '生成诊断 F', agent: '自动', ops: '可复核 / 标误判', client: '仅纠正业务事实' },
@@ -18,6 +20,14 @@ const permissions = [
   { ability: '官网发布', agent: '确认后自动推送', ops: '可代运营推送', client: '关键发布确认' },
   { ability: '外部平台发布', agent: '只生成 / 交付', ops: '代运营可执行', client: '自主模式自行发布' },
 ]
+const permissions = computed(() => props.serviceMode !== 'agent' ? managedPermissions : [
+  { ability: '诊断问题审核', agent: '生成诊断与证据', client: '确认处理、忽略或暂缓' },
+  { ability: '候选策略审核', agent: '建议方法、排序与去重', client: '采纳或填写原因忽略' },
+  { ability: 'Task Brief', agent: '生成目标与专业方法', client: '补充资料和说明、确认执行' },
+  { ability: '内容审核改写', agent: '生成及质检、两次优化', client: '编辑正文并确认' },
+  { ability: '官网执行', agent: '自动提交与验证（模拟）', client: '确认变更、异常时补充要求' },
+  { ability: '外部信源', agent: '生成与交付内容', client: '确认后自行发布' },
+])
 </script>
 
 <template>
@@ -33,7 +43,7 @@ const permissions = [
   >
     <div class="tp-content">
       <p class="tp-principle">
-        <strong>角色原则：</strong>Agent 负责分析与自动执行；运营负责审核与修正；客户负责业务事实和是否执行的最终确认。
+        <strong>角色原则：</strong>{{ serviceMode === 'agent' ? 'AI 负责生成、质检与执行；客户负责审核、改写和确认。' : 'Agent 负责分析与自动执行；运营负责审核与修正；客户负责业务事实和是否执行的最终确认。' }}
       </p>
       <div class="tp-table-scroll" role="region" tabindex="0" aria-label="角色权限对照表，可横向滚动">
         <table class="tp-table">
@@ -45,7 +55,7 @@ const permissions = [
               <th scope="col">
                 Agent
               </th>
-              <th scope="col">
+              <th v-if="serviceMode !== 'agent'" scope="col">
                 运营
               </th>
               <th scope="col">
@@ -59,7 +69,7 @@ const permissions = [
                 {{ permission.ability }}
               </th>
               <td>{{ permission.agent }}</td>
-              <td>{{ permission.ops }}</td>
+              <td v-if="serviceMode !== 'agent'">{{ 'ops' in permission ? permission.ops : '' }}</td>
               <td>{{ permission.client }}</td>
             </tr>
           </tbody>

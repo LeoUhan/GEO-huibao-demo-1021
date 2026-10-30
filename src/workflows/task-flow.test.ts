@@ -58,7 +58,8 @@ describe('taskFlowFor', () => {
     const customerReview = taskFlowFor(makeTask('external', 'human'), 'agent')
 
     expect(operationsReview.map(step => step.state)).toEqual(['done', 'done', 'current', 'upcoming'])
-    expect(customerReview.map(step => step.state)).toEqual(['done', 'done', 'done', 'current'])
+    expect(customerReview.map(step => step.state)).toEqual(['done', 'done', 'current', 'upcoming'])
+    expect(customerReview[2]?.title).toBe('内容审核改写')
   })
 
   it('keeps generated external content in customer step 2, then routes to operations step 3', () => {
@@ -71,10 +72,10 @@ describe('taskFlowFor', () => {
 
   it('uses a two-step website return path and makes the returned result the current second step', () => {
     const waiting = taskFlowFor(makeTask('repair', 'site_running'))
-    const returned = taskFlowFor(makeTask('repair', 'site_returned'))
+    const returned = taskFlowFor(makeTask('repair', 'done'))
 
-    expect(waiting.map(step => step.title)).toEqual(['提交官网', '返回结果'])
-    expect(waiting.map(step => step.state)).toEqual(['done', 'current'])
+    expect(waiting.map(step => step.title)).toEqual(['AI建站处理中', '已完成处理'])
+    expect(waiting.map(step => step.state)).toEqual(['current', 'upcoming'])
     expect(returned.map(step => step.state)).toEqual(['done', 'current'])
   })
 })

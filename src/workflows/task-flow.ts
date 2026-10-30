@@ -1,5 +1,7 @@
 import type { GeoTask, ServiceMode, TaskProgress } from '../data/geo-data'
 
+import { isDirectRepairTask } from './direct-repair'
+
 export interface TaskFlowStep {
   title: string
   detail: string
@@ -75,8 +77,21 @@ function stageIndex(task: GeoTask, serviceMode: ServiceMode): number {
 }
 
 export function taskFlowFor(task: GeoTask, serviceMode: ServiceMode = 'managed'): TaskFlowStep[] {
-  const definitions = task.type === 'repair' ? repairSteps : task.type === 'external' ? externalSteps : websiteSteps
-  const current = stageIndex(task, serviceMode)
+  if (isDirectRepairTask(task))
+    return [{ title: 'AI建站处理中', detail: 'AI 建站', state: task.progress === 'done' ? 'done' : 'current' }, { title: '已完成处理', detail: '系统', state: task.progress === 'done' ? 'current' : 'upcoming' }]
+  let definitions: ReadonlyArray<readonly [string, string]> = task.type === 'repair' ? repairSteps : task.type === 'external' ? externalSteps : websiteSteps
+  let current = stageIndex(task, serviceMode)
+  if (serviceMode === 'agent') {
+    definitions = task.type === 'repair'
+      ? [['确认修复方案', '客户'], ['官网执行与验证', 'Agent'], ['执行结果', '系统']]
+      : task.type === 'external'
+        ? [['Task Brief 确认', '客户'], ['内容生成与质检', 'Agent'], ['内容审核改写', '客户 + Agent'], ['内容交付', '系统']]
+        : [['Task Brief 确认', '客户'], ['内容生成与质检', 'Agent'], ['内容审核改写', '客户 + Agent'], ['官网执行与验证', 'Agent'], ['执行结果', '系统']]
+    const p = task.progress
+    current = task.type === 'repair'
+      ? ['human', 'brief'].includes(p) ? 0 : ['done', 'site_returned'].includes(p) ? 2 : 1
+      : p === 'brief' ? 0 : ['todo', 'running'].includes(p) ? 1 : ['human', 'client_review', 'client_content_review'].includes(p) ? 2 : p === 'done' ? definitions.length - 1 : 3
+  }
 
   return definitions.map(([title, detail], index) => ({
     title,

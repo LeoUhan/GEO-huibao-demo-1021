@@ -5,8 +5,9 @@ import type { DropdownSelectOption } from '../ui/ce/dropdown-select/types'
 import type { KnowledgeUploadDraft } from './KnowledgeUploadDrawer.vue'
 import { computed, reactive, shallowRef, watch } from 'vue'
 import { useGeoWorkbenchRouteContext } from '../../composables/workbench-route-context'
+import { directRepairStatus, isDirectRepairTask } from '../../workflows/direct-repair'
 import { taskFlowFor } from '../../workflows/task-flow'
-import { advanceAutomatic, applyAction, briefGate, canEditBrief, ensureWorkflow, getTaskBucket, hasAutomaticStep, ignoredTaskFor, ignoreOwner, isTaskIgnored, knowledgeLibrary, reviewOwner, taskStageLabel } from '../../workflows/task-workflow'
+import { advanceAutomatic, applyAction, briefGate, canPrepareBrief, ensureWorkflow, getTaskBucket, hasAutomaticStep, ignoredTaskFor, ignoreOwner, isTaskIgnored, knowledgeLibrary, reviewOwner, taskStageLabel } from '../../workflows/task-workflow'
 import Button from '../ui/ce/button/Button.vue'
 import Drawer from '../ui/ce/drawer/Drawer.vue'
 import DropdownSelect from '../ui/ce/dropdown-select/DropdownSelect.vue'
@@ -43,7 +44,7 @@ const webSupplement = shallowRef(false)
 const draft = reactive<{ brief: TaskBrief, methods: string[], knowledge: TaskKnowledge[], title: string, body: string }>({ brief: {} as TaskBrief, methods: [], knowledge: [], title: '', body: '' })
 const aiCallsRemaining = shallowRef(2)
 function aiQuotaStorageKey(taskId: string, role: UserRole) {
-  return `geo-task-ai-quota:${taskId}:${role}`
+  return `geo-task-ai-quota:${taskId}:${role}${props.serviceMode === 'agent' ? ':agent' : ''}`
 }
 function refreshAiQuota(taskId: string, role: UserRole) {
   try {
@@ -67,7 +68,7 @@ function consumeAiCall() {
   }
 }
 const briefFields: Array<{ key: 'goal' | 'persona' | 'factor' | 'executionTarget', label: string }> = [{ key: 'goal', label: '任务目标' }, { key: 'persona', label: '目标人设' }, { key: 'factor', label: '决策因子' }, { key: 'executionTarget', label: '执行对象' }]
-const methodOptions = ['对比表', 'FAQ / Q&A', '统计数据注入', '专家观点', '案例证明', '定义框', 'JSON-LD', 'sameAs', '页面结构优化']
+const methodOptions = ['对比表', 'FAQ / Q&A', '统计数据注入', '专家观点', '案例证明', '定义框', 'JSON-LD', 'sameAs', '内容表达优化']
 const ignoreReasonOptions: DropdownSelectOption[] = [
   { value: 'Agent 判断错误 / 策略不适用', label: 'Agent 判断错误 / 策略不适用' },
   { value: '事实 / 证据不足', label: '事实 / 证据不足' },
@@ -96,8 +97,21 @@ watch(() => props.task, (task) => {
   draft.title = task.workflow?.output.title || ''
   draft.body = task.workflow?.output.body || ''
 }, { immediate: true })
-watch(() => [props.task.id, props.role] as const, ([taskId, role]) => refreshAiQuota(taskId, role), { immediate: true })
+watch(() => [props.task.id, props.role, props.serviceMode] as const, ([taskId, role]) => refreshAiQuota(taskId, role), { immediate: true })
 const flow = computed(() => props.task.workflow!)
+watch(() => props.task.progress, (progress, previous) => {
+  if (previous === 'brief' && progress !== 'brief' && props.task.type !== 'repair')
+    tab.value = 'output'
+})
+watch(() => props.task.workflow?.output.body, (body, previous) => {
+  if (draft.body === previous || !draft.body)
+    draft.body = body || ''
+})
+watch(() => props.task.workflow?.output.title, (title, previous) => {
+  if (draft.title === previous || !draft.title)
+    draft.title = title || ''
+})
+
 const ignoredTask = computed(() => ignoredTaskFor(props.task))
 const canIgnoreCurrentStep = computed(() => ignoreOwner(props.task, props.serviceMode) === props.role)
 const waitingForOperationsReview = computed(() => props.role === 'client' && props.task.progress === 'human' && reviewOwner(props.task, props.serviceMode) === 'ops' && !ignoredTask.value)
@@ -106,6 +120,8 @@ const customerFinalReview = computed(() => props.role === 'client' && props.task
 const flowSteps = computed(() => taskFlowFor(props.task, props.serviceMode))
 const isContentPreparation = computed(() => ['todo', 'running', 'client_content_review', 'human', 'client_review'].includes(props.task.progress))
 const siteStatus = computed(() => {
+  if (isDirectRepairTask(props.task))
+    return { label: directRepairStatus(props.task.progress === 'done'), tone: props.task.progress === 'done' ? 'green' as const : 'blue' as const }
   if (props.task.type === 'repair') {
     if (props.task.progress === 'site_failed')
       return { label: '官网已返回处理结果', tone: 'red' as const }
@@ -128,7 +144,7 @@ const siteStatus = computed(() => {
     return { label: 'GEO 验证中', tone: 'blue' as const }
   if (['site_submitted', 'site_running'].includes(props.task.progress))
     return { label: 'AI 建站执行中', tone: 'blue' as const }
-  return { label: taskStageLabel(props.task), tone: 'blue' as const }
+  return { label: taskStageLabel(props.task, props.serviceMode), tone: 'blue' as const }
 })
 const taskContextLabel = computed(() => {
   const strategy = props.task.strategy === '不经过候选策略' ? '未经过 GS 审核' : props.task.strategy
@@ -140,7 +156,7 @@ const briefTaskNumber = computed(() => Number(props.task.id.match(/(\d{2})$/)?.[
 const taskSubtitle = computed(() => props.task.progress === 'brief' && props.task.type !== 'repair'
   ? props.task.source
   : `${props.task.id}${props.task.type === 'repair' ? ' · 官网技术修复' : ''}`)
-const editableBrief = computed(() => canEditBrief(props.task, props.role, props.serviceMode))
+const editableBrief = computed(() => canPrepareBrief(props.task, props.role, props.serviceMode))
 const reviewing = computed(() => ['client_content_review', 'human', 'client_review'].includes(props.task.progress) && reviewOwner(props.task, props.serviceMode) === props.role && !(props.serviceMode === 'agent' && props.role === 'ops'))
 const contentReviewVisible = computed(() => ['todo', 'running', 'client_content_review', 'human', 'client_review'].includes(props.task.progress))
 const operationsContentReview = computed(() => props.task.progress === 'human' && props.role === 'ops')
@@ -148,11 +164,11 @@ const canEditWebSupplement = computed(() => editableBrief.value || reviewing.val
 const outputDirty = computed(() => draft.title !== flow.value.output.title || draft.body !== flow.value.output.body)
 const siteOwner = computed(() => props.role === (props.serviceMode === 'managed' ? 'ops' : 'client'))
 const gate = computed(() => briefGate(props.task, directInstruction.value, webSupplement.value))
-const automatic = computed(() => hasAutomaticStep(props.task))
+const automatic = computed(() => hasAutomaticStep(props.task, props.serviceMode))
 const tabs = computed(() => [
   { key: 'output', label: props.task.type === 'repair' ? '修复结果' : ['site_submit', 'site_submitted', 'site_running', 'site_verifying', 'site_failed', 'site_publish', 'publish', 'recheck', 'done'].includes(props.task.progress) ? '最终稿' : '生成内容' },
   { key: 'brief', label: 'Brief' },
-  ...(props.task.type !== 'external' && (props.task.type === 'repair' || getTaskBucket(props.task) === 'website') ? [{ key: 'website', label: props.task.type === 'repair' ? '官网回传' : '执行与验证' }] : []),
+  ...(props.task.type !== 'external' && (props.task.type === 'repair' || getTaskBucket(props.task) === 'website' || (props.serviceMode === 'agent' && !!flow.value.site.result)) ? [{ key: 'website', label: props.task.type === 'repair' ? '官网回传' : '执行与验证' }] : []),
   { key: 'versions', label: '版本 / Diff' },
   { key: 'records', label: '审核记录' },
 ].filter(item => props.task.progress !== 'brief' || item.key !== 'output'))
@@ -164,6 +180,8 @@ const waitingFor = computed(() => {
     return '技术修复已提交官网，等待官网返回处理结果；状态以官网服务回传为准。'
   if (automatic.value)
     return '本地模拟正在自动执行，无需人工推进。离开详情将暂停，重新进入后继续。'
+  if (props.task.progress === 'done' && props.serviceMode === 'agent' && props.task.type !== 'external')
+    return '官网执行与验证模拟已完成，可查看处理结果。'
   if (props.task.progress === 'done')
     return props.task.type === 'external' ? '外部成稿已完成交付，不跟踪外部发布 URL。' : '任务已形成闭环，可从来源策略查看效果回流。'
   if (props.task.progress === 'brief')
@@ -189,7 +207,7 @@ const actionbarTitle = computed(() => {
     return '现在需要监测 Agent'
   if (props.task.progress === 'done')
     return '本任务已完成'
-  return taskStageLabel(props.task)
+  return taskStageLabel(props.task, props.serviceMode)
 })
 const actionbarDescription = computed(() => {
   if (ignoredTask.value)
@@ -208,15 +226,17 @@ const actionbarDescription = computed(() => {
     return props.role === 'ops' ? '验证已通过，等待客户确认发布上线。' : 'AI 建站修改与 GEO 验证均已通过，请确认发布上线。'
   if (props.task.progress === 'recheck')
     return '发布/交付已完成，正在等待新的监测轮次进行官网核验。'
+  if (props.task.progress === 'done' && props.serviceMode === 'agent' && props.task.type !== 'external')
+    return '官网执行与验证模拟已完成，可查看处理结果。'
   if (props.task.progress === 'done')
     return '任务已形成闭环，可从来源策略查看效果回流。'
   return waitingFor.value
 })
-watch(() => [props.task, props.task.progress, props.task.workflow?.briefStatus] as const, ([task], _, onCleanup) => {
-  if (!hasAutomaticStep(task))
+watch(() => [props.task, props.task.progress, props.task.workflow?.briefStatus, props.serviceMode] as const, ([task], _, onCleanup) => {
+  if (isDirectRepairTask(task) || !hasAutomaticStep(task, props.serviceMode))
     return
   const timer = setTimeout(() => {
-    if (advanceAutomatic(task))
+    if (advanceAutomatic(task, props.serviceMode))
       emit('change')
   }, 1600)
   onCleanup(() => clearTimeout(timer))
@@ -245,8 +265,8 @@ function ignoreCurrentTask() {
   }
 }
 function confirmTask() {
-  if (props.role !== 'ops') {
-    error.value = '仅运营可确认待确认的 Brief。'
+  if (!editableBrief.value) {
+    error.value = '当前角色不能确认待确认的 Brief。'
     return
   }
   if (!editableBrief.value) {
@@ -327,15 +347,15 @@ function saveDrawer() {
 }
 function saveInlineOutput() {
   if (!outputDirty.value)
-    return
-  act('save_output', { title: draft.title, body: draft.body })
+    return true
+  return act('save_output', { title: draft.title, body: draft.body })
 }
 function submitOutputFeedback() {
-  saveInlineOutput()
+  if (!saveInlineOutput()) return
   openEditor('feedback')
 }
 function approveReview() {
-  saveInlineOutput()
+  if (!saveInlineOutput()) return
   act(props.role === 'ops' ? 'approve_ops' : 'approve_client')
 }
 function versionDiff(index: number) {
@@ -386,7 +406,7 @@ function versionDiff(index: number) {
             </p>
           </div>
           <div class="tw-header-actions">
-            <div v-if="task.type !== 'repair'" class="tw-role-test" data-test="workflow-role-switch">
+            <div v-if="task.type !== 'repair' && serviceMode === 'managed'" class="tw-role-test" data-test="workflow-role-switch">
               <span class="tw-role-test__label">流程测试</span>
               <div class="tw-role-test__options" role="group" aria-label="切换测试角色">
                 <Button
@@ -421,7 +441,24 @@ function versionDiff(index: number) {
         </TaskProgressTimeline>
       </section>
       <section class="tw-content-panel" aria-label="任务执行内容">
-        <TaskRepairDetail v-if="task.type === 'repair'" :task="task" :site="flow.site" :status-label="siteStatus.label" :status-tone="siteStatus.tone" />
+        <p v-if="automatic && serviceMode === 'agent' && task.type !== 'repair'" class="tw-card" role="status">AI 正在处理，请稍候…</p>
+        <template v-if="task.type === 'repair'">
+          <TaskRepairDetail :task="task" :site="flow.site" :status-label="siteStatus.label" :status-tone="siteStatus.tone" />
+          <section v-if="serviceMode === 'agent' && !isDirectRepairTask(task)" class="tw-card" aria-label="修复操作">
+            <p v-if="error" class="tw-error" role="alert">{{ error }}</p>
+            <p v-if="ignoredTask">本次修复已忽略，原因和说明已保存。</p>
+            <div v-else-if="task.progress === 'human'" class="tw-actions">
+              <Button variant="secondary" @click="drawer = 'ignore'">忽略</Button>
+              <Button data-test="confirm-repair" @click="act('submit_site')">确认修复并提交官网</Button>
+            </div>
+            <div v-else-if="task.progress === 'site_failed'" class="tw-actions">
+              <Button variant="secondary" @click="drawer = 'ignore'">忽略</Button>
+              <Button data-test="retry-repair" @click="openEditor('retry')">补充要求并重试</Button>
+            </div>
+            <p v-else-if="automatic" role="status">AI 正在执行修复与验证（本地模拟）…</p>
+            <p v-else-if="task.progress === 'done'" role="status">修复执行与验证模拟已完成。</p>
+          </section>
+        </template>
         <template v-else>
           <TaskSiteCollaboration v-if="tab === 'website'" :task="task" :brief="flow.brief" :site="flow.site" :methods="task.methods" :status-label="siteStatus.label" :status-tone="siteStatus.tone" />
           <div class="tw-more-details" :class="{ 'tw-brief-workspace': task.progress === 'brief' }">
@@ -438,13 +475,13 @@ function versionDiff(index: number) {
               </Tag>
             </header>
             <nav class="tw-tabs" :class="{ 'tw-tabs--workspace': task.progress !== 'brief' }" aria-label="任务详情">
-              <button v-for="item in tabs" :key="item.key" type="button" :aria-current="tab === item.key ? 'page' : undefined" :class="{ active: tab === item.key }" @click="tab = item.key">
+              <button v-for="item in tabs" :key="item.key" :data-guide-task-tab="item.key" type="button" :aria-current="tab === item.key ? 'page' : undefined" :class="{ active: tab === item.key }" @click="tab = item.key">
                 {{ item.label }}
               </button>
             </nav>
             <section v-if="tab === 'brief'" class="tw-card" :class="{ 'tw-card--brief': task.progress === 'brief' }">
               <div v-if="task.progress !== 'brief'" class="tw-section-head">
-                <div><h2>Task Brief</h2><p>明确执行范围、品牌事实与交付标准，确认后作为任务执行基线。</p></div><Button v-if="editableBrief" variant="secondary" @click="openEditor('brief')">
+                <div><h2>Task Brief</h2><p>明确执行范围、品牌事实与交付标准，确认后作为任务执行基线。</p></div><Button v-if="editableBrief && serviceMode === 'managed'" variant="secondary" @click="openEditor('brief')">
                   编辑 Brief
                 </Button>
               </div>
@@ -497,7 +534,7 @@ function versionDiff(index: number) {
                       <textarea v-model="directInstruction" rows="3" placeholder="例如：重点介绍本地服务与代理支持；不要写未经确认的价格或交期。" />
                     </label>
                     <div v-else class="tw-content-basis__instruction">
-                      <span><strong>任务补充说明</strong><small>由运营维护</small></span>
+                      <span><strong>任务补充说明</strong><small>{{ serviceMode === 'agent' ? '由客户补充' : '由运营维护' }}</small></span>
                       <p class="tw-content-basis__instruction-value">
                         {{ directInstruction || '暂无补充说明' }}
                       </p>
@@ -507,7 +544,7 @@ function versionDiff(index: number) {
                       <input v-model="webSupplement" type="checkbox" @change="saveWebSupplementSetting">
                     </label>
                     <div v-else class="tw-web-supplement is-disabled">
-                      <span><strong>知识不足时联网补充</strong><small>该设置由运营维护</small></span>
+                      <span><strong>知识不足时联网补充</strong><small>{{ serviceMode === 'agent' ? '请在审核阶段调整' : '该设置由运营维护' }}</small></span>
                       <span class="tw-web-supplement__value">{{ webSupplement ? '已开启' : '未开启' }}</span>
                     </div>
                     <div v-if="editableBrief" class="tw-content-basis__actions">
@@ -533,12 +570,12 @@ function versionDiff(index: number) {
               </p>
               <section v-if="task.progress === 'brief' && !isTaskIgnored(task)" class="tw-brief-confirm" :class="{ 'is-client-preview': clientPreview }" aria-label="当前阶段操作">
                 <div class="tw-brief-confirm__copy">
-                  <strong v-if="role === 'client' || clientPreview || flow.briefStatus !== 'ready'" class="tw-brief-confirm__eyebrow">{{ role === 'client' || clientPreview ? '客户视图预览' : taskStageLabel(task) }}</strong>
+                  <strong v-if="(role === 'client' && serviceMode === 'managed') || clientPreview || flow.briefStatus !== 'ready'" class="tw-brief-confirm__eyebrow">{{ role === 'client' || clientPreview ? '客户视图预览' : taskStageLabel(task, serviceMode) }}</strong>
                   <h3 v-if="flow.briefStatus === 'ready'">
                     Task 草稿 · Brief 确认
                   </h3>
                   <p v-if="role === 'client' || flow.briefStatus !== 'ready'">
-                    {{ role === 'client' ? 'Brief 由运营维护并确认。此页面仅展示任务目标、范围与依据，不提供编辑操作。' : waitingFor }}
+                    {{ serviceMode === 'agent' ? '请补充资料或说明，确认后由 AI 生成内容。' : role === 'client' ? 'Brief 由运营维护并确认。此页面仅展示任务目标、范围与依据，不提供编辑操作。' : waitingFor }}
                   </p>
                   <p v-if="message" class="tw-success" role="status">
                     {{ message }}
@@ -547,12 +584,12 @@ function versionDiff(index: number) {
                     {{ error }}
                   </p>
                 </div>
-                <div v-if="role === 'ops' && flow.briefStatus === 'ready'" class="tw-actions">
+                <div v-if="editableBrief && flow.briefStatus === 'ready'" class="tw-actions">
                   <Button class="tw-ignore-action" variant="secondary" data-test="ignore-task" :disabled="!canIgnoreCurrentStep" :title="canIgnoreCurrentStep ? undefined : `当前步骤由${ignoreOwner(task, serviceMode) === 'ops' ? '运营' : '客户'}负责`" @click="drawer = 'ignore'">
                     忽略
                   </Button>
                   <Button variant="primary" :disabled="!editableBrief" :title="gate.length ? `还需完成：${gate.join('；')}` : undefined" @click="confirmTask">
-                    运营审核通过并生成内容
+                    {{ serviceMode === 'agent' ? '确认并生成内容' : '运营审核通过并生成内容' }}
                   </Button>
                 </div>
                 <Button v-else-if="flow.briefStatus === 'changes_requested' && role === 'ops' && serviceMode === 'managed'" @click="act('rework_brief')">
@@ -666,14 +703,14 @@ function versionDiff(index: number) {
         <Button v-if="operationsWaitingForClientReview" variant="secondary" disabled data-test="waiting-client-final-review">
           等待客户确认最终稿
         </Button>
-        <Button v-else-if="!customerFinalReview && !ignoredTask && task.progress !== 'done'" class="tw-ignore-action" variant="secondary" data-test="ignore-task" :disabled="!canIgnoreCurrentStep" :title="canIgnoreCurrentStep ? undefined : `当前步骤由${ignoreOwner(task, serviceMode) === 'ops' ? '运营' : '客户'}负责`" @click="drawer = 'ignore'">
+        <Button v-else-if="(!customerFinalReview || serviceMode === 'agent') && !ignoredTask && task.progress !== 'done'" class="tw-ignore-action" variant="secondary" data-test="ignore-task" :disabled="!canIgnoreCurrentStep" :title="canIgnoreCurrentStep ? undefined : `当前步骤由${ignoreOwner(task, serviceMode) === 'ops' ? '运营' : '客户'}负责`" @click="drawer = 'ignore'">
           忽略
         </Button>
         <template v-if="reviewing">
-          <Button v-if="operationsContentReview" variant="secondary" data-test="save-inline-output" :disabled="!outputDirty" @click="saveInlineOutput">
+          <Button v-if="operationsContentReview || serviceMode === 'agent'" variant="secondary" data-test="save-inline-output" :disabled="!outputDirty" @click="saveInlineOutput">
             保存正文
           </Button>
-          <Button v-if="!operationsContentReview && !customerFinalReview" variant="secondary" :data-test="task.progress === 'client_content_review' ? 'request-output-feedback' : undefined" @click="submitOutputFeedback">
+          <Button v-if="!operationsContentReview && (!customerFinalReview || serviceMode === 'agent')" variant="secondary" :data-test="task.progress === 'client_content_review' ? 'request-output-feedback' : undefined" @click="submitOutputFeedback">
             提交修改意见
           </Button>
           <Button variant="primary" @click="approveReview">
@@ -708,7 +745,7 @@ function versionDiff(index: number) {
       </div>
     </section>
 
-    <Drawer :open="drawer !== null && drawer !== 'upload'" :class="drawer === 'ignore' ? 'tw-ignore-drawer' : undefined" :eyebrow="drawer === 'ignore' ? `${task.name} · ${task.progress === 'brief' ? 'Task Brief 确认' : taskStageLabel(task)}` : undefined" :title="drawer === 'ignore' ? '忽略本次审核事项' : drawer === 'brief' ? '编辑 Brief 与执行方法' : drawer === 'knowledge' ? '知识资料准备' : drawer === 'output' ? '编辑任务产物' : drawer === 'retry' ? '补充要求并重新提交' : '提出调整意见'" :size="560" close-label="关闭编辑" @close="closeDrawer">
+    <Drawer :open="drawer !== null && drawer !== 'upload'" :class="drawer === 'ignore' ? 'tw-ignore-drawer' : undefined" :eyebrow="drawer === 'ignore' ? `${task.name} · ${task.progress === 'brief' ? 'Task Brief 确认' : taskStageLabel(task, serviceMode)}` : undefined" :title="drawer === 'ignore' ? '忽略本次审核事项' : drawer === 'brief' ? '编辑 Brief 与执行方法' : drawer === 'knowledge' ? '知识资料准备' : drawer === 'output' ? '编辑任务产物' : drawer === 'retry' ? '补充要求并重新提交' : '提出调整意见'" :size="560" close-label="关闭编辑" @close="closeDrawer">
       <div v-if="drawer === 'ignore'" class="tw-ignore-form">
         <p class="tw-ignore-warning">
           忽略后，本次审核事项不再进入后续执行，也不会从待处理中重复出现；来源诊断仍保留，官网异常不会因此变为通过。提交后不可恢复。
@@ -767,7 +804,7 @@ function versionDiff(index: number) {
       </template>
     </Drawer>
     <KnowledgeUploadDrawer :open="drawer === 'upload'" :task-id="task.id" @close="drawer = null" @submitted="handleUploadSubmitted" />
-    <TaskPermissionsDrawer :open="permissionDrawerOpen" @close="permissionDrawerOpen = false" />
+    <TaskPermissionsDrawer :service-mode="serviceMode" :open="permissionDrawerOpen" @close="permissionDrawerOpen = false" />
     <Toast :open="validationToastOpen" :message-id="validationToastMessageId" variant="error" close-label="关闭提示" @close="validationToastOpen = false">
       {{ validationToastMessage }}
     </Toast>

@@ -76,7 +76,7 @@ describe('diagnosisContent icons', () => {
     await findingDetails.trigger('click')
     expect(wrapper.emitted('openAudit')).toHaveLength(1)
 
-    const strategyDetails = wrapper.findAll('.geo-strategy-table tbody tr button').find(button => button.text() === '查看详情')
+    const strategyDetails = wrapper.findAll('.geo-strategy-table tbody tr button').find(button => button.text() === '审核')
     expect(strategyDetails).toBeDefined()
     expect(strategyDetails!.attributes('data-variant')).toBe('secondary')
     expect(strategyDetails!.attributes('data-size')).toBe('md')
@@ -89,7 +89,7 @@ describe('diagnosisContent icons', () => {
   it('shows a count-free bulk approval action for selected findings', async () => {
     const wrapper = mount(DiagnosisContent, {
       props: {
-        findings: auditFindings.slice(0, 2).map(item => ({ ...item, checked: true })),
+        findings: auditFindings.filter(item => item.route === 'strategy' || item.id === 'F9').slice(0, 2).map(item => ({ ...item, checked: true })),
         personas,
         activePersona: personas[0]!.id,
         strategies,
@@ -117,17 +117,17 @@ describe('diagnosisContent icons', () => {
     wrapper.unmount()
   })
 
-  it('keeps the linked-task action styled like the strategy detail action', () => {
+  it.each(['agent', 'managed'] as const)('shows linked tasks as generated even with a legacy unconfirmed flag in %s', (mode) => {
     const wrapper = mount(DiagnosisContent, {
       props: {
         findings: auditFindings,
         personas,
         activePersona: personas[0]!.id,
-        strategies: strategies.filter(strategy => strategy.id === 'GS11').map(strategy => ({ ...strategy, confirmed: true })),
+        strategies: strategies.filter(strategy => strategy.id === 'GS11').map(strategy => ({ ...strategy, confirmed: false })),
         tasks: prototypeTasks,
         strategyLayer: '全部',
-        serviceMode: 'managed',
-        role: 'ops',
+        serviceMode: mode,
+        role: mode === 'agent' ? 'client' : 'ops',
       },
       global: {
         plugins: [createPinia()],
@@ -136,6 +136,10 @@ describe('diagnosisContent icons', () => {
     })
 
     const linkedTask = wrapper.findAll('.geo-strategy-table tbody button').find(button => button.text() === '查看任务')
+    expect(wrapper.get('.geo-strategy-table tbody').text()).toContain('已生成任务')
+    expect(wrapper.get('.geo-strategy-table tbody').text()).not.toContain('待客户审核')
+    expect(wrapper.findAll('.geo-strategy-table tbody button').some(button => button.text() === '审核')).toBe(false)
+    expect(wrapper.get('.geo-strategy-table tbody .ce-tag').attributes('data-tone')).toBe('green')
     expect(linkedTask).toBeDefined()
     expect(linkedTask!.attributes('data-variant')).toBe('secondary')
     expect(linkedTask!.attributes('data-size')).toBe('md')

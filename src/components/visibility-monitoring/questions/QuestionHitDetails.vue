@@ -27,9 +27,9 @@ function platformLabel(id: MonitoringPlatformId) {
             </th><th scope="col">
               是否引用官网 <MetricDefinitionButton id="officialCitation" />
             </th><th scope="col">
-              位置 / 趋势 <MetricDefinitionButton id="rank" />
+              位置 <MetricDefinitionButton id="rank" />
             </th><th scope="col">
-              买家人设
+              趋势（较上期）
             </th><th scope="col">
               查看详情
             </th>
@@ -38,17 +38,16 @@ function platformLabel(id: MonitoringPlatformId) {
         <tbody>
           <tr v-for="question in questions" :key="question.id">
             <th scope="row">
-              <span class="vm-question-id">{{ question.id }}</span><span class="vm-question-text">{{ question.question }}</span><small>{{ question.persona }} · {{ question.stage }}</small>
+              <span class="vm-question-id">{{ question.id }}</span><span class="vm-question-text">{{ question.question }}</span><small>{{ [question.persona, question.stage].filter(Boolean).join(' · ') }}</small>
             </th>
             <td>
               <div class="vm-platform-list">
-                <span v-for="result in question.platformResults" :key="result.platform" class="vm-platform" :class="{ 'is-mentioned': result.ownBrandMentioned }">{{ platformLabel(result.platform) }} <b>{{ result.ownBrandMentioned ? '已提及' : '未提及' }}</b></span>
+                <span v-for="result in question.platformResults" :key="result.platform" class="vm-platform" :class="{ 'is-mentioned': result.ownBrandMentioned }">{{ platformLabel(result.platform) }} <b>{{ result.rank ? `第 ${result.rank} 位` : '未提及' }}</b></span>
               </div>
             </td>
             <td><span class="vm-status" :class="question.competitors.length ? 'is-yes' : 'is-no'">{{ question.competitors.length ? `是 · ${question.competitors.join('、')}` : '否' }}</span></td>
             <td><span class="vm-status" :class="question.officialSiteCited ? 'is-yes' : 'is-no'">{{ question.officialSiteCited ? '已引用官网' : '未引用官网' }}</span></td>
-            <td><span>{{ question.rank ? `第 ${question.rank} 位` : '未进入排名' }}</span><small :class="`trend-${question.trend}`">{{ question.trend === 'up' ? '↑ 上升' : question.trend === 'down' ? '↓ 下降' : '→ 持平' }}</small></td>
-            <td>{{ question.persona }}</td>
+            <td><span>{{ question.rank ? `第 ${question.rank} 位` : '未进入排名' }}</span></td><td><small :class="`trend-${question.trend}`">{{ question.trend === 'up' ? '↑ 上升' : question.trend === 'down' ? '↓ 下降' : '→ 持平' }}</small></td>
             <td>
               <button class="vm-link geo-table-detail-button" type="button" @click="emit('selectQuestion', question.id)">
                 查看详情
@@ -84,8 +83,8 @@ small { display: block; margin-top: 5px; color: var(--text-muted); font-weight: 
 .vm-status { display: inline-flex; max-width: 180px; padding: 3px 8px; border-radius: 999px; white-space: normal; }
 .is-yes { color: var(--status-success-foreground); background: var(--status-success-background); }
 .is-no { color: var(--status-error-foreground); background: var(--status-error-background); }
-.trend-up { color: var(--status-error-foreground); }
-.trend-down { color: var(--status-success-foreground); }
+.trend-up { color: var(--status-success-foreground); }
+.trend-down { color: var(--status-warning-foreground); }
 .vm-link { padding: 0; color: var(--action-accent); background: none; border: 0; font: inherit; cursor: pointer; white-space: nowrap; }
 .vm-link:focus-visible { outline: 2px solid var(--action-accent); outline-offset: 3px; }
 @media (max-width: 520px) { .vm-card { padding: 16px; } .vm-section-head { flex-direction: column; } }
