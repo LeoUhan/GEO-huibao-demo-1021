@@ -109,6 +109,11 @@ html.ce-iframe-root .geo-diagnosis .geo-candidate-link .ce-button:hover:not(:dis
 .geo-diagnosis .geo-strategy-factor { color: var(--geo-text-2); font-size: 13px; line-height: 20px; }
 html.ce-iframe-root .geo-diagnosis .geo-strategy-factor .geo-gap-link.ce-button { min-height: 28px; font-size: 13px; line-height: 20px; }
 html.ce-iframe-root .geo-diagnosis .geo-strategy-factor .geo-gap-link.ce-button[aria-pressed='true'] { border-radius: 4px; background: var(--geo-brand-soft); font-weight: 600; }
+.geo-platform-gap-tooltip { display: grid; min-width: 240px; gap: 8px; text-align: left; }
+.geo-platform-gap-tooltip > strong { font-size: 12px; }
+.geo-platform-gap-tooltip__row { display: grid; grid-template-columns: 1fr auto; gap: 2px 12px; font-size: 12px; }
+.geo-platform-gap-tooltip__row b { font-weight: 600; }
+.geo-platform-gap-tooltip__row small { grid-column: 1 / -1; opacity: .78; }
 .geo-diagnosis .geo-strategy-factor > span { color: var(--geo-text-3); }
 .geo-diagnosis .geo-strategy-status .tag { white-space: nowrap; }
 .geo-diagnosis .geo-strategy-actions { width: 112px; min-width: 112px; max-width: 112px; display: table-cell; vertical-align: middle; white-space: nowrap; }
@@ -192,3 +197,4 @@ html.ce-iframe-root .geo-diagnosis .geo-table-detail-button.geo-review-button:fo
 .geo-route-badge.advice,
 .geo-diagnosis .geo-finding-status.is-advice,
 .geo-finding-status.is-advice { border: 0; color: var(--text-secondary); background: var(--background-subtle); }
+.geo-check-pass-result { display: grid; min-height: 100px; place-items: center; color: var(--status-success-foreground); font-weight: 600; }

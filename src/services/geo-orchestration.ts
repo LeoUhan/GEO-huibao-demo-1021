@@ -100,11 +100,11 @@ export function generateFindingStrategy(items: Strategy[], finding: AuditFinding
     description: finding.detail,
     evidence: `${finding.id} · ${finding.detail}`,
     source: finding.id,
-    layer: '实体与信任',
+    layer: finding.category === '官网内容' ? '内容' : '实体与信任',
     priority: finding.priority,
     persona: '复材技术负责人、航空采购',
-    factor: '认证与合规',
-    methods: ['专家档案', '品牌事实核验'],
+    factor: finding.category === '官网内容' ? finding.title : '认证与合规',
+    methods: finding.category === '官网内容' ? [finding.method] : ['专家档案', '品牌事实核验'],
     confirmed: false,
   }
   items.push(strategy)

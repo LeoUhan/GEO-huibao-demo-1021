@@ -343,6 +343,21 @@ html.ce-iframe-root .geo-gap-row.ce-action-card:focus-visible { z-index: 1; outl
 .geo-strategy-detail-grid dt { color: var(--geo-text-3); }
 .geo-strategy-detail-grid dd { min-width: 0; margin: 0; color: var(--geo-text-2); font-weight: 400; overflow-wrap: anywhere; }
 .geo-strategy-recommendation { margin: 0; padding: 14px 16px 16px; color: var(--geo-text-2); font-size: 13px; line-height: 20px; }
+.geo-strategy-evidence { display: grid; gap: 12px; padding: 16px; }
+.geo-strategy-evidence__gap { display: grid; gap: 6px; padding: 14px; border-radius: 8px; background: var(--geo-fill); }
+.geo-strategy-evidence__gap span { color: var(--geo-text-2); font-size: 13px; }
+.geo-strategy-evidence__gap strong { color: var(--geo-brand); font-size: 18px; }
+.geo-strategy-evidence__platforms { display: grid; gap: 1px; overflow: hidden; border: 1px solid var(--geo-border); border-radius: 8px; background: var(--geo-border); }
+.geo-strategy-evidence__platform { display: grid; grid-template-columns: 1fr auto; gap: 4px 8px; padding: 10px 12px; background: var(--geo-surface); }
+.geo-strategy-evidence__platform--total { background: var(--geo-brand-soft); }
+.geo-strategy-evidence__platform strong { color: var(--geo-text); font-size: 13px; }
+.geo-strategy-evidence__platform b { color: var(--geo-brand); font-size: 13px; }
+.geo-strategy-evidence__platform small { grid-column: 1 / -1; color: var(--geo-text-3); font-size: 12px; }
+.geo-strategy-evidence__gap small, .geo-strategy-evidence__snapshot small, .geo-strategy-evidence__note { color: var(--geo-text-3); font-size: 12px; line-height: 18px; }
+.geo-strategy-evidence__snapshot { display: grid; gap: 8px; padding: 14px; border: 1px solid var(--geo-border); border-radius: 8px; }
+.geo-strategy-evidence__snapshot strong { color: var(--geo-text); font-size: 13px; }
+.geo-strategy-evidence__snapshot p, .geo-strategy-evidence__conclusion { margin: 0; color: var(--geo-text-2); font-size: 13px; line-height: 20px; }
+.geo-strategy-evidence__note { margin: 0; }
 .ce-drawer.geo-detail-drawer .ce-drawer-header { padding-block: 16px; }
 .ce-drawer.geo-detail-drawer .ce-drawer-header h2 { font-size: 18px; line-height: 26px; }
 .ce-drawer.geo-detail-drawer .ce-drawer-eyebrow { margin: 4px 0 0; font-size: 12px; line-height: 18px; }
@@ -514,3 +529,4 @@ html.ce-iframe-root .geo-pending-item.ce-action-card:hover { border-color: var(-
 @media (prefers-reduced-motion: reduce) {
   .geo-workbench *, .geo-workbench *::before, .geo-workbench *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
 }
+.geo-toast button { margin-left: 12px; padding: 6px 10px; border: 0; border-radius: 6px; color: var(--geo-brand); background: var(--background-primary); font: inherit; cursor: pointer; }

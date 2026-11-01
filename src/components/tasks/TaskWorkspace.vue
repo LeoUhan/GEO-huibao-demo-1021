@@ -5,6 +5,7 @@ import type { DropdownSelectOption } from '../ui/ce/dropdown-select/types'
 import type { KnowledgeUploadDraft } from './KnowledgeUploadDrawer.vue'
 import { computed, reactive, shallowRef, watch } from 'vue'
 import { useGeoWorkbenchRouteContext } from '../../composables/workbench-route-context'
+import { createRepairTask } from '../../services/geo-orchestration'
 import { directRepairStatus, isDirectRepairTask } from '../../workflows/direct-repair'
 import { taskFlowFor } from '../../workflows/task-flow'
 import { advanceAutomatic, applyAction, briefGate, canPrepareBrief, ensureWorkflow, getTaskBucket, hasAutomaticStep, ignoredTaskFor, ignoreOwner, isTaskIgnored, knowledgeLibrary, reviewOwner, taskStageLabel } from '../../workflows/task-workflow'
@@ -25,6 +26,54 @@ import TaskSiteCollaboration from './TaskSiteCollaboration.vue'
 const props = defineProps<{ task: GeoTask, role: UserRole, serviceMode: ServiceMode, clientPreview: boolean }>()
 const emit = defineEmits<{ back: [], change: [], setTestRole: [role: UserRole] }>()
 const routeContext = useGeoWorkbenchRouteContext()
+function completeVerification() {
+  const task = props.task
+  if (task.progress !== 'human' || !draft.body.trim() || !task.verificationOutcome) return
+  const parent = routeContext.strategies.find(strategy => strategy.id === task.strategy)
+  if (!parent) { error.value = '未找到关联策略，请先核对任务来源'; return }
+  const outcome = task.verificationOutcome
+  flow.value.output.body = draft.body
+  if (outcome === 'business-gap') {
+    parent.businessGapRecorded = true
+    parent.reviewNote = draft.body
+    parent.gapFacts = { verified: true, capability: false, contentExists: false, clear: true, readable: true, thirdParty: false }
+  }
+  else if (outcome === 'technical') {
+    const id = `GAP-TECH-${parent.id}`
+    let finding = routeContext.findings.find(item => item.id === id)
+    if (!finding) {
+      finding = { id, title: `读取修复：${parent.title}`, detail: draft.body, check: '抓取渲染', method: '读取障碍修复', priority: parent.priority, status: '待处理', checked: false, route: 'repair', routeReason: '原因核查确认存在技术读取障碍，进入直接处理。' }
+      routeContext.findings.push(finding)
+    }
+    const repair = createRepairTask(routeContext.tasks, finding)
+    if (!repair.relatedStrategies.includes(parent.id)) repair.relatedStrategies.push(parent.id)
+    task.verificationFollowupId = repair.id
+  }
+  else {
+    const id = `${parent.id}-CHECK-${task.id}`
+    if (!routeContext.strategies.some(strategy => strategy.id === id)) routeContext.strategies.push({
+      ...parent, id, title: `${outcome === 'external' ? '第三方内容建设' : outcome === 'add-content' ? '补充官网内容' : '修改官网内容'}：${parent.title}`,
+      confirmed: false, ignored: false, businessGapRecorded: false, reviewNote: undefined,
+      layer: outcome === 'external' ? '外部信源' : '内容', description: draft.body,
+      evidence: `${parent.evidence}；核查记录 ${task.id}：${draft.body}`,
+      methods: [outcome === 'external' ? '第三方内容建设' : outcome === 'add-content' ? '补充官网内容' : '修改官网内容'],
+      gapFacts: { verified: true, capability: true, contentExists: outcome !== 'add-content', clear: outcome !== 'edit-content', readable: true, thirdParty: outcome === 'external' },
+    })
+    task.verificationFollowupId = id
+  }
+  flow.value.reviews.push({ time: new Date().toISOString(), actor: '客户', note: `核查完成：${draft.body}` })
+  task.progress = 'done'
+  emit('change')
+}
+function openVerificationFollowup() {
+  const id = props.task.verificationFollowupId
+  const task = routeContext.tasks.find(task => task.id === id)
+  if (task) routeContext.openTask(task)
+  else {
+    const strategy = routeContext.strategies.find(strategy => strategy.id === id)
+    if (strategy) { void routeContext.navigate('diagnosis'); routeContext.openStrategy(strategy) }
+  }
+}
 const tab = shallowRef('brief')
 const drawer = shallowRef<'brief' | 'knowledge' | 'upload' | 'output' | 'feedback' | 'retry' | 'ignore' | null>(null)
 const error = shallowRef('')
@@ -441,7 +490,18 @@ function versionDiff(index: number) {
         </TaskProgressTimeline>
       </section>
       <section class="tw-content-panel" aria-label="任务执行内容">
-        <p v-if="automatic && serviceMode === 'agent' && task.type !== 'repair'" class="tw-card" role="status">AI 正在处理，请稍候…</p>
+        <section v-if="task.executionKind === 'verification' && task.progress !== 'brief'" class="tw-card">
+          <h2>原因核查</h2><p>核对原始回答、真实业务能力与现有资料，形成核查结论；此任务不生成文章或提交官网。</p>
+          <label class="tw-field">核查结果<select v-model="task.verificationOutcome" :disabled="task.progress === 'done'">
+            <option disabled :value="undefined">请选择已核实的原因</option>
+            <option value="add-content">有能力，官网未介绍</option><option value="edit-content">已有介绍，表达不明确</option><option value="technical">内容完整，存在读取障碍</option><option value="external">需要补充第三方来源</option><option value="business-gap">实际不具备该能力</option>
+          </select></label>
+          <label class="tw-field">核查记录<textarea v-model="draft.body" :readonly="task.progress === 'done'" rows="7" placeholder="记录核查资料、发现的原因和后续处理建议" /></label>
+          <Button :disabled="!draft.body.trim() || !task.verificationOutcome || task.progress === 'done'" @click="completeVerification">保存核查结论并完成</Button>
+          <p v-if="task.progress === 'done'">核查已完成。内容类结论已进入后续策略审核；技术问题进入直接处理；业务能力缺口仅记录。</p>
+          <Button v-if="task.verificationFollowupId" @click="openVerificationFollowup">查看后续处理</Button>
+        </section>
+        <p v-if="task.executionKind !== 'verification' && automatic && serviceMode === 'agent' && task.type !== 'repair'" class="tw-card" role="status">AI 正在处理，请稍候…</p>
         <template v-if="task.type === 'repair'">
           <TaskRepairDetail :task="task" :site="flow.site" :status-label="siteStatus.label" :status-tone="siteStatus.tone" />
           <section v-if="serviceMode === 'agent' && !isDirectRepairTask(task)" class="tw-card" aria-label="修复操作">
@@ -459,7 +519,7 @@ function versionDiff(index: number) {
             <p v-else-if="task.progress === 'done'" role="status">修复执行与验证模拟已完成。</p>
           </section>
         </template>
-        <template v-else>
+        <template v-else-if="task.executionKind !== 'verification' || task.progress === 'brief'">
           <TaskSiteCollaboration v-if="tab === 'website'" :task="task" :brief="flow.brief" :site="flow.site" :methods="task.methods" :status-label="siteStatus.label" :status-tone="siteStatus.tone" />
           <div class="tw-more-details" :class="{ 'tw-brief-workspace': task.progress === 'brief' }">
             <header v-if="task.progress === 'brief'" class="tw-brief-workspace__head">
@@ -690,7 +750,7 @@ function versionDiff(index: number) {
       </section>
     </div>
 
-    <section v-if="task.type !== 'repair' && !automatic && (task.progress !== 'brief' || ignoredTask) && !waitingForOperationsReview" class="tw-actionbar" :class="{ 'is-complete': task.progress === 'done', 'is-ignored': Boolean(ignoredTask), 'is-client-content-review': task.progress === 'client_content_review', 'is-client-final-review': customerFinalReview, 'is-ops-content-review': operationsContentReview, 'is-ops-client-review': operationsWaitingForClientReview }" aria-label="当前阶段操作">
+    <section v-if="task.executionKind !== 'verification' && task.type !== 'repair' && !automatic && (task.progress !== 'brief' || ignoredTask) && !waitingForOperationsReview" class="tw-actionbar" :class="{ 'is-complete': task.progress === 'done', 'is-ignored': Boolean(ignoredTask), 'is-client-content-review': task.progress === 'client_content_review', 'is-client-final-review': customerFinalReview, 'is-ops-content-review': operationsContentReview, 'is-ops-client-review': operationsWaitingForClientReview }" aria-label="当前阶段操作">
       <div>
         <strong v-if="task.progress !== 'client_content_review' && !customerFinalReview && !operationsContentReview && !operationsWaitingForClientReview">{{ actionbarTitle }}</strong><p :class="{ 'tw-running': automatic }">
           {{ actionbarDescription }}
@@ -710,7 +770,7 @@ function versionDiff(index: number) {
           <Button v-if="operationsContentReview || serviceMode === 'agent'" variant="secondary" data-test="save-inline-output" :disabled="!outputDirty" @click="saveInlineOutput">
             保存正文
           </Button>
-          <Button v-if="!operationsContentReview && (!customerFinalReview || serviceMode === 'agent')" variant="secondary" :data-test="task.progress === 'client_content_review' ? 'request-output-feedback' : undefined" @click="submitOutputFeedback">
+          <Button v-if="serviceMode !== 'agent' && !operationsContentReview && !customerFinalReview" variant="secondary" :data-test="task.progress === 'client_content_review' ? 'request-output-feedback' : undefined" @click="submitOutputFeedback">
             提交修改意见
           </Button>
           <Button variant="primary" @click="approveReview">

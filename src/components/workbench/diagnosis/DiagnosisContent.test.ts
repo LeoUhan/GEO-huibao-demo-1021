@@ -192,3 +192,63 @@ it('shows knowledge supplementation as a reminder without an approval action', a
   expect(wrapper.emitted('openAudit')?.[0]?.[0]).toMatchObject({ route: 'knowledge' })
   wrapper.unmount()
 })
+
+it('shows details instead of review when an existing strategy already has a Brief task', async () => {
+  const finding = { ...auditFindings.find(item => item.id === 'F8-2')!, checked: true }
+  const wrapper = mount(DiagnosisContent, {
+    props: { findings: [finding], personas, activePersona: personas[0]!.id, strategies, strategyLayer: '全部', serviceMode: 'agent', role: 'client', tasks: [{ id: 'T-sync', name: finding.title, type: 'web', source: finding.id, strategy: 'GS14', persona: '', factor: '', methods: [], destination: '官网内容', progress: 'brief', relatedStrategies: ['GS14'] }] },
+    global: { plugins: [createPinia()], stubs: { DeferredGeoRadarChart: true, Tooltip: { template: '<span><slot /></span>' } } },
+  })
+  const row = wrapper.get('.geo-finding-table tbody tr')
+  expect(row.get('button').text()).toBe('查看详情')
+  expect(row.text()).toContain('已生成任务')
+  expect(row.get('input').attributes('disabled')).toBeDefined()
+  expect(wrapper.find('.geo-finding-approve-button').exists()).toBe(false)
+  wrapper.unmount()
+})
+
+it('shows only a pass result rather than an empty problem table for a healthy client check', async () => {
+  const wrapper = mount(DiagnosisContent, {
+    props: { findings: [], personas, activePersona: personas[0]!.id, strategies, strategyLayer: '全部', serviceMode: 'agent', role: 'client' },
+    global: { plugins: [createPinia()], stubs: { DeferredGeoRadarChart: true, Tooltip: { template: '<span><slot /></span>' } } },
+  })
+  await wrapper.findAll('.geo-check')[0]!.trigger('click')
+  expect(wrapper.get('.geo-check-pass-result').text()).toBe('通过')
+  expect(wrapper.find('.geo-finding-table').exists()).toBe(false)
+  expect(wrapper.text()).not.toContain('当前筛选下没有问题或建议')
+  expect(wrapper.text()).not.toContain('买家重视度')
+  wrapper.unmount()
+})
+
+it('focuses a topic and filters its strategies without opening a separate answer drawer', async () => {
+  const wrapper = mount(DiagnosisContent, {
+    props: { findings: [], personas, activePersona: personas[0]!.id, strategies, strategyLayer: '全部', serviceMode: 'agent', role: 'client' },
+    global: { plugins: [createPinia()], stubs: {
+      DeferredGeoRadarChart: true,
+      Tooltip: { template: '<span><slot /></span>' },
+    } },
+  })
+  const initial = wrapper.findAll('.geo-strategy-table tbody tr').length
+  const strategyGapBefore = wrapper.find('.geo-strategy-table tbody .geo-gap-link').text()
+  const radarFactors = wrapper.findComponent({ name: 'DeferredGeoRadarChart' }).props('factors') as Array<{ name: string, coverage: number, competitor: number }>
+  expect(radarFactors).toHaveLength(personas[0]!.factors.length - 1)
+  expect(radarFactors.some(factor => factor.name === '切割精度' && factor.coverage > factor.competitor)).toBe(true)
+  expect(wrapper.findAll('.client-gap-row').every(row => !row.text().includes('其他'))).toBe(true)
+  expect(wrapper.findAll('.client-gap-row').every(row => Number(row.text().match(/Gap\s+(\d+)/)?.[1]) > 0)).toBe(true)
+  await wrapper.find('.client-gap-row').trigger('click')
+  expect(wrapper.find('.test-drawer').exists()).toBe(false)
+  expect(wrapper.text()).not.toContain('演示回答索引')
+  expect(wrapper.get('.geo-strategy-context').text()).toContain('聚焦：')
+  expect(wrapper.findAll('.geo-strategy-table tbody tr').length).toBeLessThan(initial)
+  await wrapper.find('.geo-strategy-context button').trigger('click')
+  expect(wrapper.findAll('.geo-strategy-table tbody tr').length).toBe(initial)
+  await wrapper.get('[aria-label="按 AI 平台筛选主题差距"]').setValue('ChatGPT')
+  expect(wrapper.get('[aria-label="按 AI 平台筛选主题差距"]').element).toHaveProperty('value', 'ChatGPT')
+  const platformRadarFactors = wrapper.findComponent({ name: 'DeferredGeoRadarChart' }).props('factors') as Array<{ name: string, coverage: number, competitor: number }>
+  expect(platformRadarFactors).toHaveLength(radarFactors.length)
+  expect(platformRadarFactors.find(factor => factor.name === '切割精度')?.coverage).toBeCloseTo(88.24, 2)
+  expect(wrapper.findAll('.client-gap-row').length).toBeGreaterThan(0)
+  expect(wrapper.get('.geo-strategy-context').text()).not.toContain('聚焦：')
+  expect(wrapper.find('.geo-strategy-table tbody .geo-gap-link').text()).toBe(strategyGapBefore)
+  wrapper.unmount()
+})

@@ -6,8 +6,10 @@ export function pendingReviewLabel(mode: ServiceMode) {
 }
 
 export function strategyReviewStatus(strategy: Strategy, tasks: GeoTask[], mode: ServiceMode) {
-  if (strategy.ignored) return '已忽略'
+  if (mode === 'agent' && strategy.businessGapRecorded) return '业务能力缺口'
+  if (strategy.ignored) return mode === 'agent' ? '本轮已终止' : '已忽略'
   if (tasks.some(task => task.strategy === strategy.id || task.relatedStrategies.includes(strategy.id))) return '已生成任务'
   if (strategy.confirmed) return '已通过'
+  if (mode === 'managed' && strategy.reviewStage === 'customer') return '待客户审核'
   return pendingReviewLabel(mode)
 }

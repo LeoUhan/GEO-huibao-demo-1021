@@ -64,9 +64,8 @@ describe('geoWorkbenchLayout icon migration', () => {
     const taskStore = useWorkbenchTasksStore()
     const initialTaskCount = taskStore.tasks.length
     const repairApproval = wrapper.findAll('.test-drawer footer button').find(button => button.text() === '审核通过并生成任务')
-    expect(repairApproval).toBeDefined()
-    await repairApproval!.trigger('click')
-    expect(taskStore.tasks.length).toBe(initialTaskCount + 1)
+    expect(repairApproval).toBeUndefined()
+    expect(taskStore.tasks.length).toBe(initialTaskCount)
 
     const countBeforeBulkApproval = taskStore.tasks.length
     await wrapper.get('[data-test="select-bulk-findings"]').trigger('click')
@@ -80,16 +79,14 @@ describe('geoWorkbenchLayout icon migration', () => {
     expect(findingDrawer.get('header').element.firstElementChild?.tagName).toBe('H2')
     expect(findingDrawer.get('h2').text()).toBe('异常处理 · 专家作者档案待补')
     expect(findingDrawer.text()).toContain('⑤ 品牌实体')
-    expect(findingDrawer.text()).toContain('待运营审核')
+    expect(findingDrawer.text()).toContain('已生成任务')
     expect(findingDrawer.text()).toContain('2 位工程师已有内容贡献，但缺少可验证的专业背景、经验与作者介绍。')
     expect(findingDrawer.text()).toContain('需要确认专家范围、身份事实和对外介绍方式。')
     expect(findingDrawer.text()).not.toContain('后续流程')
-    expect(wrapper.findAll('.test-drawer footer button').some(button => button.text() === '忽略')).toBe(true)
+    expect(wrapper.findAll('.test-drawer footer button').some(button => button.text() === '忽略')).toBe(false)
     const strategyApproval = wrapper.findAll('.test-drawer footer button').find(button => button.text() === '审核通过并生成任务')
-    expect(strategyApproval).toBeDefined()
-    await strategyApproval!.trigger('click')
-    await flushPromises()
-    expect(wrapper.find('.geo-toast').text()).toContain('S-14 已审核通过并生成任务')
+    expect(strategyApproval).toBeUndefined()
+    expect(wrapper.findAll('.test-drawer footer button').some(button => button.text() === '进入任务')).toBe(true)
     wrapper.unmount()
   })
 
@@ -130,10 +127,7 @@ describe('geoWorkbenchLayout icon migration', () => {
     expect(drawer.get('.geo-strategy-detail-grid').text()).toContain('目标人设汽车工艺、车间主管')
     expect(drawer.get('.geo-strategy-recommendation').text()).toBe('建议采用停机风险 Q&A、服务问答、买家场景补充等方式，完成本次官网内容优化。')
     expect(drawer.text()).not.toContain('审核与协作记录')
-    await wrapper.findAll('.test-drawer footer button').find(button => button.text() === '忽略')!.trigger('click')
-    expect(wrapper.find('.geo-strategy-ignore-form').exists()).toBe(true)
-    await wrapper.findAll('.test-drawer footer button').find(button => button.text() === '取消')!.trigger('click')
-    expect(wrapper.find('.geo-strategy-ignore-form').exists()).toBe(false)
+    expect(wrapper.findAll('.test-drawer footer button').some(button => button.text() === '忽略')).toBe(false)
     wrapper.unmount()
   })
 })
@@ -165,7 +159,7 @@ it('separates product versions from roles and keeps changes scoped to the two re
   await flushPromises()
   expect(wrapper.get('[data-test="mode-role"]').text()).toBe('agent/client')
   await wrapper.get('[data-test="choose-finding"]').trigger('click')
-  expect(wrapper.get('[data-test="selected"]').text()).toBe('true')
+  expect(wrapper.get('[data-test="selected"]').text()).toBe('false')
   await wrapper.get('[data-test="adopt-strategy"]').trigger('click')
   await flushPromises()
   const customerState = JSON.parse(localStorage.getItem('geo-workbench:agent')!)
@@ -178,7 +172,7 @@ it('separates product versions from roles and keeps changes scoped to the two re
   await router.push('/diagnosis')
   await flushPromises()
   expect(wrapper.get('[data-test="mode-role"]').text()).toBe('agent/client')
-  expect(wrapper.get('[data-test="selected"]').text()).toBe('true')
+  expect(wrapper.get('[data-test="selected"]').text()).toBe('false')
   wrapper.unmount()
   localStorage.clear()
 })
@@ -223,7 +217,7 @@ it.each(['client', 'managed'])('persists reviewer priority changes including P3 
   localStorage.clear()
   const probe = defineComponent({ setup() {
     const context = inject(geoWorkbenchRouteContextKey)!
-    return () => h('button', { 'data-test': 'review-priority', onClick: () => context.openStrategy(context.strategies.find(item => item.id === 'GS11')!) }, '审核')
+    return () => h('button', { 'data-test': 'review-priority', onClick: () => context.openStrategy(context.strategies.find(item => item.id === 'GS4')!) }, '审核')
   } })
   const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/diagnosis', name: 'diagnosis', component: probe }] })
   await router.push(`/diagnosis?version=${version}`)
@@ -238,8 +232,8 @@ it.each(['client', 'managed'])('persists reviewer priority changes including P3 
     await flushPromises()
     const key = `geo-workbench:${version === 'client' ? 'agent' : 'managed'}`
     const state = JSON.parse(localStorage.getItem(key)!)
-    expect(state.strategies.find((item: { id: string }) => item.id === 'GS11').priority).toBe('P3')
-    expect(state.reviews.GS11.at(-1).text).toContain('→ P3')
+    expect(state.strategies.find((item: { id: string }) => item.id === 'GS4').priority).toBe('P3')
+    expect(state.reviews.GS4.at(-1).text).toContain('→ P3')
     wrapper.unmount()
     wrapper = mountLayout()
     await router.push(`/diagnosis?version=${version}`)
@@ -273,7 +267,7 @@ it.each(['managed', 'agent'] as const)('restores advice into %s without putting 
   try {
     await flushPromises()
     const items = context!.findings.filter(item => item.route === 'advice')
-    expect(items).toHaveLength(2)
+    expect(items).toHaveLength(mode === 'agent' ? 1 : 2)
     const taskCount = context!.tasks.length
     const strategyCount = context!.strategies.length
     context!.selectAllFindings(items.map(item => item.id))

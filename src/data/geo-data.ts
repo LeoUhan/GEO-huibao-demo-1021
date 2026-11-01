@@ -40,7 +40,7 @@ export interface AuditFinding {
   check: string
   method: string
   priority: Priority
-  status: '待处理' | '已生成策略' | '待官网运营审核' | '暂不修复' | '已修复' | '无需处理' | '待补充知识'
+  status: '待处理' | '待客户审核' | '已生成策略' | '待官网运营审核' | '暂不修复' | '已修复' | '无需处理' | '待补充知识'
   feedback?: string
   decisionReason?: string
   checked: boolean
@@ -74,6 +74,8 @@ export interface Persona {
 }
 
 export interface Strategy {
+  businessGapRecorded?: boolean
+  gapFacts?: { verified: boolean, capability: boolean | null, contentExists: boolean, clear: boolean, readable: boolean, thirdParty: boolean }
   id: string
   title: string
   layer: Exclude<StrategyLayer, '全部'>
@@ -85,6 +87,7 @@ export interface Strategy {
   factor: string
   methods: string[]
   confirmed: boolean
+  reviewStage?: 'customer'
   personaIds?: string[]
   gapNames?: string[]
   ignored?: boolean
@@ -92,6 +95,9 @@ export interface Strategy {
 }
 
 export interface GeoTask {
+  executionKind?: 'verification'
+  verificationOutcome?: 'add-content' | 'edit-content' | 'technical' | 'external' | 'business-gap'
+  verificationFollowupId?: string
   id: string
   name: string
   type: Exclude<TaskFilter, 'all'>
@@ -119,6 +125,15 @@ export const auditFindings: AuditFinding[] = [
   { id: 'F7-3', title: '产品页分组导航建议', detail: '长产品页当前可正常读取，可在后续常规改版时评估增加分组锚点导航。', check: '结构化数据', method: '仅提供建议', priority: 'P3', status: '无需处理', checked: false, route: 'advice', category: '官网结构', evidence: '演示检查记录：主要产品内容可读取，当前未发现由分组导航缺失造成的抓取或信息抽取阻断。', advice: '后续常规改版时，可评估为规格、应用和问答区域增加锚点导航；本轮无需修改官网结构。', routeReason: '属于可选的浏览体验建议，本轮无需修复，不进入审核或执行流程。' },
   { id: 'F8-4', title: '案例页摘要表达建议', detail: '案例页已有材料、工艺与应用说明，可在下次内容维护时评估补充简短摘要。', check: '信任信号', method: '仅提供建议', priority: 'P3', status: '无需处理', checked: false, route: 'advice', category: '官网内容', evidence: '演示检查记录：现有案例包含材料、工艺和应用背景，未发现必须在本轮补齐的事实缺失。', advice: '下次更新案例时，可考虑在正文前加入材料、加工需求和适用场景摘要；本轮无需改写或重新生成内容。', routeReason: '现有内容已具备基本信息，摘要属于可选表达建议，仅供后续维护参考。' },
   { id: 'F8-5', title: '产品技术参数缺少核对依据', detail: '官网已展示产品技术参数，但知识库缺少对应的标准化资料，暂时无法核对型号、参数与适用范围。', check: '品牌实体', method: '补充知识提醒', priority: 'P2', status: '待补充知识', checked: false, route: 'knowledge', category: '官网内容', knowledgeTopic: '产品技术参数', evidence: '演示检查记录：知识库未提供包含产品型号、技术参数和适用范围的结构化资料。当前无法据此判定官网参数是否准确。', advice: '请补充「产品技术参数」相关知识库内容。补充后，系统将在下一次监测时重新核对官网中的对应信息。', routeReason: '因缺少标准化核对依据，当前仅提醒补充知识，不判定为内容错误，也不触发内容改写或官网修复。' },
+]
+
+export const clientContentReviewFindings: AuditFinding[] = [
+  { id: 'WC-01', title: '产品参数表与正文描述不一致', detail: '同一产品页的参数表与正文中出现两种最大加工厚度，知识库已有可核对的产品规格。', check: '品牌实体', method: '官网内容核对与改写', priority: 'P1', status: '待处理', checked: false, route: 'strategy', category: '官网内容', evidence: '演示核对记录：同一产品页的参数表与正文中出现两种最大加工厚度，知识库已有可核对的产品规格。', routeReason: '核对规格资料后统一正文与参数表的描述。' },
+  { id: 'WC-02', title: '售后服务范围表述不完整', detail: '官网服务页写有全球现场支持，但现有服务资料按地区限定现场支持范围。', check: '跨平台一致性', method: '官网内容核对与改写', priority: 'P1', status: '待处理', checked: false, route: 'strategy', category: '官网内容', evidence: '演示核对记录：官网服务页写有全球现场支持，但现有服务资料按地区限定现场支持范围。', routeReason: '依据服务资料补充支持地区、服务方式及适用条件。' },
+  { id: 'WC-03', title: '交付周期缺少适用条件', detail: '官网展示固定交付周期，但已有交付资料区分标准机型、定制配置与验收安排。', check: '跨平台一致性', method: '官网内容核对与改写', priority: 'P1', status: '待处理', checked: false, route: 'strategy', category: '官网内容', evidence: '演示核对记录：官网展示固定交付周期，但已有交付资料区分标准机型、定制配置与验收安排。', routeReason: '审核并补齐交付周期的配置条件和计算口径。' },
+  { id: 'WC-04', title: '案例页未区分实测与参考数据', detail: '案例正文将试切参考值与客户现场实测结果合并描述，现有案例资料已区分两类数据。', check: '信任信号', method: '官网内容核对与改写', priority: 'P2', status: '待处理', checked: false, route: 'strategy', category: '官网内容', evidence: '演示核对记录：案例正文将试切参考值与客户现场实测结果合并描述，现有案例资料已区分两类数据。', routeReason: '依据案例资料明确数据来源、测试条件和适用范围。' },
+  { id: 'WC-05', title: '认证介绍未说明覆盖范围', detail: '官网认证介绍未区分企业体系认证与产品认证，知识库中已有证书及适用范围资料。', check: '品牌实体', method: '官网内容核对与改写', priority: 'P1', status: '待处理', checked: false, route: 'strategy', category: '官网内容', evidence: '演示核对记录：官网认证介绍未区分企业体系认证与产品认证，知识库中已有证书及适用范围资料。', routeReason: '核对证书后补充认证对象与有效范围，调整可能产生歧义的表达。' },
+  { id: 'WC-06', title: '选型问答缺少材料限制说明', detail: '官网选型问答使用通用推荐表述，已有应用资料列出了不同材料与工艺条件下的限制。', check: '信任信号', method: '官网内容核对与改写', priority: 'P2', status: '待处理', checked: false, route: 'strategy', category: '官网内容', evidence: '演示核对记录：官网选型问答使用通用推荐表述，已有应用资料列出了不同材料与工艺条件下的限制。', routeReason: '结合应用资料补充材料条件、工艺限制及需要进一步确认的情况。' },
 ]
 
 export const auditChecks: AuditCheck[] = [

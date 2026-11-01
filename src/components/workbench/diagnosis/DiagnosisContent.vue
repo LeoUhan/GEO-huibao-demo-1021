@@ -1,11 +1,11 @@
 <script setup lang="ts">
 import { pendingReviewLabel, strategyReviewStatus } from '../../../workflows/review-status'
-import { findingRouteLabel, isAdviceFinding, isKnowledgeFinding, isReadOnlyFinding } from '../../../workflows/finding-treatment'
+import { findingHasTask, findingRouteLabel, isAdviceFinding, isKnowledgeFinding, isReadOnlyFinding } from '../../../workflows/finding-treatment'
 import { directRepairStatus, isDirectRepairFinding } from '../../../workflows/direct-repair'
 import type { AuditCheck, AuditFinding, GeoTask, Persona, Strategy, StrategyLayer } from '../../../data/geo-data'
 import type { DataListColumn } from '../../ui/ce/data-list/types'
 import { storeToRefs } from 'pinia'
-import { computed, shallowRef, watch } from 'vue'
+import { computed, h, shallowRef, watch } from 'vue'
 import { auditChecks, displayObjectCodes } from '../../../data/geo-data'
 import { useDiagnosisStore } from '../../../stores/diagnosis'
 import Button from '../../ui/ce/button/Button.vue'
@@ -17,6 +17,9 @@ import Tooltip from '../../ui/ce/tooltip/Tooltip.vue'
 import AppIcon from '../../ui/icons/AppIcon.vue'
 import GeoPageIntro from '../shared/GeoPageIntro.vue'
 import DeferredGeoRadarChart from './DeferredGeoRadarChart.vue'
+import ClientGapEvidence from './ClientGapEvidence.vue'
+import { clientCheckResult, personaEvidence, platformGapBreakdown } from '../../../workflows/client-diagnosis'
+import type { DiagnosisPlatform } from '../../../workflows/client-diagnosis'
 import PersonaGapCard from './PersonaGapCard.vue'
 
 const props = defineProps<{
@@ -50,6 +53,7 @@ const emit = defineEmits<{
 const layers: StrategyLayer[] = ['全部', '内容', '实体与信任', '外部信源']
 const diagnosisStore = useDiagnosisStore()
 const { selectedGap } = storeToRefs(diagnosisStore)
+const platformFilter = shallowRef<DiagnosisPlatform>('全部平台')
 const tableLabels = {
   bulkActions: '异常批量操作',
   selectedCount: (count: number) => `已选择 ${count} 项`,
@@ -79,7 +83,20 @@ const strategyColumns: DataListColumn<unknown>[] = [
   { key: 'status', title: '当前状态', width: '12%', minWidth: 120, className: 'geo-strategy-status' },
   { key: 'actions', title: '操作', width: 112, minWidth: 112, className: 'geo-strategy-actions' },
 ]
-const activePersonaData = computed(() => props.personas.find(persona => persona.id === props.activePersona) ?? props.personas[0])
+const aggregatePersonaEvidence = computed(() => {
+  const persona = props.personas.find(item => item.id === props.activePersona) ?? props.personas[0]
+  return persona ? personaEvidence(persona) : null
+})
+const activePersonaData = computed(() => {
+  const persona = props.personas.find(persona => persona.id === props.activePersona) ?? props.personas[0]
+  if (!persona || props.serviceMode !== 'agent') return persona
+  const evidence = personaEvidence(persona, platformFilter.value)
+  const actionable = evidence.topics.filter(topic => topic.gap !== null && topic.gap > 0 && linkedStrategyCount(topic.name) > 0)
+  return { ...persona, factors: persona.factors.flatMap(factor => {
+    const topic = evidence.topics.find(item => item.name === factor.name && item.denominator > 0)
+    return topic ? [{ ...factor, coverage: topic.own!, competitor: topic.rival! }] : []
+  }), gaps: actionable.map(topic => ({ name: topic.name, value: topic.gap! })) }
+})
 const activeGapItems = computed(() => activePersonaData.value?.gaps.map(gap => ({ ...gap, linkedCount: linkedStrategyCount(gap.name) })) ?? [])
 const queuePage = shallowRef(1)
 const auditPage = shallowRef(1)
@@ -107,21 +124,28 @@ function matchesGap(strategy: Strategy, name: string) {
   const haystack = [strategy.title, strategy.factor, strategy.evidence, strategy.layer, strategy.persona, ...strategy.methods].join(' ').toLocaleLowerCase()
   return aliases.some(alias => haystack.includes(alias.toLocaleLowerCase()))
 }
+function belongsToActivePersona(strategy: Strategy) {
+  const persona = props.personas.find(item => item.id === props.activePersona)
+  return !!persona && (!!strategy.personaIds?.includes(persona.id) || strategy.persona.includes(persona.name))
+}
 function matchesPersona(strategy: Strategy) {
   const persona = activePersonaData.value
   return !!persona && (!!strategy.personaIds?.includes(persona.id) || strategy.persona.includes(persona.name))
 }
 function strategyGaps(strategy: Strategy) {
-  return activePersonaData.value?.gaps.filter(gap => matchesGap(strategy, gap.name)) ?? []
+  const gaps = props.serviceMode === 'agent'
+    ? aggregatePersonaEvidence.value?.topics.filter(topic => topic.gap !== null && topic.gap > 0).map(topic => ({ name: topic.name, value: topic.gap! }))
+    : activePersonaData.value?.gaps
+  return belongsToActivePersona(strategy) || props.serviceMode !== 'agent' ? gaps?.filter(gap => matchesGap(strategy, gap.name)) ?? [] : []
 }
 function personaScore(strategy: Strategy) {
-  const matchedGaps = activePersonaData.value?.gaps.filter(gap => matchesGap(strategy, gap.name)) ?? []
+  const matchedGaps = strategyGaps(strategy)
   const maxGap = matchedGaps.length ? Math.max(...matchedGaps.map(gap => gap.value)) : 0
   const priorityBase = (3 - Number(strategy.priority.slice(1))) * 100
   return priorityBase + maxGap * 1.6 + (matchesPersona(strategy) ? 28 : 0)
 }
 const sortedStrategies = computed(() => {
-  const filtered = allStrategies.value.filter(strategy => props.strategyLayer === '全部' || strategy.layer === props.strategyLayer)
+  const filtered = allStrategies.value.filter(strategy => (props.strategyLayer === '全部' || strategy.layer === props.strategyLayer) && (props.serviceMode !== 'agent' || !selectedGap.value || (belongsToActivePersona(strategy) && matchesGap(strategy, selectedGap.value))))
   return [...filtered].sort((a, b) => {
     const gapOrder = selectedGap.value ? Number(matchesGap(b, selectedGap.value)) - Number(matchesGap(a, selectedGap.value)) : 0
     return gapOrder || personaScore(b) - personaScore(a) || a.priority.localeCompare(b.priority)
@@ -147,22 +171,26 @@ function strategyFromRow(item: unknown) {
   return item as Strategy
 }
 function isActionable(finding: AuditFinding) {
-  return !isReadOnlyFinding(finding) && !isDirectRepairFinding(finding) && finding.status === '待处理'
+  return !findingHasTask(finding, allStrategies.value, props.tasks ?? [], props.serviceMode === 'agent' || finding.id === 'F9') && !isReadOnlyFinding(finding) && !isDirectRepairFinding(finding) && finding.status === '待处理'
 }
 function findingActionLabel(finding: AuditFinding) {
+  if (findingHasTask(finding, allStrategies.value, props.tasks ?? [], props.serviceMode === 'agent' || finding.id === 'F9')) return '查看详情'
   if (isKnowledgeFinding(finding)) return '查看补充要求'
   if (isAdviceFinding(finding)) return '查看建议'
+  if (props.serviceMode === 'managed' && finding.status === '待客户审核') return props.role === 'client' ? '审核' : '查看详情'
   return canReview.value && !isDirectRepairFinding(finding) && ['待处理', '待官网运营审核'].includes(finding.status) ? '审核' : '查看详情'
 }
 function findingStatusLabel(finding: AuditFinding) {
+  if (findingHasTask(finding, allStrategies.value, props.tasks ?? [], props.serviceMode === 'agent' || finding.id === 'F9')) return '已生成任务'
   if (isKnowledgeFinding(finding)) return '待补充知识'
   if (isAdviceFinding(finding)) return '无需处理'
+  if (props.serviceMode === 'managed' && finding.status === '待客户审核') return '待客户审核'
   if (isDirectRepairFinding(finding))
     return directRepairStatus(finding.status === '已修复')
   if (finding.status === '已修复')
     return '已修复'
   if (finding.status === '暂不修复')
-    return '暂不修复'
+    return props.serviceMode === 'agent' ? '本轮已终止' : '暂不修复'
   if (finding.status === '已生成策略')
     return '已生成候选策略'
   return pendingReviewLabel(props.serviceMode)
@@ -183,13 +211,24 @@ function strategyCollaborationLabel(strategy: Strategy) {
   return strategyReviewStatus(strategy, props.tasks ?? [], props.serviceMode)
 }
 function strategyNeedsReview(strategy: Strategy) {
-  return !strategy.ignored && !strategy.confirmed && !taskFor(strategy)
+  return !strategy.businessGapRecorded && !strategy.ignored && !strategy.confirmed && !taskFor(strategy)
 }
-const confirmedCount = computed(() => allStrategies.value.filter(strategy => !strategy.ignored && (strategy.confirmed || taskFor(strategy))).length)
-const reviewCount = computed(() => allStrategies.value.filter(strategy => !!strategy.ignored && (strategy.confirmed || taskFor(strategy))).length)
-const passedCount = computed(() => auditChecks.filter(check => check.passed).length)
+function canReviewStrategy(strategy: Strategy) {
+  return strategyNeedsReview(strategy) && (props.serviceMode === 'agent' ? props.role === 'client' : strategy.reviewStage === 'customer' ? props.role === 'client' : props.role === 'ops')
+}
+const confirmedCount = computed(() => allStrategies.value.filter(strategy => !strategy.businessGapRecorded && !strategy.ignored && (strategy.confirmed || taskFor(strategy))).length)
+const reviewCount = computed(() => allStrategies.value.filter(strategy => props.serviceMode === 'managed' ? canReviewStrategy(strategy) : strategyNeedsReview(strategy)).length)
+function resultForCheck(check: AuditCheck) { return props.serviceMode === 'agent' ? clientCheckResult(check, props.findings, props.tasks ?? []) : { state: check.passed ? '通过' : '异常', errors: check.passed ? 0 : 1, unknown: 0 } }
+const passedCount = computed(() => auditChecks.filter(check => resultForCheck(check).state === '通过').length)
+const unknownCount = computed(() => auditChecks.filter(check => resultForCheck(check).state === '待核对').length)
+const showPassedOnly = computed(() => props.serviceMode === 'agent' && activeAuditCheck.value && resultForCheck(activeAuditCheck.value).state === '通过')
+
 watch(() => props.strategyLayer, () => queuePage.value = 1)
 watch(() => props.activePersona, () => {
+  diagnosisStore.clearFocusedGap()
+  queuePage.value = 1
+})
+watch(platformFilter, () => {
   diagnosisStore.clearFocusedGap()
   queuePage.value = 1
 })
@@ -197,7 +236,7 @@ watch(queuePages, pages => queuePage.value = Math.min(queuePage.value, pages))
 watch(treatmentFilter, () => auditPage.value = 1)
 watch(auditPages, pages => auditPage.value = Math.min(auditPage.value, pages))
 function openCheck(check: AuditCheck) {
-  auditFilter.value = check.id
+  auditFilter.value = props.serviceMode === 'agent' && auditFilter.value === check.id ? 'all' : check.id
   auditPage.value = 1
 }
 function clearAuditFilter() {
@@ -206,12 +245,26 @@ function clearAuditFilter() {
 }
 function focusGap(name: string) {
   diagnosisStore.focusGap(name)
+  if (props.serviceMode === 'agent' && props.strategyLayer !== '全部') emit('setStrategyLayer', '全部')
   queuePage.value = 1
   const behavior = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth'
   document.getElementById('strategy-title')?.scrollIntoView({ behavior, block: 'start' })
 }
 function linkedStrategyCount(name: string) {
-  return allStrategies.value.filter(strategy => matchesGap(strategy, name)).length
+  if (props.serviceMode === 'agent' && !aggregatePersonaEvidence.value?.topics.some(topic => topic.name === name && topic.gap !== null && topic.gap > 0)) return 0
+  return allStrategies.value.filter(strategy => matchesGap(strategy, name) && (props.serviceMode !== 'agent' || belongsToActivePersona(strategy))).length
+}
+function platformGapTooltip(name: string) {
+  const persona = props.personas.find(item => item.id === props.activePersona)
+  if (!persona) return ''
+  return h('div', { class: 'geo-platform-gap-tooltip' }, [
+    h('strong', '各平台覆盖差距'),
+    ...platformGapBreakdown(persona, name).map(item => h('div', { class: 'geo-platform-gap-tooltip__row' }, [
+      h('span', item.platform),
+      h('b', item.gap === null ? '暂无数据' : `${item.gap > 0 ? '+' : ''}${item.gap} 个百分点`),
+      h('small', item.denominator ? `我方 ${item.own}% · Flow ${item.rival}% · ${item.denominator} 条` : '无有效回答'),
+    ])),
+  ])
 }
 function summaryText({ total, page, pages }: { total: number, page: number, pages: number }) {
   return `共 ${total} 条 · 第 ${page} / ${pages} 页`
@@ -264,15 +317,17 @@ function summaryText({ total, page, pages }: { total: number, page: number, page
           <Tag tone="green" variant="soft" size="sm">
             {{ passedCount }} 通过
           </Tag><Tag tone="red" variant="soft" size="sm">
-            {{ auditChecks.length - passedCount }} 异常
-          </Tag>
+            {{ auditChecks.length - passedCount - unknownCount }} 异常
+          </Tag><Tag v-if="unknownCount" tone="neutral" variant="soft" size="sm">{{ unknownCount }} 待核对</Tag>
         </div>
       </header>
       <div class="geo-check-grid" role="tablist" aria-label="官网 GEO 检查项">
-        <button v-for="(check, index) in auditChecks" :key="check.id" type="button" role="tab" class="geo-check" :class="{ 'is-alert': !check.passed, 'is-active': auditFilter === check.id }" :aria-selected="auditFilter === check.id" @click="openCheck(check)">
-          <span class="geo-check-no">{{ ['①', '②', '③', '④', '⑤', '⑥', '⑦'][index] }}</span><span class="geo-check-name">{{ check.label }}</span><strong aria-hidden="true"><AppIcon :name="check.passed ? 'check' : 'warning'" :size="16" /></strong><span class="geo-check-tooltip"><b>{{ check.passed ? '通过' : '异常' }} · {{ check.label }}</b><small>{{ check.note }}</small></span>
+        <button v-for="(check, index) in auditChecks" :key="check.id" type="button" role="tab" class="geo-check" :class="{ 'is-alert': resultForCheck(check).state === '异常', 'is-active': auditFilter === check.id }" :aria-selected="auditFilter === check.id" @click="openCheck(check)">
+          <span class="geo-check-no">{{ ['①', '②', '③', '④', '⑤', '⑥', '⑦'][index] }}</span><span class="geo-check-name">{{ check.label }}</span><strong aria-hidden="true"><AppIcon :name="resultForCheck(check).state === '通过' ? 'check' : 'warning'" :size="16" /></strong><span class="geo-check-tooltip"><b>{{ resultForCheck(check).state }} · {{ check.label }}</b><small>{{ serviceMode === 'agent' ? resultForCheck(check).state === '通过' ? `本轮${check.label}检查通过，未发现需要处理的问题。` : `已确认问题 ${resultForCheck(check).errors} 项，待核对 ${resultForCheck(check).unknown} 项。` : check.note }}</small></span>
         </button>
       </div>
+      <div v-if="showPassedOnly" class="geo-check-pass-result"><Tooltip :content="`本轮${activeAuditCheck?.label}检查通过，未发现需要处理的问题。`"><span tabindex="0">通过</span></Tooltip></div>
+      <template v-else>
       <div class="geo-audit-filter">
         <select v-model="treatmentFilter" class="geo-treatment-filter" aria-label="处理方式筛选">
           <option value="all">全部处理方式</option>
@@ -315,7 +370,7 @@ function summaryText({ total, page, pages }: { total: number, page: number, page
               <label :for="`finding-${findingFromRow(finding).id}`" class="geo-finding-copy"><Tooltip :content="`${findingFromRow(finding).title} · ${displayObjectCodes(findingFromRow(finding).id)}`" :overflow-only="true"><strong>{{ findingFromRow(finding).title }} <small>{{ displayObjectCodes(findingFromRow(finding).id) }}</small></strong></Tooltip></label>
             </template>
             <template #cell-route="{ item: finding }">
-              <span class="geo-chip geo-route-badge" :class="findingFromRow(finding).route">{{ findingRouteLabel(findingFromRow(finding)) }}</span>
+              <span class="geo-chip geo-route-badge" :class="findingFromRow(finding).route">{{ findingRouteLabel(findingFromRow(finding), serviceMode === 'agent') }}</span>
             </template>
             <template #cell-check="{ item: finding }">
               <span class="geo-chip">{{ findingCheckLabel(findingFromRow(finding)) }}</span>
@@ -324,7 +379,7 @@ function summaryText({ total, page, pages }: { total: number, page: number, page
               <span class="geo-chip" :class="findingFromRow(finding).priority === 'P0' ? 'geo-chip--danger' : ''">{{ findingFromRow(finding).priority }}</span>
             </template>
             <template #cell-status="{ item: finding }">
-              <span class="geo-finding-status" :class="{ 'is-advice': isAdviceFinding(findingFromRow(finding)), 'is-review': findingActionLabel(findingFromRow(finding)) === '审核', 'is-done': findingStatusLabel(findingFromRow(finding)) === '已生成候选策略' || findingStatusLabel(findingFromRow(finding)) === '已修复' || findingStatusLabel(findingFromRow(finding)) === '已完成处理', 'is-deferred': findingStatusLabel(findingFromRow(finding)) === '暂不修复' }">{{ findingStatusLabel(findingFromRow(finding)) }}</span>
+              <span class="geo-finding-status" :class="{ 'is-advice': isAdviceFinding(findingFromRow(finding)), 'is-review': findingActionLabel(findingFromRow(finding)) === '审核', 'is-done': findingStatusLabel(findingFromRow(finding)) === '已生成任务' || findingStatusLabel(findingFromRow(finding)) === '已生成候选策略' || findingStatusLabel(findingFromRow(finding)) === '已修复' || findingStatusLabel(findingFromRow(finding)) === '已完成处理', 'is-deferred': findingStatusLabel(findingFromRow(finding)) === '暂不修复' }">{{ findingStatusLabel(findingFromRow(finding)) }}</span>
             </template>
             <template #cell-actions="{ item: finding }">
               <Button class="geo-finding-detail-button geo-table-detail-button" :class="{ 'geo-review-button': findingActionLabel(findingFromRow(finding)) === '审核' }" variant="secondary" size="md" type="button" @click="emit('openAudit', findingFromRow(finding))">
@@ -342,6 +397,7 @@ function summaryText({ total, page, pages }: { total: number, page: number, page
           <Pagination v-model="auditPage" :total="filteredFindings.length" :page-size="pageSize" size="sm" label="诊断问题与建议分页" previous-label="问题上一页" next-label="问题下一页" :page-label="page => `问题第 ${page} 页`" :summary-text="summaryText" :format-value="String" />
         </footer>
       </div>
+      </template>
     </section>
 
     <section class="geo-panel geo-persona-panel" aria-labelledby="persona-title">
@@ -352,7 +408,7 @@ function summaryText({ total, page, pages }: { total: number, page: number, page
             <span>买家人设 × 决策因子：认知 GAP</span>
           </h2>
           <p class="geo-persona-panel__subtitle">
-            买家看重的因素与 AI 回答中呈现的内容之间的差距分析
+            {{ serviceMode === 'agent' ? '同一主题回答中，竞品正向覆盖率与我方正向覆盖率的差值' : '买家看重的因素与 AI 回答中呈现的内容之间的差距分析' }}
           </p>
         </div>
       </header>
@@ -364,9 +420,9 @@ function summaryText({ total, page, pages }: { total: number, page: number, page
       <div v-if="activePersonaData" class="geo-persona-body">
         <Card class="geo-radar-card">
           <div class="geo-card-head">
-            <strong>{{ activePersonaData.name }} · 买家决策因子对比</strong><span>买家重视度 / 我方覆盖 / 竞品覆盖</span>
-          </div><DeferredGeoRadarChart :factors="activePersonaData.factors" :title="activePersonaData.name" />
-        </Card><PersonaGapCard :gaps="activeGapItems" />
+            <strong>{{ activePersonaData.name }} · 买家决策因子对比</strong><span>{{ serviceMode === 'agent' ? '我方正向覆盖率 / Flow 正向覆盖率' : '买家重视度 / 我方覆盖 / 竞品覆盖' }}</span>
+          </div><DeferredGeoRadarChart :factors="activePersonaData.factors" :title="activePersonaData.name" :client-mode="serviceMode === 'agent'" />
+        </Card><ClientGapEvidence v-if="serviceMode === 'agent'" :persona="personas.find(persona => persona.id === activePersona) || personas[0]!" :linked-count="linkedStrategyCount" :platform="platformFilter" @set-platform="platformFilter = $event" @focus="focusGap" /><PersonaGapCard v-else :gaps="activeGapItems" />
       </div>
     </section>
 
@@ -376,11 +432,11 @@ function summaryText({ total, page, pages }: { total: number, page: number, page
           <h2 id="strategy-title">
             <span class="geo-section-heading__number" aria-hidden="true">3</span>
             <span>候选策略</span>
-            <span class="geo-help" title="候选策略由官网检测结果和 GEO 优化规则生成。">?</span>
+            <span class="geo-help" :title="serviceMode === 'agent' ? '候选策略依据人设认知 GAP、回答证据与原因核查结果提出。' : '候选策略由官网检测结果和 GEO 优化规则生成。'">?</span>
           </h2>
           <div class="geo-candidate-guide">
             <p>
-              <strong>候选策略由官网检测结果和 GEO 优化规则生成。</strong> {{ serviceMode === 'agent' ? '查看策略依据与建议，采纳后自动编排任务；忽略时请填写原因。' : '每条策略都关联具体的检测发现，并说明判断依据和建议处理方向。候选策略无需逐条审核；如需确认业务信息或执行范围，请在后续 Brief 中处理。' }} <span class="geo-candidate-link"><Button variant="text" size="xs" @click="emit('goOptimization')">
+              <strong>{{ serviceMode === 'agent' ? '候选策略依据人设认知 GAP、回答证据与原因核查结果提出。' : '候选策略由官网检测结果和 GEO 优化规则生成。' }}</strong> {{ serviceMode === 'agent' ? '查看策略依据与建议，采纳后自动编排任务；忽略时请填写原因。' : '每条策略都关联具体的检测发现，并说明判断依据和建议处理方向。候选策略无需逐条审核；如需确认业务信息或执行范围，请在后续 Brief 中处理。' }} <span class="geo-candidate-link"><Button variant="text" size="xs" @click="emit('goOptimization')">
                 查看任务 <AppIcon name="arrowRight" :size="14" />
               </Button></span>
             </p>
@@ -391,7 +447,7 @@ function summaryText({ total, page, pages }: { total: number, page: number, page
           </Tag><Tag tone="green" variant="soft" size="sm">
             已通过 {{ confirmedCount }}
           </Tag><Tag tone="orange" variant="soft" size="sm">
-            {{ pendingReviewLabel(serviceMode) }} {{ reviewCount }}
+            {{ serviceMode === 'managed' && role === 'client' ? '待客户审核' : pendingReviewLabel(serviceMode) }} {{ reviewCount }}
           </Tag>
         </div>
       </header>
@@ -400,6 +456,7 @@ function summaryText({ total, page, pages }: { total: number, page: number, page
         <Tag v-if="selectedGap" tone="blue" variant="soft">
           聚焦：{{ selectedGap }}
         </Tag>
+        <Button v-if="serviceMode === 'agent' && selectedGap" variant="text" size="xs" @click="diagnosisStore.clearFocusedGap()">查看全部策略</Button>
       </div>
       <div class="geo-strategy-toolbar">
         <div class="geo-tabs" role="tablist" aria-label="策略类型">
@@ -418,7 +475,7 @@ function summaryText({ total, page, pages }: { total: number, page: number, page
           :is-row-activatable="() => false"
           label="候选策略"
           :labels="tableLabels"
-          empty-message="当前分类暂无策略"
+          :empty-message="selectedGap ? '当前主题暂无关联策略' : '当前分类暂无策略'"
           error-message="候选策略加载失败"
           density="compact"
         >
@@ -441,19 +498,21 @@ function summaryText({ total, page, pages }: { total: number, page: number, page
           </template>
           <template #cell-factor="{ item: strategy }">
             <template v-if="strategyGaps(strategyFromRow(strategy)).length">
-              <Button v-for="gap in strategyGaps(strategyFromRow(strategy))" :key="gap.name" class="geo-gap-link" variant="text" size="sm" :aria-pressed="selectedGap === gap.name" @click="focusGap(gap.name)">
-                {{ gap.name }} · Gap {{ gap.value }}<AppIcon name="openExternal" :size="14" aria-hidden="true" />
-              </Button>
+              <Tooltip v-for="gap in strategyGaps(strategyFromRow(strategy))" :key="gap.name" :content="platformGapTooltip(gap.name)" :disabled="serviceMode !== 'agent'" placement="top">
+                <Button class="geo-gap-link" variant="text" size="sm" :aria-pressed="selectedGap === gap.name" @click="focusGap(gap.name)">
+                  {{ gap.name }} · Gap {{ gap.value }}<AppIcon name="openExternal" :size="14" aria-hidden="true" />
+                </Button>
+              </Tooltip>
             </template>
             <span v-else>当前人设不直接加权，仍按基础优先级保留</span>
           </template>
           <template #cell-status="{ item: strategy }">
-            <Tag :class="{ 'geo-review-status': canReview && strategyNeedsReview(strategyFromRow(strategy)) }" :tone="strategyFromRow(strategy).ignored ? 'neutral' : strategyNeedsReview(strategyFromRow(strategy)) ? 'orange' : 'green'" variant="soft" size="sm">
+            <Tag :class="{ 'geo-review-status': canReviewStrategy(strategyFromRow(strategy)) }" :tone="(strategyFromRow(strategy).ignored || strategyFromRow(strategy).businessGapRecorded) ? 'neutral' : strategyNeedsReview(strategyFromRow(strategy)) ? 'orange' : 'green'" variant="soft" size="sm">
               {{ strategyCollaborationLabel(strategyFromRow(strategy)) }}
             </Tag>
           </template>
           <template #cell-actions="{ item: strategy }">
-            <Button v-if="canReview && strategyNeedsReview(strategyFromRow(strategy))" class="geo-table-detail-button geo-review-button" variant="secondary" size="md" type="button" @click="emit('openStrategy', strategyFromRow(strategy))">
+            <Button v-if="canReviewStrategy(strategyFromRow(strategy))" class="geo-table-detail-button geo-review-button" variant="secondary" size="md" type="button" @click="emit('openStrategy', strategyFromRow(strategy))">
               审核
             </Button><Button v-else-if="taskFor(strategyFromRow(strategy))" class="geo-table-detail-button" variant="secondary" size="md" type="button" @click="emit('confirmStrategy', strategyFromRow(strategy))">
               查看任务
@@ -461,7 +520,7 @@ function summaryText({ total, page, pages }: { total: number, page: number, page
           </template>
           <template #empty>
             <div class="geo-empty-state">
-              <strong>当前分类暂无策略</strong><span>切换其他策略分层，或先从官网 GEO 体检生成候选策略。</span>
+              <strong>{{ selectedGap ? '当前主题暂无关联策略' : '当前分类暂无策略' }}</strong><span>{{ selectedGap ? '可以查看其他主题，或清除主题筛选。' : '切换其他策略分层查看。' }}</span>
             </div>
           </template>
         </DataList>

@@ -324,7 +324,7 @@ export function applyAction(task: GeoTask, role: UserRole, mode: ServiceMode, ac
       break
     case 'confirm_brief':
       flow.briefStatus = 'confirmed'
-      task.progress = 'todo'
+      task.progress = task.executionKind === 'verification' ? 'human' : 'todo'
       break
     case 'ignore_brief':
     case 'ignore_task': {
@@ -450,6 +450,7 @@ export function getTaskBucket(task: GeoTask): TaskBucket {
   return 'website'
 }
 export function taskStageLabel(task: GeoTask, mode: ServiceMode = 'managed'): string {
+  if (task.executionKind === 'verification') return task.progress === 'brief' ? '核查 Brief 待确认' : task.progress === 'done' ? '核查已完成' : '待客户核查'
   if (isDirectRepairTask(task))
     return directRepairStatus(task.progress === 'done')
   if (isTaskIgnored(task))

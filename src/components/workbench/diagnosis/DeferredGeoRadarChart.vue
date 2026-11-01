@@ -5,6 +5,7 @@ import { defineAsyncComponent, onBeforeUnmount, onMounted, ref } from 'vue'
 const props = defineProps<{
   factors: RadarFactor[]
   title: string
+  clientMode?: boolean
 }>()
 
 const GeoRadarChart = defineAsyncComponent(() => import('./GeoRadarChart.vue'))
@@ -37,7 +38,7 @@ onBeforeUnmount(() => {
 
 <template>
   <div ref="chartHost" class="deferred-geo-radar-chart">
-    <GeoRadarChart v-if="shouldLoadChart" :factors="props.factors" :title="props.title" />
+    <GeoRadarChart v-if="shouldLoadChart" :factors="props.factors" :title="props.title" :client-mode="props.clientMode" />
   </div>
 </template>
 

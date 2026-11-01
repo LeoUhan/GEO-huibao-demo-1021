@@ -760,9 +760,23 @@ it.each(['web', 'external'] as const)('lets the customer confirm a %s Brief and 
   expect(wrapper.get('[data-test="review-insights"]').text()).toContain('七项自动质检')
   expect(wrapper.find('[data-test="regenerate-article"]').exists()).toBe(true)
   expect(wrapper.find('[data-test="save-inline-output"]').exists()).toBe(true)
-  expect(wrapper.get('.tw-actionbar').text()).toContain('提交修改意见')
+  expect(wrapper.get('.tw-actionbar').text()).not.toContain('提交修改意见')
+  expect(wrapper.find('[data-test="request-output-feedback"]').exists()).toBe(false)
   await wrapper.get('.tw-actionbar button[data-variant="primary"]').trigger('click')
   if (type === 'web') await vi.advanceTimersByTimeAsync(5000)
   expect(task.progress).toBe('done')
   wrapper.unmount()
+})
+
+it('omits the revision-request action from every customer-only content review stage', async () => {
+  for (const progress of ['client_content_review', 'human', 'client_review'] as const) {
+    const task = makeTask()
+    task.progress = progress
+    ensureWorkflow(task).output.body = '待审核文案'
+    const wrapper = mountWorkspace('client', task)
+    await wrapper.setProps({ serviceMode: 'agent' })
+    expect(wrapper.get('.tw-actionbar').text()).not.toContain('提交修改意见')
+    expect(wrapper.find('[data-test="request-output-feedback"]').exists()).toBe(false)
+    wrapper.unmount()
+  }
 })

@@ -106,7 +106,7 @@ export function buildOverviewQueue(
     }))
 
   const strategyItems = strategies
-    .filter(strategy => !strategy.confirmed && !strategy.ignored)
+    .filter(strategy => !strategy.businessGapRecorded && !strategy.confirmed && !strategy.ignored)
     .map(strategy => ({
       id: strategy.id,
       kind: 'strategy' as const,
