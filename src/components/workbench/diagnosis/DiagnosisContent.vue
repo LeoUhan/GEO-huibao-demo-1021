@@ -20,7 +20,6 @@ import DeferredGeoRadarChart from './DeferredGeoRadarChart.vue'
 import ClientGapEvidence from './ClientGapEvidence.vue'
 import { clientCheckResult, personaEvidence, platformGapBreakdown } from '../../../workflows/client-diagnosis'
 import type { DiagnosisPlatform } from '../../../workflows/client-diagnosis'
-import PersonaGapCard from './PersonaGapCard.vue'
 
 const props = defineProps<{
   findings: AuditFinding[]
@@ -89,7 +88,7 @@ const aggregatePersonaEvidence = computed(() => {
 })
 const activePersonaData = computed(() => {
   const persona = props.personas.find(persona => persona.id === props.activePersona) ?? props.personas[0]
-  if (!persona || props.serviceMode !== 'agent') return persona
+  if (!persona) return persona
   const evidence = personaEvidence(persona, platformFilter.value)
   const actionable = evidence.topics.filter(topic => topic.gap !== null && topic.gap > 0 && linkedStrategyCount(topic.name) > 0)
   return { ...persona, factors: persona.factors.flatMap(factor => {
@@ -97,7 +96,6 @@ const activePersonaData = computed(() => {
     return topic ? [{ ...factor, coverage: topic.own!, competitor: topic.rival! }] : []
   }), gaps: actionable.map(topic => ({ name: topic.name, value: topic.gap! })) }
 })
-const activeGapItems = computed(() => activePersonaData.value?.gaps.map(gap => ({ ...gap, linkedCount: linkedStrategyCount(gap.name) })) ?? [])
 const queuePage = shallowRef(1)
 const auditPage = shallowRef(1)
 const pageSize = 5
@@ -133,10 +131,8 @@ function matchesPersona(strategy: Strategy) {
   return !!persona && (!!strategy.personaIds?.includes(persona.id) || strategy.persona.includes(persona.name))
 }
 function strategyGaps(strategy: Strategy) {
-  const gaps = props.serviceMode === 'agent'
-    ? aggregatePersonaEvidence.value?.topics.filter(topic => topic.gap !== null && topic.gap > 0).map(topic => ({ name: topic.name, value: topic.gap! }))
-    : activePersonaData.value?.gaps
-  return belongsToActivePersona(strategy) || props.serviceMode !== 'agent' ? gaps?.filter(gap => matchesGap(strategy, gap.name)) ?? [] : []
+  const gaps = aggregatePersonaEvidence.value?.topics.filter(topic => topic.gap !== null && topic.gap > 0).map(topic => ({ name: topic.name, value: topic.gap! }))
+  return belongsToActivePersona(strategy) ? gaps?.filter(gap => matchesGap(strategy, gap.name)) ?? [] : []
 }
 function personaScore(strategy: Strategy) {
   const matchedGaps = strategyGaps(strategy)
@@ -145,7 +141,7 @@ function personaScore(strategy: Strategy) {
   return priorityBase + maxGap * 1.6 + (matchesPersona(strategy) ? 28 : 0)
 }
 const sortedStrategies = computed(() => {
-  const filtered = allStrategies.value.filter(strategy => (props.strategyLayer === '全部' || strategy.layer === props.strategyLayer) && (props.serviceMode !== 'agent' || !selectedGap.value || (belongsToActivePersona(strategy) && matchesGap(strategy, selectedGap.value))))
+  const filtered = allStrategies.value.filter(strategy => (props.strategyLayer === '全部' || strategy.layer === props.strategyLayer) && (!selectedGap.value || (belongsToActivePersona(strategy) && matchesGap(strategy, selectedGap.value))))
   return [...filtered].sort((a, b) => {
     const gapOrder = selectedGap.value ? Number(matchesGap(b, selectedGap.value)) - Number(matchesGap(a, selectedGap.value)) : 0
     return gapOrder || personaScore(b) - personaScore(a) || a.priority.localeCompare(b.priority)
@@ -245,14 +241,14 @@ function clearAuditFilter() {
 }
 function focusGap(name: string) {
   diagnosisStore.focusGap(name)
-  if (props.serviceMode === 'agent' && props.strategyLayer !== '全部') emit('setStrategyLayer', '全部')
+  if (props.strategyLayer !== '全部') emit('setStrategyLayer', '全部')
   queuePage.value = 1
   const behavior = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth'
   document.getElementById('strategy-title')?.scrollIntoView({ behavior, block: 'start' })
 }
 function linkedStrategyCount(name: string) {
-  if (props.serviceMode === 'agent' && !aggregatePersonaEvidence.value?.topics.some(topic => topic.name === name && topic.gap !== null && topic.gap > 0)) return 0
-  return allStrategies.value.filter(strategy => matchesGap(strategy, name) && (props.serviceMode !== 'agent' || belongsToActivePersona(strategy))).length
+  if (!aggregatePersonaEvidence.value?.topics.some(topic => topic.name === name && topic.gap !== null && topic.gap > 0)) return 0
+  return allStrategies.value.filter(strategy => matchesGap(strategy, name) && belongsToActivePersona(strategy)).length
 }
 function platformGapTooltip(name: string) {
   const persona = props.personas.find(item => item.id === props.activePersona)
@@ -408,7 +404,7 @@ function summaryText({ total, page, pages }: { total: number, page: number, page
             <span>买家人设 × 决策因子：认知 GAP</span>
           </h2>
           <p class="geo-persona-panel__subtitle">
-            {{ serviceMode === 'agent' ? '同一主题回答中，竞品正向覆盖率与我方正向覆盖率的差值' : '买家看重的因素与 AI 回答中呈现的内容之间的差距分析' }}
+            同一主题回答中，竞品正向覆盖率与我方正向覆盖率的差值
           </p>
         </div>
       </header>
@@ -420,9 +416,9 @@ function summaryText({ total, page, pages }: { total: number, page: number, page
       <div v-if="activePersonaData" class="geo-persona-body">
         <Card class="geo-radar-card">
           <div class="geo-card-head">
-            <strong>{{ activePersonaData.name }} · 买家决策因子对比</strong><span>{{ serviceMode === 'agent' ? '我方正向覆盖率 / Flow 正向覆盖率' : '买家重视度 / 我方覆盖 / 竞品覆盖' }}</span>
-          </div><DeferredGeoRadarChart :factors="activePersonaData.factors" :title="activePersonaData.name" :client-mode="serviceMode === 'agent'" />
-        </Card><ClientGapEvidence v-if="serviceMode === 'agent'" :persona="personas.find(persona => persona.id === activePersona) || personas[0]!" :linked-count="linkedStrategyCount" :platform="platformFilter" @set-platform="platformFilter = $event" @focus="focusGap" /><PersonaGapCard v-else :gaps="activeGapItems" />
+            <strong>{{ activePersonaData.name }} · 买家决策因子对比</strong><span>我方正向覆盖率 / Flow 正向覆盖率</span>
+          </div><DeferredGeoRadarChart :factors="activePersonaData.factors" :title="activePersonaData.name" client-mode />
+        </Card><ClientGapEvidence :persona="personas.find(persona => persona.id === activePersona) || personas[0]!" :linked-count="linkedStrategyCount" :platform="platformFilter" @set-platform="platformFilter = $event" @focus="focusGap" />
       </div>
     </section>
 
@@ -432,11 +428,11 @@ function summaryText({ total, page, pages }: { total: number, page: number, page
           <h2 id="strategy-title">
             <span class="geo-section-heading__number" aria-hidden="true">3</span>
             <span>候选策略</span>
-            <span class="geo-help" :title="serviceMode === 'agent' ? '候选策略依据人设认知 GAP、回答证据与原因核查结果提出。' : '候选策略由官网检测结果和 GEO 优化规则生成。'">?</span>
+            <span class="geo-help" title="候选策略依据人设认知 GAP、回答证据与原因核查结果提出。">?</span>
           </h2>
           <div class="geo-candidate-guide">
             <p>
-              <strong>{{ serviceMode === 'agent' ? '候选策略依据人设认知 GAP、回答证据与原因核查结果提出。' : '候选策略由官网检测结果和 GEO 优化规则生成。' }}</strong> {{ serviceMode === 'agent' ? '查看策略依据与建议，采纳后自动编排任务；忽略时请填写原因。' : '每条策略都关联具体的检测发现，并说明判断依据和建议处理方向。候选策略无需逐条审核；如需确认业务信息或执行范围，请在后续 Brief 中处理。' }} <span class="geo-candidate-link"><Button variant="text" size="xs" @click="emit('goOptimization')">
+              <strong>候选策略依据人设认知 GAP、回答证据与原因核查结果提出。</strong> {{ serviceMode === 'agent' ? '客户审核通过后生成任务；不处理时请填写原因。' : '运营审核后交客户确认；客户审核通过后生成任务。' }} <span class="geo-candidate-link"><Button variant="text" size="xs" @click="emit('goOptimization')">
                 查看任务 <AppIcon name="arrowRight" :size="14" />
               </Button></span>
             </p>
@@ -456,7 +452,7 @@ function summaryText({ total, page, pages }: { total: number, page: number, page
         <Tag v-if="selectedGap" tone="blue" variant="soft">
           聚焦：{{ selectedGap }}
         </Tag>
-        <Button v-if="serviceMode === 'agent' && selectedGap" variant="text" size="xs" @click="diagnosisStore.clearFocusedGap()">查看全部策略</Button>
+        <Button v-if="selectedGap" variant="text" size="xs" @click="diagnosisStore.clearFocusedGap()">查看全部策略</Button>
       </div>
       <div class="geo-strategy-toolbar">
         <div class="geo-tabs" role="tablist" aria-label="策略类型">
@@ -498,7 +494,7 @@ function summaryText({ total, page, pages }: { total: number, page: number, page
           </template>
           <template #cell-factor="{ item: strategy }">
             <template v-if="strategyGaps(strategyFromRow(strategy)).length">
-              <Tooltip v-for="gap in strategyGaps(strategyFromRow(strategy))" :key="gap.name" :content="platformGapTooltip(gap.name)" :disabled="serviceMode !== 'agent'" placement="top">
+              <Tooltip v-for="gap in strategyGaps(strategyFromRow(strategy))" :key="gap.name" :content="platformGapTooltip(gap.name)" placement="top">
                 <Button class="geo-gap-link" variant="text" size="sm" :aria-pressed="selectedGap === gap.name" @click="focusGap(gap.name)">
                   {{ gap.name }} · Gap {{ gap.value }}<AppIcon name="openExternal" :size="14" aria-hidden="true" />
                 </Button>

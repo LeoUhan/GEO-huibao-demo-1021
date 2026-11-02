@@ -37,7 +37,7 @@ describe('diagnosisContent icons', () => {
     expect(wrapper.get('#audit-title .geo-section-heading__number').text()).toBe('1')
     expect(wrapper.get('#persona-title .geo-section-heading__number').text()).toBe('2')
     expect(wrapper.get('#persona-title').text()).toContain('买家人设 × 决策因子：认知 GAP')
-    expect(wrapper.get('.geo-persona-panel__subtitle').text()).toBe('买家看重的因素与 AI 回答中呈现的内容之间的差距分析')
+    expect(wrapper.get('.geo-persona-panel__subtitle').text()).toBe('同一主题回答中，竞品正向覆盖率与我方正向覆盖率的差值')
     expect(wrapper.get('#strategy-title .geo-section-heading__number').text()).toBe('3')
     expect(wrapper.get('#strategy-title .geo-help').text()).toBe('?')
     expect(wrapper.find('.geo-page-description').exists()).toBe(false)

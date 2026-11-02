@@ -21,6 +21,8 @@ import { findingHasTask, findingRouteLabel, isAdviceFinding, isKnowledgeFinding,
 import { directRepairStatus, isDirectRepairFinding, isDirectRepairTask } from '../workflows/direct-repair'
 import { advanceAutomatic, ensureWorkflow, knowledgeLibrary } from '../workflows/task-workflow'
 import { normalizeClientFindings, createClientFindingTask, strategyGapEvidence, platformGapBreakdown, clientStrategyPlan, createVerificationTask } from '../workflows/client-diagnosis'
+import type { ProcessingPage } from '../workflows/data-processing'
+import { updateDataProcessing, useDataProcessing } from '../workflows/data-processing'
 import '../styles/geo-workbench.css'
 
 interface ReviewNote { role: UserRole | 'agent', name: string, time: string, text: string }
@@ -105,6 +107,19 @@ const selectedStrategyPlatformGaps = computed(() => {
 })
 const toast = shallowRef('')
 const toastTask = shallowRef<GeoTask | null>(null)
+const dataProcessing = useDataProcessing()
+const processingPage = computed<ProcessingPage | null>(() => ['visibility-monitoring', 'diagnosis', 'optimization'].includes(activePage.value) ? activePage.value as ProcessingPage : null)
+const processingReady = computed(() => !processingPage.value || dataProcessing.isReady(processingPage.value).value)
+const processingNotice = shallowRef<ProcessingPage | null>(null)
+const processingTimer = setInterval(() => {
+  const completed = updateDataProcessing()
+  if (completed.length) processingNotice.value = completed.at(-1) ?? null
+}, 500)
+onUnmounted(() => clearInterval(processingTimer))
+function openProcessedPage(page: ProcessingPage) {
+  processingNotice.value = null
+  void router.push({ name: page, query: page === 'visibility-monitoring' ? {} : { version: productMode.value === 'agent' ? 'client' : 'managed' } })
+}
 const findings = reactive<AuditFinding[]>(auditFindings.map(finding => ({ ...finding })))
 const strategyState = reactive<Strategy[]>(strategies.map(strategy => ({ ...strategy, methods: [...strategy.methods] })))
 const taskStore = useWorkbenchTasksStore()
@@ -847,7 +862,17 @@ provide(geoWorkbenchRouteContextKey, {
     </aside>
     <div class="geo-main" :class="{ 'geo-main--onboarding': isOnboardingPage }">
       <GeoWorkbenchToolbar v-if="!isOnboardingPage" :active-page="activePage" :role="role" :service-mode="serviceMode" @update:role="role = $event" @update:service-mode="changeProductMode($event)" />
-      <RouterView />
+      <section v-if="processingPage && !processingReady" class="geo-processing" role="status" aria-live="polite">
+        <span class="geo-processing__spinner" aria-hidden="true" />
+        <h1>{{ dataProcessing.labels[processingPage] }}数据处理中</h1>
+        <p>预计需要 10～20 分钟。处理完成后会在右下角通知你。</p>
+        <div class="geo-processing__steps" aria-label="数据处理顺序">
+          <span v-for="(page, index) in (['visibility-monitoring', 'diagnosis', 'optimization'] as const)" :key="page" :class="{ 'is-complete': dataProcessing.completed.value > index, 'is-current': dataProcessing.completed.value === index }">
+            {{ dataProcessing.labels[page] }}<small>{{ dataProcessing.completed.value > index ? '已完成' : dataProcessing.completed.value === index ? '处理中' : '等待中' }}</small>
+          </span>
+        </div>
+      </section>
+      <RouterView v-else />
     </div>
 
     <GeoDrawer :open="drawer.type !== null" :title="drawerTitle()" :subtitle="drawerSubtitle()" :eyebrow="drawerEyebrow()" :size="drawer.type === 'strategy' ? 560 : drawer.type === 'audit-finding' ? 600 : 400" :title-first="drawer.type === 'strategy' || drawer.type === 'audit-finding'" @close="closeDrawer">
@@ -1102,6 +1127,13 @@ provide(geoWorkbenchRouteContextKey, {
       <div v-if="toast" class="geo-toast" role="status">
         {{ toast }}
         <button v-if="toastTask && serviceMode === 'agent'" type="button" @click="openTask(toastTask)">去确认 Brief →</button>
+      </div>
+    </Transition>
+    <Transition name="geo-toast">
+      <div v-if="processingNotice" class="geo-processing-notice" role="status">
+        <span>{{ dataProcessing.labels[processingNotice] }}页面已经处理完</span>
+        <button type="button" @click="openProcessedPage(processingNotice)">点击查看 →</button>
+        <button type="button" class="geo-processing-notice__close" aria-label="关闭提示" @click="processingNotice = null">×</button>
       </div>
     </Transition>
   </div>

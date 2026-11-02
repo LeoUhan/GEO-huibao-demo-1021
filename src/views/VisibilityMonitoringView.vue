@@ -26,6 +26,7 @@ import { useMonitoringSchedule } from '../composables/use-monitoring-schedule'
 import { marketLanguageLabels, toMonitoringOverviewMetrics } from '../data/monitoring-overview-summary'
 import { referenceMonitoringResults } from '../data/reference-monitoring-results'
 import { useGeoContextStore } from '../stores/geo-context'
+import { startDataProcessing } from '../workflows/data-processing'
 
 const activeTab = shallowRef<VisibilityTab>('brand')
 const activeStep = shallowRef(5)
@@ -331,6 +332,7 @@ async function launchManualRound() {
   roundTriggerError.value = ''
   try {
     await triggerRound()
+    startDataProcessing()
     await monitoringRound.load()
   }
   catch (cause) {
