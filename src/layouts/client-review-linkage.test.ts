@@ -116,8 +116,8 @@ it('requires customer approval after operations reviews a managed website conten
     GeoDrawer: { props: ['open'], template: '<section v-if="open" class="test-drawer"><slot /><footer><slot name="footer" /></footer></section>' },
   } } })
   try {
-    const finding = { ...context.findings.find(item => item.id === 'F8-2')!, id: 'F-MANAGED-TWO-STEP', title: '待双级审核的官网内容', status: '待处理' as const }
-    context.findings.push(finding)
+    const finding = context.findings.find(item => item.id === 'FC-01')!
+    expect(finding.category).toBe('官网内容')
     const before = context.tasks.length
     context.openAudit(finding)
     await flushPromises()
@@ -130,6 +130,7 @@ it('requires customer approval after operations reviews a managed website conten
     await wrapper.findAll('.test-drawer footer button').find(button => button.text() === '审核通过并生成任务')!.trigger('click')
     expect(finding.status).toBe('已生成策略')
     expect(context.tasks.length).toBeGreaterThan(before)
+    expect(context.tasks.find(task => task.source.split(' / ').includes(finding.id))?.progress).toBe('brief')
   } finally { wrapper.unmount(); localStorage.clear() }
 })
 

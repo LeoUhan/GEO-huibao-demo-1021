@@ -1,4 +1,5 @@
 import type { AuditCheck, AuditFinding, GeoTask, Persona, Strategy } from '../data/geo-data'
+import { officialContentSnapshot } from '../data/geo-data'
 
 export const diagnosisPlatforms = ['ChatGPT', 'Perplexity', 'Google AI'] as const
 export type DiagnosisPlatform = '全部平台' | typeof diagnosisPlatforms[number]
@@ -47,9 +48,17 @@ export function clientCheckResult(check: AuditCheck, findings: AuditFinding[], t
 }
 export function createClientFindingTask(tasks: GeoTask[], finding: AuditFinding): GeoTask {
   const existing = tasks.find(task => task.source.split(/[\s/·]+/).includes(finding.id))
-  if (existing) return existing
+  if (existing) {
+    const snapshot = officialContentSnapshot(finding)
+    if (snapshot && existing.source === finding.id) {
+      existing.sourceKind = 'geo-audit-content'
+      existing.auditContent = snapshot
+    }
+    return existing
+  }
   if (finding.route !== 'strategy') throw Error('当前条目不能生成内容任务')
-  const task: GeoTask = { id: `T-${Math.max(2500, ...tasks.map(task => Number(task.id.replace(/\D/g, '')) || 0)) + 1}`, name: finding.title, type: 'web', source: finding.id, strategy: '', persona: '官网目标买家', factor: finding.check, methods: [finding.method], destination: '官网内容', progress: 'brief', relatedStrategies: [], evidence: finding.evidence ?? finding.detail }
+  const auditContent = officialContentSnapshot(finding)
+  const task: GeoTask = { id: `T-${Math.max(2500, ...tasks.map(task => Number(task.id.replace(/\D/g, '')) || 0)) + 1}`, name: finding.title, type: 'web', source: finding.id, strategy: '', persona: '官网目标买家', factor: finding.check, methods: [finding.method], destination: '官网内容', progress: 'brief', relatedStrategies: [], evidence: finding.evidence ?? finding.detail, sourceKind: auditContent ? 'geo-audit-content' : undefined, auditContent }
   tasks.push(task)
   return task
 }

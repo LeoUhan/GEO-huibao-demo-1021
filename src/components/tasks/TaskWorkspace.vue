@@ -5,6 +5,7 @@ import type { DropdownSelectOption } from '../ui/ce/dropdown-select/types'
 import type { KnowledgeUploadDraft } from './KnowledgeUploadDrawer.vue'
 import { computed, reactive, shallowRef, watch } from 'vue'
 import { useGeoWorkbenchRouteContext } from '../../composables/workbench-route-context'
+import { auditFindings, clientContentReviewFindings, officialContentSnapshot } from '../../data/geo-data'
 import { createRepairTask } from '../../services/geo-orchestration'
 import { directRepairStatus, isDirectRepairTask } from '../../workflows/direct-repair'
 import { taskFlowFor } from '../../workflows/task-flow'
@@ -117,6 +118,15 @@ function consumeAiCall() {
   }
 }
 const briefFields: Array<{ key: 'goal' | 'persona' | 'factor' | 'executionTarget', label: string }> = [{ key: 'goal', label: '任务目标' }, { key: 'persona', label: '目标人设' }, { key: 'factor', label: '决策因子' }, { key: 'executionTarget', label: '执行对象' }]
+const auditContent = computed(() => {
+  if (props.task.type !== 'web') return undefined
+  for (const finding of [...(routeContext.findings ?? []), ...auditFindings, ...clientContentReviewFindings]) {
+    if (finding.id !== props.task.source) continue
+    const snapshot = officialContentSnapshot(finding)
+    if (snapshot) return snapshot
+  }
+  return props.task.sourceKind === 'geo-audit-content' ? props.task.auditContent : undefined
+})
 const methodOptions = ['对比表', 'FAQ / Q&A', '统计数据注入', '专家观点', '案例证明', '定义框', 'JSON-LD', 'sameAs', '内容表达优化']
 const ignoreReasonOptions: DropdownSelectOption[] = [
   { value: 'Agent 判断错误 / 策略不适用', label: 'Agent 判断错误 / 策略不适用' },
@@ -550,8 +560,18 @@ function versionDiff(index: number) {
                   <h3 id="tw-brief-summary-title">
                     任务概要
                   </h3>
-                  <dl class="tw-brief" :class="{ 'tw-brief--table': task.progress === 'brief' }">
-                    <template v-for="field in briefFields" :key="field.key">
+                  <dl class="tw-brief" :class="{ 'tw-brief--table': task.progress === 'brief', 'tw-brief--audit-content': auditContent }">
+                    <template v-if="auditContent">
+                      <template v-if="task.progress === 'brief'">
+                        <div class="tw-brief-summary__item"><dt>异常说明</dt><dd>{{ auditContent.abnormality }}</dd></div>
+                        <div class="tw-brief-summary__item"><dt>修改前的内容</dt><dd>{{ auditContent.originalContent || '尚未采集修改前的官网原文' }}</dd></div>
+                      </template>
+                      <template v-else>
+                        <dt>异常说明</dt><dd>{{ auditContent.abnormality }}</dd>
+                        <dt>修改前的内容</dt><dd>{{ auditContent.originalContent || '尚未采集修改前的官网原文' }}</dd>
+                      </template>
+                    </template>
+                    <template v-for="field in auditContent ? [] : briefFields" :key="field.key">
                       <div v-if="task.progress === 'brief'" class="tw-brief-summary__item">
                         <dt>{{ field.label }}</dt>
                         <dd>{{ flow.brief[field.key] }}</dd>
@@ -730,9 +750,9 @@ function versionDiff(index: number) {
                 <summary>V{{ version.version }} · {{ version.note }}<small>{{ new Date(version.time).toLocaleString() }}</small></summary><p class="tw-feedback">
                   {{ versionDiff(index) }}
                 </p><dl class="tw-brief">
-                  <template v-for="field in briefFields" :key="field.key">
+                  <template v-for="field in auditContent ? [] : briefFields" :key="field.key">
                     <dt>{{ field.label }}</dt><dd>{{ version.brief[field.key] }}</dd>
-                  </template><dt>执行方法</dt><dd>{{ version.methods.join('、') || '未选择' }}</dd><dt>知识资料</dt><dd>{{ version.knowledge.map(item => item.title).join('、') || '未关联' }}</dd>
+                  </template><template v-if="auditContent"><dt>异常说明</dt><dd>{{ auditContent.abnormality }}</dd><dt>修改前的内容</dt><dd>{{ auditContent.originalContent || '尚未采集修改前的官网原文' }}</dd></template><dt>执行方法</dt><dd>{{ version.methods.join('、') || '未选择' }}</dd><dt>知识资料</dt><dd>{{ version.knowledge.map(item => item.title).join('、') || '未关联' }}</dd>
                 </dl><pre v-if="version.output" class="tw-output">{{ version.output }}</pre>
               </details>
             </section>
@@ -824,7 +844,8 @@ function versionDiff(index: number) {
       </div>
       <div v-else class="tw-editor">
         <template v-if="drawer === 'brief'">
-          <label v-for="field in briefFields" :key="field.key" class="tw-field">{{ field.label }}<textarea v-model="draft.brief[field.key]" rows="3" /></label><fieldset class="tw-methods">
+          <template v-if="auditContent"><div class="tw-field"><strong>异常说明</strong><p>{{ auditContent.abnormality }}</p></div><div class="tw-field"><strong>修改前的内容</strong><p>{{ auditContent.originalContent || '尚未采集修改前的官网原文' }}</p></div></template>
+          <label v-for="field in auditContent ? [] : briefFields" :key="field.key" class="tw-field">{{ field.label }}<textarea v-model="draft.brief[field.key]" rows="3" /></label><fieldset class="tw-methods">
             <legend>执行方法 · 至少选择一项</legend><label v-for="method in [...new Set([...methodOptions, ...draft.methods])]" :key="method" class="tw-check"><input type="checkbox" :checked="draft.methods.includes(method)" @change="toggleMethod(method)">{{ method }}</label>
           </fieldset><div class="tw-inline">
             <label class="tw-field">自定义执行方法<input v-model="customMethod" maxlength="60" @keydown.enter.prevent="addMethod"></label><Button variant="secondary" @click="addMethod">

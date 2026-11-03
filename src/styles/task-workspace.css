@@ -728,6 +728,13 @@
   border-radius: var(--radius-control, 8px);
   background: var(--background-primary);
 }
+.task-workspace.is-brief .tw-brief-workspace .tw-brief--audit-content {
+  grid-template-columns: minmax(0, 1fr);
+}
+.task-workspace.is-brief .tw-brief--audit-content .tw-brief-summary__item + .tw-brief-summary__item {
+  border-top: 1px solid var(--border-default);
+  border-left: 0;
+}
 .task-workspace.is-brief .tw-brief-summary__item {
   position: relative;
   min-width: 0;
@@ -917,9 +924,11 @@
 .task-workspace.is-brief .tw-brief-confirm__copy .tw-error { color: var(--status-error-foreground); }
 @container task-brief (max-width: 900px) {
   .task-workspace.is-brief .tw-brief-workspace .tw-brief--table { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .task-workspace.is-brief .tw-brief-workspace .tw-brief--audit-content { grid-template-columns: minmax(0, 1fr); }
   .task-workspace.is-brief .tw-brief-summary__item + .tw-brief-summary__item { border-left: 0; }
   .task-workspace.is-brief .tw-brief-summary__item:nth-child(even) { border-left: 1px solid var(--border-default); }
   .task-workspace.is-brief .tw-brief-summary__item:nth-child(n + 3) { border-top: 1px solid var(--border-default); }
+  .task-workspace.is-brief .tw-brief--audit-content .tw-brief-summary__item + .tw-brief-summary__item { border-left: 0; }
 }
 @container task-brief (max-width: 760px) {
   .task-workspace.is-brief .tw-task-detail.is-brief { gap: 16px; }

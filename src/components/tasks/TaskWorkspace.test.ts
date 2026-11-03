@@ -49,6 +49,27 @@ function mountWorkspace(role: 'ops' | 'client', task = makeTask(), openFlow = vi
 }
 
 describe('task workspace task confirmation', () => {
+  it('uses the exact GEO audit source rather than the task title to choose the Brief summary', () => {
+    const task = makeTask()
+    task.name = '碳纤维切割能力页缺少适用条件'
+    task.source = 'FC-01'
+    const wrapper = mountWorkspace('client', task)
+    const summary = wrapper.get('.tw-brief-summary')
+
+    expect(summary.text()).toContain('异常说明')
+    expect(summary.text()).toContain('修改前的内容')
+    expect(summary.text()).toContain('尚未采集修改前的官网原文')
+    expect(summary.text()).not.toContain('目标人设')
+    expect(summary.text()).not.toContain('决策因子')
+    wrapper.unmount()
+
+    task.source = '旧版任务来源'
+    const strategyWrapper = mountWorkspace('client', task)
+    expect(strategyWrapper.get('.tw-brief-summary').text()).toContain('目标人设')
+    expect(strategyWrapper.get('.tw-brief-summary').text()).not.toContain('修改前的内容')
+    strategyWrapper.unmount()
+  })
+
   it('hides the bottom card during automatic execution but keeps the manual review action bar', () => {
     const automaticTask = makeTask()
     automaticTask.progress = 'todo'

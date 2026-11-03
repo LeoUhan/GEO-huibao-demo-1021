@@ -13,7 +13,7 @@ import GeoDrawer from '../components/workbench/shared/GeoDrawer.vue'
 import PrioritySelect from '../components/workbench/shared/PrioritySelect.vue'
 import GeoWorkbenchToolbar from '../components/workbench/shared/GeoWorkbenchToolbar.vue'
 import { geoWorkbenchRouteContextKey } from '../composables/workbench-route-context'
-import { auditChecks, auditFindings, clientContentReviewFindings, baselineMetrics, cloneGeoTask, displayObjectCodes, filterTasks, initialTasks, personas, prototypeTasks, strategies } from '../data/geo-data'
+import { auditChecks, auditFindings, clientContentReviewFindings, supplementalBriefFindings, baselineMetrics, cloneGeoTask, displayObjectCodes, filterTasks, initialTasks, officialContentSnapshot, personas, prototypeTasks, strategies } from '../data/geo-data'
 import { createRepairTask, generateFindingStrategy, orchestrateStrategy } from '../services/geo-orchestration'
 import { useWorkbenchTasksStore } from '../stores/workbench-tasks'
 import { pendingReviewLabel, strategyReviewStatus } from '../workflows/review-status'
@@ -252,6 +252,9 @@ function restore(mode: ServiceMode) {
     for (const example of auditFindings.filter(isReadOnlyFinding)) {
       if (!restoredFindings.some(finding => finding.id === example.id)) restoredFindings.push({ ...example })
     }
+    for (const example of supplementalBriefFindings) {
+      if (!restoredFindings.some(finding => finding.id === example.id)) restoredFindings.push({ ...example })
+    }
     for (const finding of restoredFindings.filter(isAdviceFinding)) {
       finding.status = '无需处理'
       finding.checked = false
@@ -312,6 +315,24 @@ function restore(mode: ServiceMode) {
       for (const task of tasks.filter(task => task.source === 'F9' && task.type === 'repair')) { task.type = 'web'; task.destination = '官网内容'; task.name = '官网地址内容核对'; task.progress = 'brief'; delete task.workflow }
       findings.splice(0, findings.length, ...normalizeClientFindings(findings))
       strategyState.splice(0, strategyState.length, ...strategyState.filter(strategy => !clientContentReviewFindings.some(finding => strategy.source.split(' / ').includes(finding.id))))
+    }
+    // Rebuild old task snapshots from their exact audit source. Discard the
+    // prototype excerpts saved by earlier versions; they were not page captures.
+    for (const task of tasks) {
+      const snapshot = task.type === 'web'
+        ? [...findings, ...auditFindings, ...clientContentReviewFindings]
+            .filter(item => item.id === task.source)
+            .map(officialContentSnapshot)
+            .find(Boolean)
+        : undefined
+      if (snapshot) {
+        task.sourceKind = 'geo-audit-content'
+        task.auditContent = snapshot
+      }
+      else {
+        delete task.sourceKind
+        delete task.auditContent
+      }
     }
     return true
   }
@@ -608,6 +629,11 @@ function processFinding(finding: AuditFinding, showNotification = true) {
     }
     const strategy = strategyForFinding(finding) ?? generateFindingStrategy(strategyState, finding)
     const task = orchestrateStrategy(tasks, strategy)
+    const auditContent = officialContentSnapshot(finding)
+    if (task.type === 'web' && task.source === finding.id && auditContent) {
+      task.sourceKind = 'geo-audit-content'
+      task.auditContent = auditContent
+    }
     finding.status = '已生成策略'
     finding.checked = false
     reviewNotes[strategy.id] ??= []

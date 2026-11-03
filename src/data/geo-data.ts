@@ -49,6 +49,7 @@ export interface AuditFinding {
   knowledgeTopic?: string
   advice?: string
   evidence?: string
+  originalContent?: string
   routeReason: string
 }
 
@@ -95,6 +96,7 @@ export interface Strategy {
 }
 
 export interface GeoTask {
+  sourceKind?: 'geo-audit-content'
   executionKind?: 'verification'
   verificationOutcome?: 'add-content' | 'edit-content' | 'technical' | 'external' | 'business-gap'
   verificationFollowupId?: string
@@ -109,11 +111,19 @@ export interface GeoTask {
   destination: string
   progress: TaskProgress
   evidence?: string
+  auditContent?: { abnormality: string, originalContent: string }
   workflow?: TaskWorkflow
   relatedStrategies: string[]
   baselineVersion?: string
   strategyWindow?: string
 }
+
+export const supplementalBriefFindings: AuditFinding[] = [
+  { id: 'FC-01', title: '碳纤维切割能力页缺少适用条件', detail: '能力页列出了切割厚度，但没有说明材料类型、设备配置和测试条件，现有产品规格资料可用于核对。', check: '品牌实体', method: '官网内容核对与改写', priority: 'P1', status: '待处理', checked: false, route: 'strategy', category: '官网内容', evidence: '演示核对：官网能力页只给出单一厚度数值；产品规格资料按材料与配置区分适用范围。', routeReason: '确认对应规格后，在 Brief 中明确页面、材料范围和可公开的条件，再补充正文说明。' },
+  { id: 'FC-02', title: '德国本地服务页缺少服务边界', detail: '官网介绍了德国本地服务，但没有区分远程支持、现场响应和培训范围；已有服务资料记录了各项适用条件。', check: '跨平台一致性', method: '官网内容核对与改写', priority: 'P1', status: '待处理', checked: false, route: 'strategy', category: '官网内容', evidence: '演示核对：服务页使用统一的“本地支持”表述，服务资料分别列有支持方式和覆盖地区。', routeReason: '在 Brief 中确认服务地区、响应方式与可公开承诺，再改写服务页和相关问答。' },
+  { id: 'FC-03', title: '航空采购页面缺少交期口径说明', detail: '采购页面展示标准交期，但没有说明定制配置与验收安排可能影响交付时间；已有交付资料可核对。', check: '跨平台一致性', method: '官网内容核对与改写', priority: 'P2', status: '待处理', checked: false, route: 'strategy', category: '官网内容', evidence: '演示核对：页面使用单一交期表述，交付资料区分标准机型、定制项目及验收节点。', routeReason: '在 Brief 中确认不同项目的交期范围和审批口径，再补充采购页面的适用条件。' },
+  { id: 'FC-04', title: '产品对比页未写明比较依据', detail: '产品对比页列出效率和精度优势，但没有标明测试材料、样本条件与数据出处；现有试切记录可核对。', check: '品牌实体', method: '官网内容核对与改写', priority: 'P2', status: '待处理', checked: false, route: 'strategy', category: '官网内容', evidence: '演示核对：对比结论缺少对应的测试条件，试切记录包含材料、设备参数和测量方法。', routeReason: '在 Brief 中选择可公开的测试记录，明确比较对象和适用场景后补充证据说明。' },
+]
 
 export const auditFindings: AuditFinding[] = [
   { id: 'F7-1', title: 'Product Schema 缺失', detail: '碳纤维方案页缺少 Product 结构化数据。', check: '结构化数据', method: '官网修复', priority: 'P0', status: '待处理', checked: false, route: 'repair', routeReason: '缺失项明确，可按标准规则直接修复和验证。' },
@@ -125,6 +135,7 @@ export const auditFindings: AuditFinding[] = [
   { id: 'F7-3', title: '产品页分组导航建议', detail: '长产品页当前可正常读取，可在后续常规改版时评估增加分组锚点导航。', check: '结构化数据', method: '仅提供建议', priority: 'P3', status: '无需处理', checked: false, route: 'advice', category: '官网结构', evidence: '演示检查记录：主要产品内容可读取，当前未发现由分组导航缺失造成的抓取或信息抽取阻断。', advice: '后续常规改版时，可评估为规格、应用和问答区域增加锚点导航；本轮无需修改官网结构。', routeReason: '属于可选的浏览体验建议，本轮无需修复，不进入审核或执行流程。' },
   { id: 'F8-4', title: '案例页摘要表达建议', detail: '案例页已有材料、工艺与应用说明，可在下次内容维护时评估补充简短摘要。', check: '信任信号', method: '仅提供建议', priority: 'P3', status: '无需处理', checked: false, route: 'advice', category: '官网内容', evidence: '演示检查记录：现有案例包含材料、工艺和应用背景，未发现必须在本轮补齐的事实缺失。', advice: '下次更新案例时，可考虑在正文前加入材料、加工需求和适用场景摘要；本轮无需改写或重新生成内容。', routeReason: '现有内容已具备基本信息，摘要属于可选表达建议，仅供后续维护参考。' },
   { id: 'F8-5', title: '产品技术参数缺少核对依据', detail: '官网已展示产品技术参数，但知识库缺少对应的标准化资料，暂时无法核对型号、参数与适用范围。', check: '品牌实体', method: '补充知识提醒', priority: 'P2', status: '待补充知识', checked: false, route: 'knowledge', category: '官网内容', knowledgeTopic: '产品技术参数', evidence: '演示检查记录：知识库未提供包含产品型号、技术参数和适用范围的结构化资料。当前无法据此判定官网参数是否准确。', advice: '请补充「产品技术参数」相关知识库内容。补充后，系统将在下一次监测时重新核对官网中的对应信息。', routeReason: '因缺少标准化核对依据，当前仅提醒补充知识，不判定为内容错误，也不触发内容改写或官网修复。' },
+  ...supplementalBriefFindings,
 ]
 
 export const clientContentReviewFindings: AuditFinding[] = [
@@ -135,6 +146,14 @@ export const clientContentReviewFindings: AuditFinding[] = [
   { id: 'WC-05', title: '认证介绍未说明覆盖范围', detail: '官网认证介绍未区分企业体系认证与产品认证，知识库中已有证书及适用范围资料。', check: '品牌实体', method: '官网内容核对与改写', priority: 'P1', status: '待处理', checked: false, route: 'strategy', category: '官网内容', evidence: '演示核对记录：官网认证介绍未区分企业体系认证与产品认证，知识库中已有证书及适用范围资料。', routeReason: '核对证书后补充认证对象与有效范围，调整可能产生歧义的表达。' },
   { id: 'WC-06', title: '选型问答缺少材料限制说明', detail: '官网选型问答使用通用推荐表述，已有应用资料列出了不同材料与工艺条件下的限制。', check: '信任信号', method: '官网内容核对与改写', priority: 'P2', status: '待处理', checked: false, route: 'strategy', category: '官网内容', evidence: '演示核对记录：官网选型问答使用通用推荐表述，已有应用资料列出了不同材料与工艺条件下的限制。', routeReason: '结合应用资料补充材料条件、工艺限制及需要进一步确认的情况。' },
 ]
+
+export function officialContentSnapshot(finding: AuditFinding): GeoTask['auditContent'] | undefined {
+  if (finding.category !== '官网内容' || finding.route !== 'strategy') return undefined
+  return {
+    abnormality: Array.from(finding.detail).slice(0, 100).join(''),
+    originalContent: Array.from(finding.originalContent ?? '').slice(0, 500).join(''),
+  }
+}
 
 export const auditChecks: AuditCheck[] = [
   { id: '1', label: '抓取渲染', passed: true, note: 'AI 可正常读取渲染后的官网页面。', result: 'AI 可正常读取渲染后的官网页面。', evidence: '渲染与抓取模拟通过；未发现需要生成候选策略的问题。', source: 'AEO 体检' },
