@@ -72,7 +72,7 @@ async function locate() {
   await nextTick()
   if (layer.value?.showPopover && !layer.value.matches(':popover-open')) layer.value.showPopover()
   const currentModule = guideModuleForRoute(route.name).id
-  if (currentModule !== selectedId.value && route.name !== selected.value.route) {
+  if (!targetSpec.value?.preserveModule && currentModule !== selectedId.value && route.name !== selected.value.route) {
     navigating = true
     await router.push({ name: selected.value.route, query: selected.value.route === 'onboarding' ? { ...route.query, preview: '1' } : { ...route.query } }).finally(() => { navigating = false })
     if (ticket !== generation || !open.value) return
@@ -141,7 +141,7 @@ watch(open, async (value) => {
 })
 watch(() => route.name, () => {
   if (!open.value) selectedId.value = guideModuleForRoute(route.name).id
-  else if (!navigating && guideModuleForRoute(route.name).id !== selectedId.value) {
+  else if (!navigating && !targetSpec.value?.preserveModule && guideModuleForRoute(route.name).id !== selectedId.value) {
     selectedId.value = guideModuleForRoute(route.name).id
     stepIndex.value = 0
   }

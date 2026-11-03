@@ -1,6 +1,6 @@
-export interface GuideTarget { selector: string, activate?: string[], unavailable?: string }
+export interface GuideTarget { selector: string, activate?: string[], preserveModule?: boolean, unavailable?: string }
 
-// Activation is restricted to view tabs. A guide never submits, generates or approves data.
+// Activation is limited to navigation and display controls; the guide never submits, generates or approves data.
 export const guideTargets: Record<string, GuideTarget[]> = {
   overview: [
     { selector: '.overview-metrics__cards' },
@@ -23,13 +23,13 @@ export const guideTargets: Record<string, GuideTarget[]> = {
   ],
   diagnosis: [
     { selector: '.geo-audit-panel' },
+    { selector: '.geo-persona-panel' },
     { selector: '.geo-strategy-panel' },
-    { selector: '.geo-workbench-toolbar__role' },
   ],
   optimization: [
     { selector: '.geo-optimization-pending' },
     { selector: '.geo-task-table-wrap' },
-    { selector: '.geo-task-table-wrap' },
+    { selector: '.tw-brief-workspace', activate: ['[data-guide-brief-task="true"]'], preserveModule: true, unavailable: '当前任务列表没有待确认 Brief 的内容任务，请先在优化中心筛选待确认任务。' },
   ],
   'task-detail': [
     { selector: '.task-rich-editor__toolbar', activate: ['[data-guide-task-tab="output"]'], unavailable: '先打开一条内容任务，再从“使用引导”查看该任务当前可用的编辑与审核区域。' },

@@ -1,3 +1,6 @@
+Warning: truncated output (original token count: 14426)
+Total output lines: 886
+
 <script setup lang="ts">
 import type { GeoTask, ServiceMode, UserRole } from '../../data/geo-data'
 import type { TaskBrief, TaskKnowledge, WorkflowAction, WorkflowPayload } from '../../workflows/task-workflow'
@@ -425,148 +428,7 @@ function versionDiff(index: number) {
 </script>
 
 <template>
-  <main class="task-workspace" :class="{ 'is-brief': task.progress === 'brief', 'is-repair': task.type === 'repair' }">
-    <div class="tw-task-detail" :class="{ 'is-brief': task.progress === 'brief' }">
-      <section class="tw-overview" aria-label="任务信息">
-        <div class="tw-topline">
-          <Button class="tw-back-button" variant="text" @click="emit('back')">
-            <AppIcon name="arrowLeft" :size="14" aria-hidden="true" /> 返回优化中心
-          </Button>
-        </div>
-        <header class="tw-header">
-          <div class="tw-title-block">
-            <div class="tw-title-line">
-              <h1>{{ task.name }}</h1>
-              <template v-if="task.type === 'repair'">
-                <Tag :tone="siteStatus.tone" size="sm">
-                  {{ siteStatus.label }}
-                </Tag>
-              </template>
-              <template v-else>
-                <span class="tw-count-badge" :aria-label="task.progress === 'brief' ? `任务序号 ${briefTaskNumber}` : `${task.methods.length} 项执行方法`">
-                  {{ task.progress === 'brief' ? briefTaskNumber : task.methods.length }}
-                </span>
-                <Tag v-if="task.progress !== 'brief'" tone="blue" size="sm">
-                  {{ taskContextLabel }}
-                </Tag>
-              </template>
-            </div>
-            <p class="tw-task-id">
-              {{ taskSubtitle }}
-            </p>
-          </div>
-          <div class="tw-header-actions">
-            <div v-if="task.type !== 'repair' && serviceMode === 'managed'" class="tw-role-test" data-test="workflow-role-switch">
-              <span class="tw-role-test__label">流程测试</span>
-              <div class="tw-role-test__options" role="group" aria-label="切换测试角色">
-                <Button
-                  variant="secondary"
-                  :aria-pressed="role === 'ops'"
-                  data-test="workflow-role-ops"
-                  @click="emit('setTestRole', 'ops')"
-                >
-                  运营
-                </Button>
-                <Button
-                  variant="secondary"
-                  :aria-pressed="role === 'client'"
-                  data-test="workflow-role-client"
-                  @click="emit('setTestRole', 'client')"
-                >
-                  客户
-                </Button>
-              </div>
-            </div>
-            <Button v-if="task.type !== 'repair'" class="tw-permission-help" variant="secondary" data-test="open-permissions" @click="permissionDrawerOpen = true">
-              权限说明
-            </Button>
-          </div>
-        </header>
-        <TaskProgressTimeline :steps="flowSteps" :title="task.type === 'repair' ? undefined : task.type === 'external' ? '外部内容执行流程' : '官网任务执行流程'">
-          <template v-if="task.type !== 'repair'" #action>
-            <Button variant="text" data-test="open-full-flow" @click="routeContext.openFlow('optimization')">
-              查看完整流程与角色分工 <AppIcon name="arrowRight" :size="14" aria-hidden="true" />
-            </Button>
-          </template>
-        </TaskProgressTimeline>
-      </section>
-      <section class="tw-content-panel" aria-label="任务执行内容">
-        <section v-if="task.executionKind === 'verification' && task.progress !== 'brief'" class="tw-card">
-          <h2>原因核查</h2><p>核对原始回答、真实业务能力与现有资料，形成核查结论；此任务不生成文章或提交官网。</p>
-          <label class="tw-field">核查结果<select v-model="task.verificationOutcome" :disabled="task.progress === 'done'">
-            <option disabled :value="undefined">请选择已核实的原因</option>
-            <option value="add-content">有能力，官网未介绍</option><option value="edit-content">已有介绍，表达不明确</option><option value="technical">内容完整，存在读取障碍</option><option value="external">需要补充第三方来源</option><option value="business-gap">实际不具备该能力</option>
-          </select></label>
-          <label class="tw-field">核查记录<textarea v-model="draft.body" :readonly="task.progress === 'done'" rows="7" placeholder="记录核查资料、发现的原因和后续处理建议" /></label>
-          <Button :disabled="!draft.body.trim() || !task.verificationOutcome || task.progress === 'done'" @click="completeVerification">保存核查结论并完成</Button>
-          <p v-if="task.progress === 'done'">核查已完成。内容类结论已进入后续策略审核；技术问题进入直接处理；业务能力缺口仅记录。</p>
-          <Button v-if="task.verificationFollowupId" @click="openVerificationFollowup">查看后续处理</Button>
-        </section>
-        <p v-if="task.executionKind !== 'verification' && automatic && serviceMode === 'agent' && task.type !== 'repair'" class="tw-card" role="status">AI 正在处理，请稍候…</p>
-        <template v-if="task.type === 'repair'">
-          <TaskRepairDetail :task="task" :site="flow.site" :status-label="siteStatus.label" :status-tone="siteStatus.tone" />
-          <section v-if="serviceMode === 'agent' && !isDirectRepairTask(task)" class="tw-card" aria-label="修复操作">
-            <p v-if="error" class="tw-error" role="alert">{{ error }}</p>
-            <p v-if="ignoredTask">本次修复已忽略，原因和说明已保存。</p>
-            <div v-else-if="task.progress === 'human'" class="tw-actions">
-              <Button variant="secondary" @click="drawer = 'ignore'">忽略</Button>
-              <Button data-test="confirm-repair" @click="act('submit_site')">确认修复并提交官网</Button>
-            </div>
-            <div v-else-if="task.progress === 'site_failed'" class="tw-actions">
-              <Button variant="secondary" @click="drawer = 'ignore'">忽略</Button>
-              <Button data-test="retry-repair" @click="openEditor('retry')">补充要求并重试</Button>
-            </div>
-            <p v-else-if="automatic" role="status">AI 正在执行修复与验证（本地模拟）…</p>
-            <p v-else-if="task.progress === 'done'" role="status">修复执行与验证模拟已完成。</p>
-          </section>
-        </template>
-        <template v-else-if="task.executionKind !== 'verification' || task.progress === 'brief'">
-          <TaskSiteCollaboration v-if="tab === 'website'" :task="task" :brief="flow.brief" :site="flow.site" :methods="task.methods" :status-label="siteStatus.label" :status-tone="siteStatus.tone" />
-          <div class="tw-more-details" :class="{ 'tw-brief-workspace': task.progress === 'brief' }">
-            <header v-if="task.progress === 'brief'" class="tw-brief-workspace__head">
-              <h2>Task Brief 确认</h2>
-              <Tag tone="blue" size="sm">
-                V{{ flow.output.revision }}
-              </Tag>
-            </header>
-            <header v-if="isContentPreparation && task.progress !== 'brief'" class="tw-workspace-head">
-              <h2>内容审核工作区</h2>
-              <Tag tone="blue" size="sm">
-                V{{ flow.output.revision }}
-              </Tag>
-            </header>
-            <nav class="tw-tabs" :class="{ 'tw-tabs--workspace': task.progress !== 'brief' }" aria-label="任务详情">
-              <button v-for="item in tabs" :key="item.key" :data-guide-task-tab="item.key" type="button" :aria-current="tab === item.key ? 'page' : undefined" :class="{ active: tab === item.key }" @click="tab = item.key">
-                {{ item.label }}
-              </button>
-            </nav>
-            <section v-if="tab === 'brief'" class="tw-card" :class="{ 'tw-card--brief': task.progress === 'brief' }">
-              <div v-if="task.progress !== 'brief'" class="tw-section-head">
-                <div><h2>Task Brief</h2><p>明确执行范围、品牌事实与交付标准，确认后作为任务执行基线。</p></div><Button v-if="editableBrief && serviceMode === 'managed'" variant="secondary" @click="openEditor('brief')">
-                  编辑 Brief
-                </Button>
-              </div>
-              <div class="tw-brief-layout" :class="{ 'is-initial': task.progress === 'brief' }">
-                <section class="tw-brief-summary" aria-labelledby="tw-brief-summary-title">
-                  <h3 id="tw-brief-summary-title">
-                    任务概要
-                  </h3>
-                  <dl class="tw-brief" :class="{ 'tw-brief--table': task.progress === 'brief', 'tw-brief--audit-content': auditContent }">
-                    <template v-if="auditContent">
-                      <template v-if="task.progress === 'brief'">
-                        <div class="tw-brief-summary__item"><dt>异常说明</dt><dd>{{ auditContent.abnormality }}</dd></div>
-                        <div class="tw-brief-summary__item"><dt>修改前的内容</dt><dd>{{ auditContent.originalContent || '尚未采集修改前的官网原文' }}</dd></div>
-                      </template>
-                      <template v-else>
-                        <dt>异常说明</dt><dd>{{ auditContent.abnormality }}</dd>
-                        <dt>修改前的内容</dt><dd>{{ auditContent.originalContent || '尚未采集修改前的官网原文' }}</dd>
-                      </template>
-                    </template>
-                    <template v-for="field in auditContent ? [] : briefFields" :key="field.key">
-                      <div v-if="task.progress === 'brief'" class="tw-brief-summary__item">
-                        <dt>{{ field.label }}</dt>
-                        <dd>{{ flow.brief[field.key] }}</dd>
-                      </div>
+  <main class="tas…2426 tokens truncated…>
                       <template v-else>
                         <dt>{{ field.label }}</dt><dd>{{ flow.brief[field.key] }}</dd>
                       </template>
@@ -774,11 +636,11 @@ function versionDiff(index: number) {
         <Button v-if="operationsWaitingForClientReview" variant="secondary" disabled data-test="waiting-client-final-review">
           等待客户确认最终稿
         </Button>
-        <Button v-else-if="(!customerFinalReview || serviceMode === 'agent') && !ignoredTask && task.progress !== 'done'" class="tw-ignore-action" variant="secondary" data-test="ignore-task" :disabled="!canIgnoreCurrentStep" :title="canIgnoreCurrentStep ? undefined : `当前步骤由${ignoreOwner(task, serviceMode) === 'ops' ? '运营' : '客户'}负责`" @click="drawer = 'ignore'">
+        <Button v-else-if="!customerFinalReview && !ignoredTask && task.progress !== 'done'" class="tw-ignore-action" variant="secondary" data-test="ignore-task" :disabled="!canIgnoreCurrentStep" :title="canIgnoreCurrentStep ? undefined : `当前步骤由${ignoreOwner(task, serviceMode) === 'ops' ? '运营' : '客户'}负责`" @click="drawer = 'ignore'">
           忽略
         </Button>
         <template v-if="reviewing">
-          <Button v-if="operationsContentReview || serviceMode === 'agent'" variant="secondary" data-test="save-inline-output" :disabled="!outputDirty" @click="saveInlineOutput">
+          <Button v-if="operationsContentReview" variant="secondary" data-test="save-inline-output" :disabled="!outputDirty" @click="saveInlineOutput">
             保存正文
           </Button>
           <Button v-if="serviceMode !== 'agent' && !operationsContentReview && !customerFinalReview" variant="secondary" :data-test="task.progress === 'client_content_review' ? 'request-output-feedback' : undefined" @click="submitOutputFeedback">

@@ -217,7 +217,7 @@ function setTaskStatus(value: string) {
             <span class="geo-progress" :class="`geo-progress--${taskFromRow(item).progress}`">{{ taskStageLabel(taskFromRow(item), serviceMode) }}</span>
           </template>
           <template #cell-actions="{ item }">
-            <Button class="geo-task-detail-button geo-table-detail-button" size="sm" @click="emit('openTask', taskFromRow(item))">
+            <Button class="geo-task-detail-button geo-table-detail-button" size="sm" :data-guide-brief-task="taskFromRow(item).progress === 'brief' && taskFromRow(item).type !== 'repair' ? 'true' : undefined" @click="emit('openTask', taskFromRow(item))">
               {{ taskActionLabel(taskFromRow(item)) }}
             </Button>
           </template>
