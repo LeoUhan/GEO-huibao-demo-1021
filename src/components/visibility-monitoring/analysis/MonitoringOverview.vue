@@ -55,11 +55,7 @@ function credibility(detail: RoundDetail | null) {
       手动采集失败：{{ triggerError }}
     </p>
     <dl v-if="round || additionalMetrics.length" class="vm-round-summary__metrics" :class="{ 'has-additional': additionalMetrics.length }" :style="{ '--metric-count': (additionalMetrics.length + (showRoundNumber ? 3 : 2)).toString() }">
-      <div><dt>监测日期</dt><dd>{{ displayValue(round?.monitorDate) }}</dd></div>
-      <div v-if="showRoundNumber">
-        <dt>轮次</dt>
-        <dd>{{ displayValue(round?.roundNo) }}</dd>
-      </div>
+      <div><dt>监测时间 / 轮次</dt><dd>{{ displayValue(round?.monitorDate) }} · 第 {{ displayValue(round?.roundNo) }} 轮</dd></div>
       <template v-if="variant === 'overview' && !showRoundNumber">
         <div v-for="metric in additionalMetrics" :key="metric.label">
           <dt>{{ metric.label }}</dt>
@@ -72,15 +68,11 @@ function credibility(detail: RoundDetail | null) {
         </div>
       </template>
       <template v-else>
-        <div class="vm-round-summary__confidence">
-          <dt>可信度</dt><dd :title="credibility(detail).reason">
-            {{ credibility(detail).label }}
-          </dd>
-        </div>
         <div v-for="metric in additionalMetrics" :key="metric.label">
           <dt>{{ metric.label }}</dt>
           <dd>{{ displayValue(metric.value, metric.suffix) }}</dd>
         </div>
+        <div class="vm-round-summary__confidence"><dt>可信度</dt><dd :title="credibility(detail).reason">{{ credibility(detail).label }}</dd></div>
       </template>
     </dl>
   </section>

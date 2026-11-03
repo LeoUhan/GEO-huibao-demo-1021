@@ -122,6 +122,7 @@ async function loadBoundMarketConfiguration() {
     purchaseBudget: persona.purchaseBudget ?? '',
     purchaseCycle: persona.purchaseCycle ?? '',
     discoveryChannel: persona.infoChannels ?? '',
+      commonQuestions: persona.commonQuestions ?? '',
   }))
   marketContext.updateSetupPersonas(personasForEditor)
   marketContext.updateSetupQuestionSelection(questions.filter(question => question.isFirstSelected === 1).map(question => String(question.id)))
@@ -217,6 +218,7 @@ async function savePersonasImmediately(nextPersonas: BuyerPersona[]) {
     purchaseBudget: persona.purchaseBudget ?? '',
     purchaseCycle: persona.purchaseCycle ?? '',
     discoveryChannel: persona.infoChannels ?? '',
+      commonQuestions: persona.commonQuestions ?? '',
   }))
   marketContext.updateSetupPersonas(savedPersonas)
   return savedPersonas

@@ -47,6 +47,7 @@ const personaDrafts = computed<BuyerPersona[]>(() => props.personas.map(persona 
   purchaseBudget: persona.purchaseBudget ?? '',
   purchaseCycle: persona.purchaseCycle ?? '',
   discoveryChannel: persona.infoChannels ?? '',
+      commonQuestions: persona.commonQuestions ?? '',
 })))
 
 const questionColumns: DataListColumn<unknown>[] = [

@@ -3,14 +3,19 @@ export interface GuideTarget { selector: string, activate?: string[], unavailabl
 // Activation is restricted to view tabs. A guide never submits, generates or approves data.
 export const guideTargets: Record<string, GuideTarget[]> = {
   overview: [
-    { selector: '.vm-round-summary' },
+    { selector: '.overview-metrics__cards' },
+    { selector: '.overview-metrics .visibility-chart' },
+    { selector: '.platform-performance' },
     { selector: '.agent-queue' },
   ],
   'visibility-monitoring': [
-    { selector: '.vm-process' },
-    { selector: '.visibility-analysis > section:first-child', activate: ['#visibility-step-5', '#visibility-tab-brand'] },
-    { selector: '.vm-table-card', activate: ['#visibility-step-5', '#visibility-tab-questions'] },
-    { selector: '.vm-source-stack > section:first-child', activate: ['#visibility-step-5', '#visibility-tab-sources'] },
+    { selector: '#visibility-step-1', activate: ['#visibility-step-1'] },
+    { selector: '#visibility-step-2', activate: ['#visibility-step-2'] },
+    { selector: '#visibility-step-3', activate: ['#visibility-step-3'] },
+    { selector: '#visibility-step-4', activate: ['#visibility-step-4'] },
+    { selector: '#visibility-tab-brand', activate: ['#visibility-step-5', '#visibility-tab-brand'] },
+    { selector: '#visibility-tab-questions', activate: ['#visibility-step-5', '#visibility-tab-questions'] },
+    { selector: '#visibility-tab-sources', activate: ['#visibility-step-5', '#visibility-tab-sources'] },
   ],
   'report-center': [
     { selector: '.reports-panel, .report-prototype-view' },

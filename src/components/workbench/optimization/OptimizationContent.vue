@@ -132,6 +132,7 @@ function setTaskStatus(value: string) {
 
     <section class="geo-diagnosis-summary geo-optimization-summary" aria-label="任务概况与待办">
       <div class="geo-optimization-summary__overview">
+        <div class="geo-optimization-round-meta"><span>监测时间 / 轮次</span><b>2026-10-02 · 第 5 轮</b></div>
         <header class="geo-diagnosis-summary__header">
           <div class="geo-diagnosis-summary__title">
             <span class="geo-diagnosis-summary__icon" aria-hidden="true">✦</span>

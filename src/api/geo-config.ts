@@ -26,6 +26,7 @@ export interface BuyerPersonaRecord {
   purchaseBudget: string | null
   purchaseCycle: string | null
   infoChannels: string | null
+  commonQuestions?: string | null
   description: string | null
   focusTopics: string[] | null
   purchaseStages: string[] | null
@@ -67,6 +68,7 @@ export interface PersonaSaveInput {
   purchaseBudget?: string
   purchaseCycle?: string
   infoChannels?: string
+  commonQuestions?: string
   description?: string
   focusTopics?: string[]
   purchaseStages?: string[]

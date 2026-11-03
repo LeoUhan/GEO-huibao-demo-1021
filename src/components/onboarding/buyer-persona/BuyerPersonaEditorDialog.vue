@@ -47,6 +47,7 @@ function newDraft(): BuyerPersonaDraft {
     id: `buyer-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
     type: '',
     purchaseStage: '',
+    commonQuestions: '',
     actualRole: '',
     industry: '',
     companySize: '',
@@ -59,7 +60,7 @@ function newDraft(): BuyerPersonaDraft {
 }
 
 function resetDraft() {
-  drafts.value = props.personas.map(item => ({ ...item }))
+  drafts.value = props.personas.map(item => ({ ...item, commonQuestions: item.commonQuestions ?? '' }))
   if (props.mode === 'add' && drafts.value.length < maxBuyerPersonas)
     drafts.value.push(newDraft())
   if (!drafts.value.length)
@@ -210,6 +211,12 @@ watch([open, () => props.mode], ([isOpen]) => {
             </div>
           </div>
 
+          <div class="buyer-persona-field buyer-persona-form__questions">
+            <label :for="`persona-questions-${persona.id}`">买家常问的问题</label>
+            <textarea v-if="!isReadOnly" :id="`persona-questions-${persona.id}`" v-model="persona.commonQuestions" rows="3" placeholder="可输入多条问题，每行一条；例如：产品如何安装？交货周期多久？此项选填。" />
+            <div v-else class="buyer-persona-field__value buyer-persona-form__questions-value">{{ persona.commonQuestions || '—' }}</div>
+          </div>
+
           <div class="buyer-persona-form__optional">
             <button
               type="button"
@@ -335,6 +342,9 @@ watch([open, () => props.mode], ([isOpen]) => {
 .buyer-persona-editor__intro,.buyer-persona-editor__hint { margin: 0; color: var(--text-secondary); font-size: var(--font-size-body); line-height: var(--line-height-body); }
 .buyer-persona-editor__list { display: grid; gap: var(--space-3); }
 .buyer-persona-form { padding: var(--space-3); border: 1px solid var(--border-default); border-radius: var(--radius-card); background: var(--background-primary); }
+.buyer-persona-form__questions { margin-top: var(--space-3); gap: 8px; }
+.buyer-persona-form__questions textarea { box-sizing: border-box; width: 100%; min-height: 84px; padding: 12px; border: 1px solid var(--border-default); border-radius: var(--radius-control); color: var(--text-primary); background: var(--background-primary); font: inherit; resize: vertical; }
+.buyer-persona-form__questions-value { white-space: pre-line; }
 .buyer-persona-form__header { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); margin-bottom: var(--space-3); }
 .buyer-persona-form__header h3 { margin: 0; color: var(--text-primary); font-size: var(--font-size-section-title); line-height: var(--line-height-section-title); font-weight: var(--weight-semibold); }
 .buyer-persona-form__fields,.buyer-persona-form__optional-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-3); }

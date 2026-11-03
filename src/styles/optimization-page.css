@@ -74,3 +74,5 @@ html.ce-iframe-root .geo-optimization-pending .geo-action-card.ce-action-card:ho
 .geo-optimization-no-pending{margin:16px 0 0;padding:4px 0;color:var(--geo-text-3);font-size:13px;line-height:20px}
 @media(max-width:1200px){.geo-optimization-summary{grid-template-columns:minmax(0,1fr);gap:20px}.geo-optimization-pending{padding:16px 0 0;border-left:0;border-top:1px solid var(--geo-border)}.geo-optimization-pending>.geo-panel__head{min-height:24px}.geo-optimization-pending .geo-action-grid{grid-template-columns:repeat(auto-fit,minmax(min(100%,200px),1fr));margin-top:12px}}
 @media(max-width:520px){.geo-optimization-summary .geo-optimization-summary__metrics{grid-template-columns:repeat(2,minmax(0,1fr))}}
+
+.geo-optimization-round-meta{display:flex;gap:12px;align-items:center;color:var(--geo-text-3);font-size:12px}.geo-optimization-round-meta b{color:var(--geo-text-1);font-size:13px}

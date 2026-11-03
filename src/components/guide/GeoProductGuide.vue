@@ -4,11 +4,12 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, shallowRef, watch 
 import { useRoute, useRouter } from 'vue-router'
 import { geoGuideModules, guideModuleForRoute } from '../../data/geo-product-guide'
 import Button from '../ui/ce/button/Button.vue'
-import { guideTargets, positionGuide } from './guide-targets'
+import { guideTargets } from './guide-targets'
 
 const props = withDefaults(defineProps<{ storageKey?: string }>(), { storageKey: 'geo-product-guide:v1:dismissed' })
 const route = useRoute()
 const router = useRouter()
+const isOnboarding = computed(() => route.name === 'onboarding')
 const open = ref(false)
 const selectedId = ref(guideModuleForRoute(route.name).id)
 const stepIndex = ref(0)
@@ -48,7 +49,7 @@ function measure() {
     height: Math.max(0, Math.min(height - 4, rect.bottom + 6) - Math.max(4, rect.top - 6)),
   } : null
   const bounds = card.value?.getBoundingClientRect()
-  position.value = positionGuide(highlight.value, { width, height }, { width: bounds?.width || Math.min(360, width - 32), height: bounds?.height || 360 })
+  position.value = { left: Math.max(16, width - (bounds?.width || 360) - 24), top: Math.max(16, height - (bounds?.height || 360) - 24), side: 'fixed' }
 }
 function queueMeasure() {
   cancelAnimationFrame(frame)
@@ -64,34 +65,19 @@ async function locate() {
   if (!open.value) return
   const ticket = ++generation
   stopWaiting()
-  locating.value = true
+  locating.value = false
   message.value = ''
   highlight.value = null
+  target.value = null
   await nextTick()
   if (layer.value?.showPopover && !layer.value.matches(':popover-open')) layer.value.showPopover()
-  try {
-    const currentModule = guideModuleForRoute(route.name).id
-    if (currentModule !== selectedId.value && route.name !== selected.value.route) {
-      navigating = true
-      const failure = await router.push({ name: selected.value.route, query: selected.value.route === 'onboarding' ? { ...route.query, preview: '1' } : { ...route.query } }).finally(() => { navigating = false })
-      if (ticket !== generation || !open.value) return
-      if (failure && router.currentRoute.value.name !== selected.value.route) throw new Error('页面未切换')
-      await nextTick()
-    }
+  const currentModule = guideModuleForRoute(route.name).id
+  if (currentModule !== selectedId.value && route.name !== selected.value.route) {
+    navigating = true
+    await router.push({ name: selected.value.route, query: selected.value.route === 'onboarding' ? { ...route.query, preview: '1' } : { ...route.query } }).finally(() => { navigating = false })
     if (ticket !== generation || !open.value) return
-    for (const selector of targetSpec.value?.activate ?? []) {
-      document.querySelector<HTMLElement>(selector)?.click()
-      await nextTick()
-      if (ticket !== generation || !open.value) return
-    }
   }
-  catch {
-    if (ticket !== generation) return
-    locating.value = false
-    message.value = '页面暂未打开，请重新定位或选择其他模块。'
-    measure()
-    return
-  }
+  locating.value = true
   function found() {
     if (ticket !== generation || !open.value) return
     const element = visibleTarget()
@@ -100,29 +86,26 @@ async function locate() {
     locating.value = false
     message.value = ''
     element.setAttribute('data-geo-guide-target', '')
-    element.scrollIntoView?.({ block: 'start', inline: 'nearest', behavior: 'instant' })
-    if (resizeObserver) resizeObserver.observe(element)
+    element.scrollIntoView?.({ block: 'center', inline: 'nearest', behavior: 'smooth' })
+    resizeObserver?.observe(element)
     queueMeasure()
   }
-  observer = new MutationObserver((changes) => {
-    if (changes.every(change => layer.value?.contains(change.target))) return
-    if (locating.value) found()
-    else queueMeasure()
-  })
-  observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['hidden', 'class'] })
-  if (typeof ResizeObserver !== 'undefined') {
-    resizeObserver = new ResizeObserver(queueMeasure)
-    if (card.value) resizeObserver.observe(card.value)
+  for (const selector of targetSpec.value?.activate ?? []) {
+    document.querySelector<HTMLElement>(selector)?.click()
+    await nextTick()
+    if (ticket !== generation || !open.value) return
   }
+  observer = new MutationObserver(found)
+  observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['hidden', 'class'] })
   found()
   if (locating.value) deadline = setTimeout(() => {
     if (ticket !== generation) return
     locating.value = false
-    message.value = targetSpec.value?.unavailable ?? '当前页面尚未展示此区域。可在数据加载完成或进入对应功能后重新定位。'
-    measure()
-  }, 2500)
+    message.value = targetSpec.value?.unavailable ?? '当前页面尚未展示此区域。'
+  }, 2000)
   measure()
 }
+
 function launch() {
   selectedId.value = guideModuleForRoute(route.name).id
   stepIndex.value = 0
@@ -143,7 +126,6 @@ function selectModule(event: Event) {
 }
 function next() {
   if (stepIndex.value < selected.value.steps.length - 1) stepIndex.value++
-  else dismiss()
 }
 function handleKey(event: KeyboardEvent) {
   if (event.key === 'F1' || (open.value && event.key === 'Escape')) {
@@ -168,6 +150,7 @@ onMounted(() => {
   window.addEventListener('keydown', handleKey, true)
   window.addEventListener('resize', queueMeasure)
   document.addEventListener('scroll', queueMeasure, true)
+  if (isOnboarding.value) return
   let dismissed = false
   try { dismissed = localStorage.getItem(props.storageKey) === '1' } catch { /* Show the first-entry guide when storage is unavailable. */ }
   if (!dismissed) launch()
@@ -183,7 +166,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <button ref="launcher" type="button" class="geo-guide-launcher" aria-haspopup="dialog" :aria-expanded="open" title="使用引导（F1）" @click="launch"><span aria-hidden="true">?</span> 使用引导</button>
+  <button v-if="!isOnboarding" ref="launcher" type="button" class="geo-guide-launcher" aria-haspopup="dialog" :aria-expanded="open" title="使用引导（F1）" @click="launch"><span aria-hidden="true">?</span> 使用引导</button>
   <Teleport to="body">
     <div v-if="open" ref="layer" popover="manual" class="geo-guide-layer">
       <div v-if="highlight" class="geo-guide-highlight" :style="{ left: `${highlight.left}px`, top: `${highlight.top}px`, width: `${highlight.width}px`, height: `${highlight.height}px` }" />
@@ -207,7 +190,7 @@ onBeforeUnmount(() => {
         <footer>
           <button type="button" class="geo-guide-skip" @click="dismiss">跳过</button>
           <Button size="sm" :disabled="stepIndex === 0" @click="stepIndex--">上一步</Button>
-          <Button size="sm" variant="primary" @click="next">{{ stepIndex === selected.steps.length - 1 ? '完成本模块' : '下一步' }}</Button>
+          <Button size="sm" variant="primary" @click="stepIndex === selected.steps.length - 1 ? dismiss() : next()">{{ stepIndex === selected.steps.length - 1 ? '结束引导' : '下一步' }}</Button>
         </footer>
       </aside>
     </div>
@@ -220,6 +203,7 @@ onBeforeUnmount(() => {
 .geo-guide-launcher > span { display: grid; width: 18px; height: 18px; place-items: center; border: 1.5px solid currentColor; border-radius: 50%; font-size: 12px; font-weight: 600; }
 .geo-guide-layer { position: fixed; inset: 0; width: 100%; height: 100%; max-width: none; max-height: none; margin: 0; padding: 0; border: 0; overflow: hidden; background: transparent; color: var(--text-primary); pointer-events: none; z-index: 10000; }
 .geo-guide-highlight { position: fixed; box-sizing: border-box; border: 2px solid var(--action-accent); border-radius: 12px; box-shadow: 0 0 0 9999px #181a3038; pointer-events: none; }
+
 .geo-guide-card { position: fixed; box-sizing: border-box; display: flex; flex-direction: column; width: min(360px, calc(100vw - 32px)); max-height: calc(100dvh - 32px); overflow: auto; padding: 18px; border: 1px solid var(--border-default); border-radius: 14px; background: var(--background-primary); box-shadow: 0 12px 48px #20224526; pointer-events: auto; }
 .geo-guide-card header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .geo-guide-card select { width: calc(100% - 32px); padding: 5px 0; border: 0; color: var(--text-secondary); background: var(--background-primary); font: inherit; font-size: 12px; cursor: pointer; }

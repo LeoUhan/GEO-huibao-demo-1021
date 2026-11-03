@@ -289,7 +289,7 @@ function summaryText({ total, page, pages }: { total: number, page: number, page
         </div>
       </header>
       <div class="geo-diagnosis-summary__metrics">
-        <div><span>监测日期</span><b>2026-10-02</b></div>
+        <div><span>监测时间 / 轮次</span><b>2026-10-02 · 第 5 轮</b></div>
         <div><span>市场 / 语言</span><b>德国 / 德语</b></div>
         <div><span>买家人设</span><b>3 类</b></div>
         <div><span>意图</span><b>4 类</b></div>

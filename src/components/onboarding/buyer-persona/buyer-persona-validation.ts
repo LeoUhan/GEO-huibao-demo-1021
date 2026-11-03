@@ -2,6 +2,7 @@ export interface BuyerPersonaDraft {
   id: string
   type: string
   purchaseStage: string
+  commonQuestions?: string
   actualRole: string
   industry: string
   companySize: string

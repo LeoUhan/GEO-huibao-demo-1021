@@ -157,6 +157,7 @@ export function useFirstConfigWizard() {
       purchaseBudget: persona.purchaseBudget ?? '',
       purchaseCycle: persona.purchaseCycle ?? '',
       discoveryChannel: persona.infoChannels ?? '',
+      commonQuestions: persona.commonQuestions ?? '',
     })))
     onboarding.updateMonitoringQuestionSelection(questions.value.filter(question => question.isFirstSelected === 1).map(question => String(question.id)))
     const savedPlatforms = platforms.value.filter(platform => platform.enabled === 1).map(platform => normalizeMonitoringPlatform(platform.platform))
@@ -408,6 +409,7 @@ export function useFirstConfigWizard() {
           purchaseBudget: persona.purchaseBudget || undefined,
           purchaseCycle: persona.purchaseCycle || undefined,
           infoChannels: persona.discoveryChannel || undefined,
+          commonQuestions: persona.commonQuestions || undefined,
           purchaseStages: persona.purchaseStage ? [persona.purchaseStage] : [],
         }
         const existing = current.get(persona.id)
@@ -422,11 +424,12 @@ export function useFirstConfigWizard() {
           || (existing.purchaseBudget ?? undefined) !== payload.purchaseBudget
           || (existing.purchaseCycle ?? undefined) !== payload.purchaseCycle
           || (existing.infoChannels ?? undefined) !== payload.infoChannels
+          || (existing.commonQuestions ?? undefined) !== payload.commonQuestions
           || (existing.purchaseStages ?? []).join('\u0000') !== payload.purchaseStages.join('\u0000')
         )) {
           await updatePersona(existing.id, payload)
           updated = updated.map(item => item.id === existing.id
-            ? { ...item, ...payload, actualPosition: payload.actualPosition ?? null, industry: payload.industry ?? null, companyScale: payload.companyScale ?? null, decisionRole: payload.decisionRole ?? null, purchaseTrigger: payload.purchaseTrigger ?? null, purchaseBudget: payload.purchaseBudget ?? null, purchaseCycle: payload.purchaseCycle ?? null, infoChannels: payload.infoChannels ?? null }
+            ? { ...item, ...payload, actualPosition: payload.actualPosition ?? null, industry: payload.industry ?? null, companyScale: payload.companyScale ?? null, decisionRole: payload.decisionRole ?? null, purchaseTrigger: payload.purchaseTrigger ?? null, purchaseBudget: payload.purchaseBudget ?? null, purchaseCycle: payload.purchaseCycle ?? null, infoChannels: payload.infoChannels ?? null, commonQuestions: payload.commonQuestions ?? null }
             : item)
         }
         else if (!existing) {
@@ -462,6 +465,7 @@ export function useFirstConfigWizard() {
         purchaseBudget: persona.purchaseBudget ?? '',
         purchaseCycle: persona.purchaseCycle ?? '',
         discoveryChannel: persona.infoChannels ?? '',
+      commonQuestions: persona.commonQuestions ?? '',
       }))
       onboarding.updateBuyerPersonas(savedPersonas)
       return savedPersonas
@@ -482,6 +486,7 @@ export function useFirstConfigWizard() {
         purchaseBudget: persona.purchaseBudget ?? '',
         purchaseCycle: persona.purchaseCycle ?? '',
         discoveryChannel: persona.infoChannels ?? '',
+      commonQuestions: persona.commonQuestions ?? '',
       })))
       throw cause
     }
