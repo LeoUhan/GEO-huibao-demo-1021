@@ -231,7 +231,7 @@ const waitingFor = computed(() => {
   if (automatic.value)
     return '本地模拟正在自动执行，无需人工推进。离开详情将暂停，重新进入后继续。'
   if (props.task.progress === 'done' && props.serviceMode === 'agent' && props.task.type !== 'external')
-    return '官网执行与验证模拟已完成，可查看处理结果。'
+    return ''
   if (props.task.progress === 'done')
     return props.task.type === 'external' ? '外部成稿已完成交付，不跟踪外部发布 URL。' : '任务已形成闭环，可从来源策略查看效果回流。'
   if (props.task.progress === 'brief')
@@ -636,9 +636,6 @@ function versionDiff(index: number) {
               <p v-if="flow.feedback" class="tw-feedback">
                 最新调整意见：{{ flow.feedback }}
               </p>
-              <p class="tw-muted">
-                Brief 版本与所有方法、资料调整均可在“版本 / Diff”中追溯。
-              </p>
               <section v-if="task.progress === 'brief' && !isTaskIgnored(task)" class="tw-brief-confirm" :class="{ 'is-client-preview': clientPreview }" aria-label="当前阶段操作">
                 <div class="tw-brief-confirm__copy">
                   <strong v-if="(role === 'client' && serviceMode === 'managed') || clientPreview || flow.briefStatus !== 'ready'" class="tw-brief-confirm__eyebrow">{{ role === 'client' || clientPreview ? '客户视图预览' : taskStageLabel(task, serviceMode) }}</strong>
@@ -763,7 +760,7 @@ function versionDiff(index: number) {
 
     <section v-if="task.executionKind !== 'verification' && task.type !== 'repair' && !automatic && (task.progress !== 'brief' || ignoredTask) && !waitingForOperationsReview" class="tw-actionbar" :class="{ 'is-complete': task.progress === 'done', 'is-ignored': Boolean(ignoredTask), 'is-client-content-review': task.progress === 'client_content_review', 'is-client-final-review': customerFinalReview, 'is-ops-content-review': operationsContentReview, 'is-ops-client-review': operationsWaitingForClientReview }" aria-label="当前阶段操作">
       <div>
-        <strong v-if="task.progress !== 'client_content_review' && !customerFinalReview && !operationsContentReview && !operationsWaitingForClientReview">{{ actionbarTitle }}</strong><p :class="{ 'tw-running': automatic }">
+        <strong v-if="task.progress !== 'client_content_review' && !customerFinalReview && !operationsContentReview && !operationsWaitingForClientReview">{{ actionbarTitle }}</strong><p v-if="actionbarDescription" :class="{ 'tw-running': automatic }">
           {{ actionbarDescription }}
         </p><p v-if="message && task.progress !== 'done' && !ignoredTask && !operationsWaitingForClientReview" class="tw-success" role="status">
           {{ message }}

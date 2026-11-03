@@ -64,7 +64,6 @@ const tableLabels = {
   selectRow: (label: string) => `选择 ${label}`,
 }
 const findingColumns: DataListColumn<unknown>[] = [
-  { key: 'select', title: '', width: '5%', minWidth: 48, className: 'geo-finding-select' },
   { key: 'id', title: '序号', width: '9%', minWidth: 96, className: 'geo-finding-id' },
   { key: 'finding', title: '问题 / 建议', width: '23%', minWidth: 225 },
   { key: 'route', title: '处理方式与类型', width: '17%', minWidth: 180 },
@@ -102,6 +101,7 @@ const auditPage = shallowRef(1)
 const pageSize = 5
 const auditFilter = shallowRef('all')
 const treatmentFilter = shallowRef('all')
+const statusFilter = shallowRef('all')
 const allStrategies = computed(() => props.allStrategies ?? props.strategies)
 const canReview = computed(() => props.role === (props.serviceMode === 'agent' ? 'client' : 'ops'))
 const gapAliases: Record<string, string[]> = {
@@ -153,6 +153,9 @@ const visibleStrategies = computed(() => sortedStrategies.value.slice((queuePage
 const activeAuditCheck = computed(() => auditChecks.find(check => check.id === auditFilter.value))
 const filteredFindings = computed(() => props.findings.filter(finding => {
   if (activeAuditCheck.value && finding.check !== activeAuditCheck.value.label) return false
+  if (statusFilter.value === 'pending' && !['待处理', '待客户审核', '待官网运营审核'].includes(finding.status)) return false
+  if (statusFilter.value === 'approved' && !['已生成策略', '已修复'].includes(finding.status)) return false
+  if (statusFilter.value === 'no-review' && (!isDirectRepairFinding(finding) || isReadOnlyFinding(finding))) return false
   if (treatmentFilter.value === 'knowledge') return isKnowledgeFinding(finding)
   if (treatmentFilter.value === 'advice') return isAdviceFinding(finding)
   if (treatmentFilter.value === 'repair') return isDirectRepairFinding(finding)
@@ -166,9 +169,6 @@ function findingFromRow(item: unknown) {
 }
 function strategyFromRow(item: unknown) {
   return item as Strategy
-}
-function isActionable(finding: AuditFinding) {
-  return !findingHasTask(finding, allStrategies.value, props.tasks ?? [], props.serviceMode === 'agent' || finding.id === 'F9') && !isReadOnlyFinding(finding) && !isDirectRepairFinding(finding) && finding.status === '待处理'
 }
 function findingActionLabel(finding: AuditFinding) {
   if (findingHasTask(finding, allStrategies.value, props.tasks ?? [], props.serviceMode === 'agent' || finding.id === 'F9')) return '查看详情'
@@ -196,11 +196,6 @@ function findingCheckLabel(finding: AuditFinding) {
   const index = auditChecks.findIndex(check => check.label === finding.check)
   return `${['①', '②', '③', '④', '⑤', '⑥', '⑦'][index] ?? ''} ${finding.check}`.trim()
 }
-const actionableFindings = computed(() => visibleFindings.value.filter(isActionable))
-const selectedFindings = computed(() => props.findings.filter(finding => isActionable(finding) && finding.checked))
-const selectedCount = computed(() => selectedFindings.value.length)
-const pageSelectedCount = computed(() => actionableFindings.value.filter(finding => finding.checked).length)
-const allSelected = computed(() => actionableFindings.value.length > 0 && actionableFindings.value.every(finding => finding.checked))
 function taskFor(strategy: Strategy) {
   return props.tasks?.find(task => task.strategy === strategy.id || task.relatedStrategies.includes(strategy.id))
 }
@@ -238,7 +233,7 @@ watch(platformFilter, () => {
   queuePage.value = 1
 })
 watch(queuePages, pages => queuePage.value = Math.min(queuePage.value, pages))
-watch(treatmentFilter, () => auditPage.value = 1)
+watch([treatmentFilter, statusFilter], () => auditPage.value = 1)
 watch(auditPages, pages => auditPage.value = Math.min(auditPage.value, pages))
 function openCheck(check: AuditCheck) {
   auditFilter.value = props.serviceMode === 'agent' && auditFilter.value === check.id ? 'all' : check.id
@@ -343,20 +338,18 @@ function summaryText({ total, page, pages }: { total: number, page: number, page
           <option value="knowledge">待补充知识</option>
           <option value="advice">仅提供建议</option>
         </select>
-        <span><b>当前查看：</b>{{ activeAuditCheck ? `${['①', '②', '③', '④', '⑤', '⑥', '⑦'][Number(activeAuditCheck.id) - 1]} ${activeAuditCheck.label}` : '全部问题与建议' }}</span>
+        <select v-model="statusFilter" class="geo-treatment-filter" aria-label="处理状态筛选">
+          <option value="all">全部状态</option>
+          <option value="pending">待审核</option>
+          <option value="approved">已通过</option>
+          <option value="no-review">无需审核</option>
+        </select>
         <Button v-if="auditFilter !== 'all'" variant="text" size="sm" @click="clearAuditFilter">
-          查看全部问题与建议
+          取消筛选
         </Button>
+        <span class="geo-audit-current"><b>当前查看：</b>{{ activeAuditCheck ? `${['①', '②', '③', '④', '⑤', '⑥', '⑦'][Number(activeAuditCheck.id) - 1]} ${activeAuditCheck.label}` : '全部问题与建议' }}</span>
       </div>
       <div class="geo-finding-table-frame">
-        <div class="geo-finding-head">
-          <label v-if="canReview"><input :key="`${auditFilter}-${auditPage}`" type="checkbox" :checked="allSelected" :disabled="!actionableFindings.length" :indeterminate="pageSelectedCount > 0 && !allSelected" @change="emit('selectAllFindings', actionableFindings.map(finding => finding.id))"> 全选当前页</label><span v-else class="geo-muted">客户角色可查看诊断；审核由运营处理</span><div class="geo-finding-actions">
-            <span v-if="canReview && selectedCount" class="geo-finding-selection-count" aria-live="polite">已选 {{ selectedCount }}</span>
-            <Button v-if="canReview && selectedCount" class="geo-finding-approve-button geo-table-detail-button geo-review-button" variant="secondary" size="md" type="button" @click="emit('approveSelectedFindings')">
-              审核通过并生成任务
-            </Button>
-          </div>
-        </div>
         <div class="geo-diagnosis-table-scroll">
           <DataList
             class="geo-finding-table"
@@ -370,14 +363,11 @@ function summaryText({ total, page, pages }: { total: number, page: number, page
             error-message="异常数据加载失败"
             density="compact"
           >
-            <template #cell-select="{ item: finding }">
-              <input v-if="canReview" :id="`finding-${findingFromRow(finding).id}`" type="checkbox" :checked="findingFromRow(finding).checked" :disabled="!isActionable(findingFromRow(finding))" :aria-label="`选择 ${findingFromRow(finding).title}`" @change="emit('selectFinding', findingFromRow(finding).id)">
-            </template>
             <template #cell-id="{ item: finding }">
               {{ displayObjectCodes(findingFromRow(finding).id) }}
             </template>
             <template #cell-finding="{ item: finding }">
-              <label :for="`finding-${findingFromRow(finding).id}`" class="geo-finding-copy"><Tooltip :content="findingFromRow(finding).title" :overflow-only="true"><strong>{{ findingFromRow(finding).title }}</strong></Tooltip></label>
+              <div class="geo-finding-copy"><Tooltip :content="findingFromRow(finding).title" :overflow-only="true"><strong>{{ findingFromRow(finding).title }}</strong></Tooltip></div>
             </template>
             <template #cell-route="{ item: finding }">
               <span class="geo-chip geo-route-badge" :class="findingFromRow(finding).route">{{ findingRouteLabel(findingFromRow(finding), serviceMode === 'agent') }}</span>
@@ -523,7 +513,6 @@ function summaryText({ total, page, pages }: { total: number, page: number, page
         </DataList>
       </div>
       <footer class="geo-panel__foot">
-        <span>同一条策略可以同时关联多个人设，但只生成一个执行任务；已进入优化中心的策略不会因后续监测波动自动覆盖。</span>
         <Pagination v-model="queuePage" :total="sortedStrategies.length" :page-size="pageSize" size="sm" label="候选策略分页" previous-label="策略上一页" next-label="策略下一页" :page-label="page => `策略第 ${page} 页`" :summary-text="summaryText" :format-value="String" />
       </footer>
     </section>

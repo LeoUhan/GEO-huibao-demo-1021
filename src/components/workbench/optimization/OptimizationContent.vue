@@ -63,9 +63,6 @@ const visibleTasks = computed(() => filteredTasks.value.slice((page.value - 1) *
 function taskFromRow(item: unknown) {
   return item as GeoTask
 }
-function taskSerial(task: GeoTask) {
-  return filteredTasks.value.findIndex(item => item.id === task.id) + 1
-}
 function taskPageSummary({ total, page, pages }: { total: number, page: number, pages: number }) {
   return `共 ${total} 条 · 第 ${page} / ${pages} 页`
 }
@@ -202,10 +199,10 @@ function setTaskStatus(value: string) {
           density="compact"
         >
           <template #cell-serial="{ item }">
-            {{ taskSerial(taskFromRow(item)) }}
+            {{ taskFromRow(item).id }}
           </template>
           <template #cell-task="{ item }">
-            <strong>{{ taskFromRow(item).name }}</strong><small>{{ taskFromRow(item).id }}</small>
+            <strong>{{ taskFromRow(item).name }}</strong>
           </template>
           <template #cell-type="{ item }">
             <span class="geo-method">{{ taskTypeLabel(taskFromRow(item)) }}</span>

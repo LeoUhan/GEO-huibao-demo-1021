@@ -8,7 +8,8 @@
 .geo-diagnosis .geo-check-tooltip { display: block; }
 .geo-diagnosis .geo-audit-filter,
 .geo-diagnosis .geo-finding-head { flex-wrap: wrap; gap: 12px; font-size: 14px; line-height: 22px; padding-block: 14px; }
-.geo-diagnosis .geo-audit-filter { padding-top: 8px; padding-bottom: 8px; border-top: 0; border-bottom: 1px solid var(--geo-border); }
+.geo-diagnosis .geo-audit-filter { justify-content: flex-start; padding-top: 8px; padding-bottom: 8px; border-top: 0; border-bottom: 1px solid var(--geo-border); }
+.geo-diagnosis .geo-audit-current { margin-left: auto; }
 .geo-diagnosis .geo-finding-head { gap: 8px; padding-block: 8px; background: var(--geo-surface); border-top: 0; border-bottom: 0; }
 .geo-diagnosis .geo-finding-actions { margin-left: auto; }
 .geo-diagnosis .geo-finding-selection-count { color: var(--geo-text-2); font-size: 13px; font-weight: 400; line-height: 20px; white-space: nowrap; }

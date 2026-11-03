@@ -955,12 +955,6 @@ provide(geoWorkbenchRouteContextKey, {
                 </div>
               </template>
               <p v-else class="geo-strategy-evidence__note">尚未匹配到可核对的正向覆盖差距，请先核查关联主题。</p>
-              <div class="geo-strategy-evidence__snapshot">
-                <strong>关联回答证据 · 演示摘要</strong>
-                <p>{{ (drawer.item as Strategy).evidence }}</p>
-                <small>当前未接入该策略对应的回答原文与页面快照。</small>
-              </div>
-              <p class="geo-strategy-evidence__conclusion">处理判断：{{ clientStrategyPlan(drawer.item as Strategy).label }}。{{ clientStrategyPlan(drawer.item as Strategy).conclusion }}</p>
             </div>
           </section>
           <section v-if="strategyIgnoreMode && canReviewStrategy(drawer.item as Strategy)" class="geo-strategy-ignore-form" aria-label="忽略策略原因">
@@ -1000,7 +994,7 @@ provide(geoWorkbenchRouteContextKey, {
             </template>
             <dt>所属检查项</dt><dd>{{ findingCheckLabel(drawer.item as AuditFinding) }}</dd>
             <dt>当前状态</dt><dd><span class="geo-finding-status" :class="{ 'is-advice': isAdviceFinding(drawer.item as AuditFinding), 'is-done': findingStatusLabel(drawer.item as AuditFinding) === '已修复', 'is-deferred': findingStatusLabel(drawer.item as AuditFinding) === '暂不修复' }">{{ findingStatusLabel(drawer.item as AuditFinding) }}</span></dd>
-            <dt>{{ isAdviceFinding(drawer.item as AuditFinding) ? '观察说明' : '异常说明' }}</dt><dd>{{ (drawer.item as AuditFinding).detail }}</dd><dt>为什么这样处理</dt><dd>{{ (drawer.item as AuditFinding).routeReason }}</dd><dt v-if="(drawer.item as AuditFinding).decisionReason">
+            <dt v-if="(drawer.item as AuditFinding).decisionReason">
               {{ serviceMode === 'agent' ? '终止原因' : '暂缓原因' }}
             </dt><dd v-if="(drawer.item as AuditFinding).decisionReason">
               {{ (drawer.item as AuditFinding).decisionReason }}
