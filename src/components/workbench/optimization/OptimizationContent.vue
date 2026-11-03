@@ -113,8 +113,15 @@ function taskTypeLabel(task: GeoTask) {
   return task.type === 'web' ? '官网内容' : task.type === 'external' ? '外部内容' : '技术修复'
 }
 function sourceLabel(task: GeoTask) {
+  if (task.sourceKind === 'geo-audit-content') return `官网体检 · ${displayObjectCodes(task.source)}`
   const source = task.source.split(/[·/]/)[0]?.trim() || task.source
   return displayObjectCodes(source)
+}
+function taskActionLabel(task: GeoTask) {
+  if (!needsMyAction(task)) return '查看详情'
+  if (task.progress === 'brief') return '确认 Brief'
+  if (['human', 'client_review', 'client_content_review'].includes(task.progress)) return '审核内容'
+  return '查看详情'
 }
 function setTaskFilter(value: string) {
   onlyMine.value = false
@@ -128,7 +135,7 @@ function setTaskStatus(value: string) {
 
 <template>
   <div class="geo-content geo-optimization">
-    <GeoPageIntro variant="workbench" title="优化中心 · 任务工作台" help-label="优化中心说明" description="每个问题分别创建独立 Task；Brief 是 Task 的第一个确认阶段，确认后进入正式执行。" />
+    <GeoPageIntro variant="workbench" title="优化中心 · 任务工作台" help-label="优化中心说明" description="官网体检确认后生成独立任务；候选策略可按执行目标合并为一项任务。任务先确认 Brief，再进入内容执行与审核。" />
 
     <section class="geo-diagnosis-summary geo-optimization-summary" aria-label="任务概况与待办">
       <div class="geo-optimization-summary__overview">
@@ -189,7 +196,7 @@ function setTaskStatus(value: string) {
           :is-row-activatable="() => false"
           label="优化中心任务列表"
           :labels="taskTableLabels"
-          empty-message="暂无任务。确认 Brief 后，任务会进入这里。"
+          empty-message="当前筛选下暂无任务。官网体检问题或候选策略审核通过后，任务会出现在这里。"
           error-message="任务加载失败"
           :show-footer-when-empty="true"
           density="compact"
@@ -211,7 +218,7 @@ function setTaskStatus(value: string) {
           </template>
           <template #cell-actions="{ item }">
             <Button class="geo-task-detail-button geo-table-detail-button" size="sm" @click="emit('openTask', taskFromRow(item))">
-              查看详情
+              {{ taskActionLabel(taskFromRow(item)) }}
             </Button>
           </template>
           <template #footer>

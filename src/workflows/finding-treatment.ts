@@ -24,6 +24,8 @@ export function findingRouteLabel(finding: AuditFinding, clientMode = false) {
 }
 
 export function findingHasTask(finding: AuditFinding, strategies: readonly import('../data/geo-data').Strategy[], tasks: readonly import('../data/geo-data').GeoTask[], includeRepair = false) {
+  if (finding.category === '官网内容' && finding.route === 'strategy')
+    return tasks.some(task => task.sourceKind === 'geo-audit-content' && task.source === finding.id)
   if (includeRepair && finding.id === 'F9') return tasks.some(task => task.source.split(/[\s/·]+/).includes(finding.id))
   if (includeRepair && finding.route === 'strategy' && tasks.some(task => task.source.split(/[\s/·]+/).includes(finding.id))) return true
   if (finding.route !== 'strategy') return false

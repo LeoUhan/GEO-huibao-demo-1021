@@ -14,7 +14,7 @@ import PrioritySelect from '../components/workbench/shared/PrioritySelect.vue'
 import GeoWorkbenchToolbar from '../components/workbench/shared/GeoWorkbenchToolbar.vue'
 import { geoWorkbenchRouteContextKey } from '../composables/workbench-route-context'
 import { auditChecks, auditFindings, clientContentReviewFindings, supplementalBriefFindings, baselineMetrics, cloneGeoTask, displayObjectCodes, filterTasks, initialTasks, officialContentSnapshot, personas, prototypeTasks, strategies } from '../data/geo-data'
-import { createRepairTask, generateFindingStrategy, orchestrateStrategy } from '../services/geo-orchestration'
+import { createRepairTask, orchestrateStrategy } from '../services/geo-orchestration'
 import { useWorkbenchTasksStore } from '../stores/workbench-tasks'
 import { pendingReviewLabel, strategyReviewStatus } from '../workflows/review-status'
 import { findingHasTask, findingRouteLabel, isAdviceFinding, isKnowledgeFinding, isReadOnlyFinding } from '../workflows/finding-treatment'
@@ -316,8 +316,9 @@ function restore(mode: ServiceMode) {
       findings.splice(0, findings.length, ...normalizeClientFindings(findings))
       strategyState.splice(0, strategyState.length, ...strategyState.filter(strategy => !clientContentReviewFindings.some(finding => strategy.source.split(' / ').includes(finding.id))))
     }
-    // Rebuild old task snapshots from their exact audit source. Discard the
-    // prototype excerpts saved by earlier versions; they were not page captures.
+    // Rebuild audit tasks from their exact source, including saved tasks that
+    // were previously routed through a generated candidate strategy.
+    const migratedAuditSources = new Set<string>()
     for (const task of tasks) {
       const snapshot = task.type === 'web'
         ? [...findings, ...auditFindings, ...clientContentReviewFindings]
@@ -328,12 +329,23 @@ function restore(mode: ServiceMode) {
       if (snapshot) {
         task.sourceKind = 'geo-audit-content'
         task.auditContent = snapshot
+        if (task.strategy || task.relatedStrategies.length) {
+          migratedAuditSources.add(task.source)
+          task.strategy = ''
+          task.relatedStrategies = []
+          if (task.workflow) {
+            task.workflow.brief.source = task.source
+            task.workflow.versions?.forEach(version => version.brief.source = task.source)
+          }
+        }
       }
       else {
         delete task.sourceKind
         delete task.auditContent
       }
     }
+    if (migratedAuditSources.size)
+      strategyState.splice(0, strategyState.length, ...strategyState.filter(strategy => !migratedAuditSources.has(strategy.source)))
     return true
   }
   catch {
@@ -478,7 +490,7 @@ function confirmStrategy(strategy: Strategy) {
   reviewNotes[strategy.id] ??= []
   reviewNotes[strategy.id].push({ role: role.value, name: role.value === 'ops' ? '运营' : '客户', time: '刚刚', text: `${role.value === 'ops' ? '运营' : '客户'}审核通过，Agent 已自动编排关联 Task 草稿。` })
   reviewNotes[task.id] ??= []
-  notify(serviceMode.value === 'agent' ? '问题已确认，已生成任务。下一步请确认任务 Brief。' : `${displayObjectCodes(strategy.id)} 已审核，Agent 已自动编排任务`, serviceMode.value === 'agent' ? task : undefined)
+  notify(serviceMode.value === 'agent' ? '问题已确认，已生成任务。下一步请确认任务 Brief。' : `${displayObjectCodes(strategy.id)} 已审核，任务已进入优化中心，等待运营确认 Brief。`, task)
 }
 function openStrategy(strategy: Strategy) {
   reviewText.value = ''
@@ -534,6 +546,8 @@ function openAudit(finding: AuditFinding) {
 }
 function taskForFinding(finding: AuditFinding) {
   if (isReadOnlyFinding(finding)) return undefined
+  if (finding.category === '官网内容' && finding.route === 'strategy')
+    return tasks.find(task => task.sourceKind === 'geo-audit-content' && task.source === finding.id)
   const directTask = tasks.find(task => task.source.split(/[\s/·]+/).includes(finding.id))
   if (directTask)
     return directTask
@@ -627,20 +641,13 @@ function processFinding(finding: AuditFinding, showNotification = true) {
       drawer.type = null
       return
     }
-    const strategy = strategyForFinding(finding) ?? generateFindingStrategy(strategyState, finding)
-    const task = orchestrateStrategy(tasks, strategy)
-    const auditContent = officialContentSnapshot(finding)
-    if (task.type === 'web' && task.source === finding.id && auditContent) {
-      task.sourceKind = 'geo-audit-content'
-      task.auditContent = auditContent
-    }
+    const task = createClientFindingTask(tasks, finding)
     finding.status = '已生成策略'
     finding.checked = false
-    reviewNotes[strategy.id] ??= []
-    reviewNotes[strategy.id].push({ role: role.value, name: role.value === 'ops' ? '运营' : '客户', time: '刚刚', text: '审核通过并生成关联任务。' })
     reviewNotes[task.id] ??= []
+    reviewNotes[task.id].push({ role: 'client', name: '客户', time: '刚刚', text: '官网内容问题审核通过，已生成独立任务，等待确认 Brief。' })
     if (showNotification)
-      notify(`${displayObjectCodes(strategy.id)} 已审核通过并生成任务`)
+      notify('官网内容问题已审核，任务已进入优化中心，等待运营确认 Brief。', task)
   }
   else {
     if (finding.status !== '待处理' && !(serviceMode.value === 'managed' && role.value === 'client' && finding.status === '待客户审核'))
@@ -1152,7 +1159,7 @@ provide(geoWorkbenchRouteContextKey, {
     <Transition name="geo-toast">
       <div v-if="toast" class="geo-toast" role="status">
         {{ toast }}
-        <button v-if="toastTask && serviceMode === 'agent'" type="button" @click="openTask(toastTask)">去确认 Brief →</button>
+        <button v-if="toastTask" type="button" @click="openTask(toastTask)">{{ serviceMode === 'agent' ? '去确认 Brief' : '查看任务' }} →</button>
       </div>
     </Transition>
     <Transition name="geo-toast">

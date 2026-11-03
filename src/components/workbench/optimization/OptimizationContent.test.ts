@@ -73,7 +73,7 @@ describe('optimization content task table', () => {
     expect(wrapper.get('thead th:nth-child(6)').attributes('style')).toContain('min-width: 112px')
     expect(wrapper.get('.geo-task-pagination .pagination__summary').text()).toBe('共 6 条 · 第 1 / 2 页')
     expect(wrapper.get('.geo-task-pagination').attributes('data-size')).toBe('sm')
-    expect(wrapper.get('.geo-task-detail-button').text()).toBe('查看详情')
+    expect(wrapper.get('.geo-task-detail-button').text()).toBe('确认 Brief')
     expect(wrapper.get('.geo-task-detail-button').classes()).toContain('geo-table-detail-button')
     wrapper.unmount()
   })

@@ -10,7 +10,7 @@ export function nextTaskId(tasks: GeoTask[]) {
 }
 
 export function taskForStrategy(tasks: GeoTask[], strategy: Strategy) {
-  return tasks.find(task => task.strategy === strategy.id || task.relatedStrategies.includes(strategy.id))
+  return tasks.find(task => task.sourceKind !== 'geo-audit-content' && (task.strategy === strategy.id || task.relatedStrategies.includes(strategy.id)))
 }
 
 /** 同一策略只编排一次；相同执行目标可复用，已完成交付不被覆盖。 */
@@ -25,6 +25,7 @@ export function orchestrateStrategy(tasks: GeoTask[], strategy: Strategy): GeoTa
   const target = deliveryStrategies.has(strategy.id) ? 'delivery-page' : `${type}:${strategy.layer}:${strategy.factor}`
   const destination = type === 'external' ? '外部内容交付' : strategy.layer === '内容' ? '官网内容' : 'AI 建站协同'
   const candidate = tasks.find((task) => {
+    if (task.sourceKind === 'geo-audit-content') return false
     const strategyIds = [task.strategy, ...task.relatedStrategies]
     const sameDeliveryPage = target === 'delivery-page' && strategyIds.some(id => deliveryStrategies.has(id))
     const sameStrategyTarget = target !== 'delivery-page' && task.factor === strategy.factor && task.type === type

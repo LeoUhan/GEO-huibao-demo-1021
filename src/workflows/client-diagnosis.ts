@@ -47,10 +47,10 @@ export function clientCheckResult(check: AuditCheck, findings: AuditFinding[], t
   return { state: errors ? '异常' : unknown ? '待核对' : '通过', errors, unknown }
 }
 export function createClientFindingTask(tasks: GeoTask[], finding: AuditFinding): GeoTask {
-  const existing = tasks.find(task => task.source.split(/[\s/·]+/).includes(finding.id))
+  const existing = tasks.find(task => task.type === 'web' && task.source === finding.id && !task.strategy)
   if (existing) {
     const snapshot = officialContentSnapshot(finding)
-    if (snapshot && existing.source === finding.id) {
+    if (snapshot) {
       existing.sourceKind = 'geo-audit-content'
       existing.auditContent = snapshot
     }
