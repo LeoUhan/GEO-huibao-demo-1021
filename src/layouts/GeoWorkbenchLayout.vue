@@ -901,7 +901,7 @@ provide(geoWorkbenchRouteContextKey, {
               {{ strategyRecommendation(drawer.item as Strategy) }}
             </p>
           </section>
-          <section v-if="serviceMode === 'agent'" class="geo-strategy-detail-card">
+          <section class="geo-strategy-detail-card">
             <header class="geo-strategy-detail-card__header"><strong>策略依据</strong></header>
             <div class="geo-strategy-evidence">
               <template v-if="selectedStrategyGapEvidence">

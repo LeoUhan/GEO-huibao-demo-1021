@@ -120,7 +120,10 @@ describe('geoWorkbenchLayout icon migration', () => {
     expect(drawer.findAll('.geo-strategy-detail-card__header').map(header => header.text())).toEqual([
       '认知缺口策略已生成任务',
       'Agent 建议方法',
+      '策略依据',
     ])
+    expect(drawer.get('.geo-strategy-evidence__platforms').text()).toContain('全部平台汇总')
+    expect(drawer.get('.geo-strategy-evidence__platforms').text()).toContain('ChatGPT')
     expect(drawer.find('.geo-strategy-status').exists()).toBe(false)
     expect(drawer.find('.geo-strategy-drawer__status').text()).toBe('已生成任务')
     expect(drawer.get('.geo-strategy-detail-grid').text()).toContain('策略类型官网内容')
