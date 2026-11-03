@@ -74,14 +74,14 @@ const findingColumns: DataListColumn<unknown>[] = [
   { key: 'actions', title: '操作', width: 120, minWidth: 120, className: 'geo-finding-action-column' },
 ]
 const strategyColumns: DataListColumn<unknown>[] = [
-  { key: 'id', title: '序号（问题编码）', width: '8%', minWidth: 96, className: 'geo-strategy-id' },
-  { key: 'priority', title: '优先级', width: '5%', minWidth: 56, className: 'geo-strategy-priority' },
-  { key: 'type', title: '策略类型', width: '9%', minWidth: 88, className: 'geo-strategy-type' },
-  { key: 'description', title: '描述', width: '25%', minWidth: 250, className: 'geo-strategy-main' },
-  { key: 'source', title: '来源', width: '6%', minWidth: 72, className: 'geo-strategy-source' },
-  { key: 'factor', title: '人设·决策因子', width: '24%', minWidth: 200, className: 'geo-strategy-factor' },
-  { key: 'status', title: '当前状态', width: '12%', minWidth: 120, className: 'geo-strategy-status' },
-  { key: 'actions', title: '操作', width: 112, minWidth: 112, className: 'geo-strategy-actions' },
+  { key: 'id', title: '序号（问题编码）', width: '8%', minWidth: 108, className: 'geo-strategy-id' },
+  { key: 'priority', title: '优先级', width: '5%', minWidth: 70, className: 'geo-strategy-priority' },
+  { key: 'type', title: '策略类型', width: '9%', minWidth: 110, className: 'geo-strategy-type' },
+  { key: 'description', title: '描述', width: '25%', minWidth: 300, className: 'geo-strategy-main' },
+  { key: 'source', title: '来源', width: '6%', minWidth: 96, className: 'geo-strategy-source' },
+  { key: 'factor', title: '人设·决策因子', width: '24%', minWidth: 320, className: 'geo-strategy-factor' },
+  { key: 'status', title: '当前状态', width: '12%', minWidth: 150, className: 'geo-strategy-status' },
+  { key: 'actions', title: '操作', width: 120, minWidth: 120, className: 'geo-strategy-actions' },
 ]
 const aggregatePersonaEvidence = computed(() => {
   const persona = props.personas.find(item => item.id === props.activePersona) ?? props.personas[0]
@@ -214,7 +214,7 @@ function canReviewStrategy(strategy: Strategy) {
   return strategyNeedsReview(strategy) && (props.serviceMode === 'agent' ? props.role === 'client' : strategy.reviewStage === 'customer' ? props.role === 'client' : props.role === 'ops')
 }
 const confirmedCount = computed(() => allStrategies.value.filter(strategy => !strategy.businessGapRecorded && !strategy.ignored && (strategy.confirmed || taskFor(strategy))).length)
-const reviewCount = computed(() => allStrategies.value.filter(strategy => props.serviceMode === 'managed' ? canReviewStrategy(strategy) : strategyNeedsReview(strategy)).length)
+const reviewCount = computed(() => allStrategies.value.filter(strategyNeedsReview).length)
 function resultForCheck(check: AuditCheck) { return props.serviceMode === 'agent' ? clientCheckResult(check, props.findings, props.tasks ?? []) : { state: check.passed ? '通过' : '异常', errors: check.passed ? 0 : 1, unknown: 0 } }
 const passedCount = computed(() => auditChecks.filter(check => resultForCheck(check).state === '通过').length)
 const unknownCount = computed(() => auditChecks.filter(check => resultForCheck(check).state === '待核对').length)
@@ -314,9 +314,10 @@ function summaryText({ total, page, pages }: { total: number, page: number, page
             </Tooltip>
           </h2>
         </div><div class="geo-inline-tags">
-          <Tag tone="green" variant="soft" size="sm">
-            {{ passedCount }} 通过
-          </Tag><Tag tone="red" variant="soft" size="sm">
+          <Tag tone="blue" variant="soft" size="sm">候选策略 {{ allStrategies.length }}</Tag>
+          <Tag tone="orange" variant="soft" size="sm">待审核 {{ reviewCount }}</Tag>
+          <Tag tone="green" variant="soft" size="sm">已通过 {{ confirmedCount }}</Tag>
+          <Tag tone="red" variant="soft" size="sm">
             {{ auditChecks.length - passedCount - unknownCount }} 异常
           </Tag><Tag v-if="unknownCount" tone="neutral" variant="soft" size="sm">{{ unknownCount }} 待核对</Tag>
         </div>
@@ -439,19 +440,6 @@ function summaryText({ total, page, pages }: { total: number, page: number, page
               <button type="button" class="geo-help" aria-label="候选策略说明">?</button>
             </Tooltip>
           </h2>
-          <div class="geo-candidate-guide">
-            <span class="geo-candidate-link"><Button variant="text" size="xs" @click="emit('goOptimization')">
-                查看任务 <AppIcon name="arrowRight" :size="14" />
-            </Button></span>
-          </div>
-        </div><div class="geo-queue-summary">
-          <Tag tone="blue" variant="soft" size="sm">
-            候选 {{ allStrategies.length }}
-          </Tag><Tag tone="green" variant="soft" size="sm">
-            已通过 {{ confirmedCount }}
-          </Tag><Tag tone="orange" variant="soft" size="sm">
-            {{ serviceMode === 'managed' && role === 'client' ? '待客户审核' : pendingReviewLabel(serviceMode) }} {{ reviewCount }}
-          </Tag>
         </div>
       </header>
       <div class="geo-strategy-context" role="status">
@@ -467,6 +455,9 @@ function summaryText({ total, page, pages }: { total: number, page: number, page
             <span>{{ layer }}</span><small>{{ ` · ${layerCounts[layer]}` }}</small>
           </button>
         </div>
+        <span class="geo-candidate-link"><Button variant="text" size="xs" @click="emit('goOptimization')">
+          查看任务 <AppIcon name="arrowRight" :size="14" />
+        </Button></span>
       </div>
       <div class="geo-strategy-table-scroll">
         <DataList
