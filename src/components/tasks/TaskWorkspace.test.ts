@@ -4,6 +4,7 @@ import { mount } from '@vue/test-utils'
 import { describe, expect, it, vi } from 'vitest'
 import { reactive } from 'vue'
 import { geoWorkbenchRouteContextKey } from '../../composables/workbench-route-context'
+import { auditFindings, officialContentSnapshot } from '../../data/geo-data'
 import { ensureWorkflow, knowledgeLibrary } from '../../workflows/task-workflow'
 import TaskWorkspace from './TaskWorkspace.vue'
 
@@ -49,10 +50,12 @@ function mountWorkspace(role: 'ops' | 'client', task = makeTask(), openFlow = vi
 }
 
 describe('task workspace task confirmation', () => {
-  it('uses the exact GEO audit source rather than the task title to choose the Brief summary', () => {
+  it('uses the audited task origin rather than the source ID or title to choose the Brief summary', () => {
     const task = makeTask()
     task.name = '碳纤维切割能力页缺少适用条件'
     task.source = 'FC-01'
+    task.sourceKind = 'geo-audit-content'
+    task.auditContent = officialContentSnapshot(auditFindings.find(item => item.id === 'FC-01')!)
     const wrapper = mountWorkspace('client', task)
     const summary = wrapper.get('.tw-brief-summary')
 
@@ -63,7 +66,8 @@ describe('task workspace task confirmation', () => {
     expect(summary.text()).not.toContain('决策因子')
     wrapper.unmount()
 
-    task.source = '旧版任务来源'
+    delete task.sourceKind
+    delete task.auditContent
     const strategyWrapper = mountWorkspace('client', task)
     expect(strategyWrapper.get('.tw-brief-summary').text()).toContain('目标人设')
     expect(strategyWrapper.get('.tw-brief-summary').text()).not.toContain('修改前的内容')

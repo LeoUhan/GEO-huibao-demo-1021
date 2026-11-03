@@ -5,7 +5,6 @@ import type { DropdownSelectOption } from '../ui/ce/dropdown-select/types'
 import type { KnowledgeUploadDraft } from './KnowledgeUploadDrawer.vue'
 import { computed, reactive, shallowRef, watch } from 'vue'
 import { useGeoWorkbenchRouteContext } from '../../composables/workbench-route-context'
-import { auditFindings, clientContentReviewFindings, officialContentSnapshot } from '../../data/geo-data'
 import { createRepairTask } from '../../services/geo-orchestration'
 import { directRepairStatus, isDirectRepairTask } from '../../workflows/direct-repair'
 import { taskFlowFor } from '../../workflows/task-flow'
@@ -118,15 +117,7 @@ function consumeAiCall() {
   }
 }
 const briefFields: Array<{ key: 'goal' | 'persona' | 'factor' | 'executionTarget', label: string }> = [{ key: 'goal', label: '任务目标' }, { key: 'persona', label: '目标人设' }, { key: 'factor', label: '决策因子' }, { key: 'executionTarget', label: '执行对象' }]
-const auditContent = computed(() => {
-  if (props.task.type !== 'web') return undefined
-  for (const finding of [...(routeContext.findings ?? []), ...auditFindings, ...clientContentReviewFindings]) {
-    if (finding.id !== props.task.source) continue
-    const snapshot = officialContentSnapshot(finding)
-    if (snapshot) return snapshot
-  }
-  return props.task.sourceKind === 'geo-audit-content' ? props.task.auditContent : undefined
-})
+const auditContent = computed(() => props.task.sourceKind === 'geo-audit-content' ? props.task.auditContent : undefined)
 const methodOptions = ['对比表', 'FAQ / Q&A', '统计数据注入', '专家观点', '案例证明', '定义框', 'JSON-LD', 'sameAs', '内容表达优化']
 const ignoreReasonOptions: DropdownSelectOption[] = [
   { value: 'Agent 判断错误 / 策略不适用', label: 'Agent 判断错误 / 策略不适用' },
