@@ -213,11 +213,19 @@ function strategyNeedsReview(strategy: Strategy) {
 function canReviewStrategy(strategy: Strategy) {
   return strategyNeedsReview(strategy) && (props.serviceMode === 'agent' ? props.role === 'client' : strategy.reviewStage === 'customer' ? props.role === 'client' : props.role === 'ops')
 }
-const confirmedCount = computed(() => allStrategies.value.filter(strategy => !strategy.businessGapRecorded && !strategy.ignored && (strategy.confirmed || taskFor(strategy))).length)
-const reviewCount = computed(() => allStrategies.value.filter(strategyNeedsReview).length)
 function resultForCheck(check: AuditCheck) { return props.serviceMode === 'agent' ? clientCheckResult(check, props.findings, props.tasks ?? []) : { state: check.passed ? '通过' : '异常', errors: check.passed ? 0 : 1, unknown: 0 } }
-const passedCount = computed(() => auditChecks.filter(check => resultForCheck(check).state === '通过').length)
-const unknownCount = computed(() => auditChecks.filter(check => resultForCheck(check).state === '待核对').length)
+const abnormalFindings = computed(() => props.findings.filter(finding => !isReadOnlyFinding(finding)))
+const findingsRequiringReview = computed(() => abnormalFindings.value.filter(finding => !isDirectRepairFinding(finding)))
+function findingHasApprovedReview(finding: AuditFinding) {
+  return ['已生成策略', '已修复'].includes(finding.status)
+    || findingHasTask(finding, allStrategies.value, props.tasks ?? [], true)
+}
+const auditPendingReviewCount = computed(() => findingsRequiringReview.value.filter(finding => (
+  ['待处理', '待客户审核', '待官网运营审核'].includes(finding.status)
+  && !findingHasApprovedReview(finding)
+)).length)
+const auditApprovedCount = computed(() => findingsRequiringReview.value.filter(findingHasApprovedReview).length)
+const auditNoReviewCount = computed(() => abnormalFindings.value.filter(isDirectRepairFinding).length)
 const showPassedOnly = computed(() => props.serviceMode === 'agent' && activeAuditCheck.value && resultForCheck(activeAuditCheck.value).state === '通过')
 
 watch(() => props.strategyLayer, () => queuePage.value = 1)
@@ -314,12 +322,10 @@ function summaryText({ total, page, pages }: { total: number, page: number, page
             </Tooltip>
           </h2>
         </div><div class="geo-inline-tags">
-          <Tag tone="blue" variant="soft" size="sm">候选策略 {{ allStrategies.length }}</Tag>
-          <Tag tone="orange" variant="soft" size="sm">待审核 {{ reviewCount }}</Tag>
-          <Tag tone="green" variant="soft" size="sm">已通过 {{ confirmedCount }}</Tag>
-          <Tag tone="red" variant="soft" size="sm">
-            {{ auditChecks.length - passedCount - unknownCount }} 异常
-          </Tag><Tag v-if="unknownCount" tone="neutral" variant="soft" size="sm">{{ unknownCount }} 待核对</Tag>
+          <Tag tone="red" variant="soft" size="sm">{{ abnormalFindings.length }} 异常</Tag>
+          <Tag tone="orange" variant="soft" size="sm">待审核 {{ auditPendingReviewCount }}</Tag>
+          <Tag tone="green" variant="soft" size="sm">已通过 {{ auditApprovedCount }}</Tag>
+          <Tag tone="neutral" variant="soft" size="sm">无需审核 {{ auditNoReviewCount }}</Tag>
         </div>
       </header>
       <div class="geo-check-grid" role="tablist" aria-label="官网 GEO 检查项">
