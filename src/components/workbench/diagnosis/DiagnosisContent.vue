@@ -461,9 +461,6 @@ function summaryText({ total, page, pages }: { total: number, page: number, page
             <span>{{ layer }}</span><small>{{ ` · ${layerCounts[layer]}` }}</small>
           </button>
         </div>
-        <span class="geo-candidate-link"><Button variant="text" size="xs" @click="emit('goOptimization')">
-          查看任务 <AppIcon name="arrowRight" :size="14" />
-        </Button></span>
       </div>
       <div class="geo-strategy-table-scroll">
         <DataList
