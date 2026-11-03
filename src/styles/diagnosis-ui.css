@@ -28,6 +28,7 @@
 .geo-diagnosis .geo-finding-table td:first-child { text-align: center; }
 .geo-diagnosis .geo-finding-table .geo-finding-action-column { text-align: center; }
 .geo-diagnosis .geo-finding-select { width: 52px; min-width: 52px; max-width: 52px; padding-inline: 8px; }
+.geo-diagnosis .geo-finding-id { color: var(--geo-text-2); white-space: nowrap; }
 .geo-diagnosis .geo-finding-head input[type="checkbox"],
 .geo-diagnosis .geo-finding-table input[type="checkbox"] { width: 14px; height: 14px; accent-color: var(--geo-brand); }
 .geo-diagnosis .geo-finding-table tbody tr:last-child td { border-bottom: 0; }
@@ -36,7 +37,6 @@
 .geo-diagnosis .geo-muted { font-size: 12px; line-height: 20px; }
 .geo-diagnosis .geo-finding-status,
 .geo-diagnosis .geo-chip { font-size: 12px; line-height: 20px; }
-.geo-diagnosis .geo-finding-copy small { margin-left: 6px; color: var(--geo-text-3); font-size: 12px; line-height: 20px; }
 .geo-diagnosis .geo-finding-table .data-list__state { height: 160px; }
 .geo-diagnosis-pagination { padding: 10px 16px; background: var(--geo-surface); border-top: 1px solid var(--geo-border); }
 .geo-diagnosis .pagination { gap: 10px; flex-wrap: wrap; justify-content: space-between; font-size: 14px; line-height: 22px; }
@@ -80,8 +80,7 @@ html.ce-iframe-root .geo-gap-link.ce-button[aria-pressed="true"] { font-weight: 
 .geo-diagnosis .geo-tabs button small { margin-left: 4px; color: var(--geo-text-3); font-size: 14px; line-height: 22px; }
 .geo-diagnosis .geo-tabs button.is-active small { color: inherit; }
 .geo-diagnosis .geo-candidate-guide { max-width: 1280px; }
-.geo-diagnosis .geo-candidate-guide p { margin: 0; }
-.geo-diagnosis .geo-candidate-link { display: inline-block; margin-left: 4px; white-space: nowrap; vertical-align: baseline; }
+.geo-diagnosis .geo-candidate-link { display: inline-block; white-space: nowrap; vertical-align: baseline; }
 html.ce-iframe-root .geo-diagnosis .geo-candidate-link .ce-button { min-height: 20px; padding: 0; border: 0; border-radius: 0; font-size: 12px; line-height: 20px; vertical-align: baseline; }
 html.ce-iframe-root .geo-diagnosis .geo-candidate-link .ce-button:hover:not(:disabled) { background: transparent; text-decoration: underline; text-underline-offset: 2px; }
 .geo-diagnosis .geo-strategy-table-scroll { max-width: calc(100% - 32px); margin: 12px 16px 0; overflow: hidden; overscroll-behavior-inline: contain; background: var(--geo-surface); border: 1px solid var(--geo-border); border-radius: 8px; }
@@ -146,7 +145,6 @@ html.ce-iframe-root .geo-diagnosis .geo-strategy-factor .geo-gap-link.ce-button[
   .geo-diagnosis .geo-gap-row__top { flex-wrap: wrap; }
   .geo-diagnosis .geo-page-head__actions { white-space: normal; }
   .geo-diagnosis .geo-candidate-guide { display: block; }
-  .geo-diagnosis .geo-candidate-link { margin-left: 4px; }
   .geo-diagnosis .geo-strategy-toolbar { padding-inline: 16px; }
   .geo-diagnosis .geo-tabs { max-width: 100%; overflow-x: auto; }
   .geo-diagnosis .geo-strategy-table-scroll { max-width: calc(100% - 32px); margin-inline: 16px; }

@@ -65,7 +65,8 @@ const tableLabels = {
 }
 const findingColumns: DataListColumn<unknown>[] = [
   { key: 'select', title: '', width: '5%', minWidth: 48, className: 'geo-finding-select' },
-  { key: 'finding', title: '问题 / 建议', width: '26%', minWidth: 245 },
+  { key: 'id', title: '序号', width: '9%', minWidth: 96, className: 'geo-finding-id' },
+  { key: 'finding', title: '问题 / 建议', width: '23%', minWidth: 225 },
   { key: 'route', title: '处理方式与类型', width: '17%', minWidth: 180 },
   { key: 'check', title: '所属检查项', width: '16%', minWidth: 160 },
   { key: 'priority', title: '优先级', width: '7%', minWidth: 64 },
@@ -308,7 +309,10 @@ function summaryText({ total, page, pages }: { total: number, page: number, page
           <h2 id="audit-title">
             <span class="geo-section-heading__number" aria-hidden="true">1</span>
             <span>官网 GEO 体检</span>
-          </h2><span class="geo-muted">确定性技术问题由 AI 建站直接处理，完成后自动更新结果。</span>
+            <Tooltip content="确定性技术问题由 AI 建站直接处理，完成后自动更新结果。" placement="right">
+              <button type="button" class="geo-help" aria-label="官网 GEO 体检说明">?</button>
+            </Tooltip>
+          </h2>
         </div><div class="geo-inline-tags">
           <Tag tone="green" variant="soft" size="sm">
             {{ passedCount }} 通过
@@ -362,8 +366,11 @@ function summaryText({ total, page, pages }: { total: number, page: number, page
             <template #cell-select="{ item: finding }">
               <input v-if="canReview" :id="`finding-${findingFromRow(finding).id}`" type="checkbox" :checked="findingFromRow(finding).checked" :disabled="!isActionable(findingFromRow(finding))" :aria-label="`选择 ${findingFromRow(finding).title}`" @change="emit('selectFinding', findingFromRow(finding).id)">
             </template>
+            <template #cell-id="{ item: finding }">
+              {{ displayObjectCodes(findingFromRow(finding).id) }}
+            </template>
             <template #cell-finding="{ item: finding }">
-              <label :for="`finding-${findingFromRow(finding).id}`" class="geo-finding-copy"><Tooltip :content="`${findingFromRow(finding).title} · ${displayObjectCodes(findingFromRow(finding).id)}`" :overflow-only="true"><strong>{{ findingFromRow(finding).title }} <small>{{ displayObjectCodes(findingFromRow(finding).id) }}</small></strong></Tooltip></label>
+              <label :for="`finding-${findingFromRow(finding).id}`" class="geo-finding-copy"><Tooltip :content="findingFromRow(finding).title" :overflow-only="true"><strong>{{ findingFromRow(finding).title }}</strong></Tooltip></label>
             </template>
             <template #cell-route="{ item: finding }">
               <span class="geo-chip geo-route-badge" :class="findingFromRow(finding).route">{{ findingRouteLabel(findingFromRow(finding), serviceMode === 'agent') }}</span>
@@ -402,10 +409,10 @@ function summaryText({ total, page, pages }: { total: number, page: number, page
           <h2 id="persona-title">
             <span class="geo-section-heading__number" aria-hidden="true">2</span>
             <span>买家人设 × 决策因子：认知 GAP</span>
+            <Tooltip content="买家看重的因素与 AI 回答中呈现的内容之间的差距分析" placement="right">
+              <button type="button" class="geo-help" aria-label="认知 GAP 说明">?</button>
+            </Tooltip>
           </h2>
-          <p class="geo-persona-panel__subtitle">
-            同一主题回答中，竞品正向覆盖率与我方正向覆盖率的差值
-          </p>
         </div>
       </header>
       <div class="geo-personas" role="tablist" aria-label="买家人设">
@@ -428,14 +435,14 @@ function summaryText({ total, page, pages }: { total: number, page: number, page
           <h2 id="strategy-title">
             <span class="geo-section-heading__number" aria-hidden="true">3</span>
             <span>候选策略</span>
-            <span class="geo-help" title="候选策略依据人设认知 GAP、回答证据与原因核查结果提出。">?</span>
+            <Tooltip :content="serviceMode === 'agent' ? '候选策略依据人设认知 GAP、回答证据与原因核查结果提出。客户审核通过后生成任务；不处理时请填写原因。' : '候选策略依据人设认知 GAP、回答证据与原因核查结果提出。运营审核后交客户确认；客户审核通过后生成任务。'" placement="right">
+              <button type="button" class="geo-help" aria-label="候选策略说明">?</button>
+            </Tooltip>
           </h2>
           <div class="geo-candidate-guide">
-            <p>
-              <strong>候选策略依据人设认知 GAP、回答证据与原因核查结果提出。</strong> {{ serviceMode === 'agent' ? '客户审核通过后生成任务；不处理时请填写原因。' : '运营审核后交客户确认；客户审核通过后生成任务。' }} <span class="geo-candidate-link"><Button variant="text" size="xs" @click="emit('goOptimization')">
+            <span class="geo-candidate-link"><Button variant="text" size="xs" @click="emit('goOptimization')">
                 查看任务 <AppIcon name="arrowRight" :size="14" />
-              </Button></span>
-            </p>
+            </Button></span>
           </div>
         </div><div class="geo-queue-summary">
           <Tag tone="blue" variant="soft" size="sm">

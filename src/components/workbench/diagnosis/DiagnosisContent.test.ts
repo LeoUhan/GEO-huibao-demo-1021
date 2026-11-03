@@ -37,7 +37,8 @@ describe('diagnosisContent icons', () => {
     expect(wrapper.get('#audit-title .geo-section-heading__number').text()).toBe('1')
     expect(wrapper.get('#persona-title .geo-section-heading__number').text()).toBe('2')
     expect(wrapper.get('#persona-title').text()).toContain('买家人设 × 决策因子：认知 GAP')
-    expect(wrapper.get('.geo-persona-panel__subtitle').text()).toBe('同一主题回答中，竞品正向覆盖率与我方正向覆盖率的差值')
+    expect(wrapper.find('.geo-persona-panel__subtitle').exists()).toBe(false)
+    expect(wrapper.get('#persona-title .geo-help').attributes('aria-label')).toBe('认知 GAP 说明')
     expect(wrapper.get('#strategy-title .geo-section-heading__number').text()).toBe('3')
     expect(wrapper.get('#strategy-title .geo-help').text()).toBe('?')
     expect(wrapper.find('.geo-page-description').exists()).toBe(false)
@@ -65,6 +66,8 @@ describe('diagnosisContent icons', () => {
     expect(wrapper.findAll('.geo-finding-actions button').map(button => button.text())).not.toContain('生成候选策略')
     expect(wrapper.findAll('.geo-strategy-context button')).toHaveLength(0)
     expect(wrapper.get('.geo-finding-table thead .geo-finding-action-column').text()).toBe('操作')
+    expect(wrapper.get('.geo-finding-table thead .geo-finding-id').text()).toBe('序号')
+    expect(wrapper.get('.geo-finding-table tbody .geo-finding-id').text()).toBe('F-17-1')
     expect(wrapper.get('.geo-finding-table tbody .geo-finding-action-column').text()).toContain('查看详情')
 
     const findingDetails = wrapper.find('.geo-finding-table tbody tr button')
