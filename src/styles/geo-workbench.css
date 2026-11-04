@@ -431,7 +431,7 @@ html.ce-iframe-root .geo-pending-item.ce-action-card:hover { border-color: var(-
 .geo-processing__steps span.is-complete { color: var(--geo-success); background: var(--geo-success-soft); }
 .geo-processing__steps span.is-current { color: var(--geo-brand); background: var(--geo-brand-soft); }
 .geo-processing__steps small { font-size: 12px; }
-.geo-processing-notice { position: fixed; right: 24px; bottom: 24px; z-index: 60; display: flex; align-items: center; gap: 14px; max-width: calc(100vw - 48px); padding: 13px 16px; border: 1px solid var(--geo-border); border-radius: 10px; background: var(--geo-surface); box-shadow: var(--geo-shadow-overlay); }
+.geo-processing-notice { position: fixed; right: 24px; top: 172px; z-index: 60; display: flex; align-items: center; gap: 14px; max-width: min(620px, calc(100vw - 48px)); padding: 13px 16px; border: 1px solid var(--geo-border); border-radius: 10px; background: var(--geo-surface); box-shadow: var(--geo-shadow-overlay); }
 .geo-processing-notice button { border: 0; background: transparent; color: var(--geo-brand); font: inherit; font-weight: 600; cursor: pointer; }
 .geo-processing-notice .geo-processing-notice__close { color: var(--geo-text-3); font-size: 20px; font-weight: 400; }
 @keyframes geo-processing-spin { to { transform: rotate(360deg); } }

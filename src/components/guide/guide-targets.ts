@@ -37,8 +37,10 @@ export const guideTargets: Record<string, GuideTarget[]> = {
     { selector: '.tw-header', unavailable: '请从任务列表打开一条任务，再查看任务当前的处理阶段。' },
   ],
   'operations-review': [
-    { selector: '.ops-review__kpis' },
-    { selector: '.ops-review__tabs' },
+    { selector: '.ops-review__tabs button:nth-child(1)', activate: ['.ops-review__tabs button:nth-child(1)'] },
+    { selector: '.ops-review__tabs button:nth-child(2)', activate: ['.ops-review__tabs button:nth-child(2)'] },
+    { selector: '.ops-review__tabs button:nth-child(3)', activate: ['.ops-review__tabs button:nth-child(3)'] },
+    { selector: '.ops-review__tabs button:nth-child(4)', activate: ['.ops-review__tabs button:nth-child(4)'] },
   ],
   onboarding: [
     { selector: '.knowledge-grid' },
