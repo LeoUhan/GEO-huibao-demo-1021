@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { watch } from 'vue'
+import { computed, watch } from 'vue'
 import { useRoundResponses } from '../../../composables/use-round-responses'
 import Drawer from '../../ui/ce/drawer/Drawer.vue'
 import Spinner from '../../ui/ce/spinner/Spinner.vue'
@@ -12,6 +12,7 @@ const props = defineProps<{
 }>()
 const emit = defineEmits<{ close: [] }>()
 const responses = useRoundResponses()
+const visibleRecords = computed(() => responses.page.value.records.filter(record => record.platform?.toLocaleLowerCase() !== 'perplexity'))
 
 watch(() => [props.open, props.roundId, props.questionId] as const, ([open, roundId, questionId]) => {
   if (open)
@@ -23,7 +24,7 @@ watch(() => [props.open, props.roundId, props.questionId] as const, ([open, roun
 function platformName(platform: string | null | undefined) {
   if (!platform)
     return '平台未返回'
-  return ({ chatgpt: 'ChatGPT', gemini: 'Gemini', perplexity: 'Perplexity', google_ai: 'Google AI', claude: 'Claude', copilot: 'Copilot' } as Record<string, string>)[platform.toLowerCase()] ?? platform
+  return ({ chatgpt: 'ChatGPT', gemini: 'Gemini', google_ai: 'Google AI', claude: 'Claude', copilot: 'Copilot' } as Record<string, string>)[platform.toLowerCase()] ?? platform
 }
 
 function collectStatus(status: number) {
@@ -47,7 +48,7 @@ function sentiment(value: number | null | undefined) {
   <Drawer :open="open" :title="questionText || '监测回答详情'" eyebrow="本轮真实采集记录" description="回答、引用及判定数据均来自当前轮次接口；未返回字段按待判定或暂无展示。" :size="900" close-label="关闭回答详情" @close="emit('close')" @update:open="value => !value && emit('close')">
     <div class="round-responses">
       <section class="response-list" aria-label="本题采集记录">
-        <header><h3>采集记录</h3><span>共 {{ responses.page.value.total }} 条</span></header>
+        <header><h3>采集记录</h3><span>共 {{ visibleRecords.length }} 条</span></header>
         <p v-if="responses.listLoading.value && !responses.page.value.records.length" role="status">
           正在加载采集记录…
         </p>
@@ -59,11 +60,11 @@ function sentiment(value: number | null | undefined) {
         <p v-else-if="!responses.page.value.records.length" class="is-empty">
           当前问题在本轮没有采集记录。
         </p>
-        <div v-else class="response-list__scroll" role="region" tabindex="0" aria-label="采集记录列表，可纵向滚动">
+        <div v-else-if="visibleRecords.length" class="response-list__scroll" role="region" tabindex="0" aria-label="采集记录列表，可纵向滚动">
           <table>
             <thead><tr><th>平台</th><th>采集状态</th><th>提及</th><th>重复序号</th><th>采集时间</th><th>详情</th></tr></thead>
             <tbody>
-              <tr v-for="record in responses.page.value.records" :key="record.id">
+              <tr v-for="record in visibleRecords" :key="record.id">
                 <td>{{ platformName(record.platform) }}</td>
                 <td>{{ collectStatus(record.collectStatus) }}<small v-if="record.failReason">{{ record.failReason }}</small></td>
                 <td>{{ judged(record.isMentioned) }}</td><td>{{ record.repeatNo ?? '—' }}</td><td>{{ record.collectTime || '—' }}</td>
@@ -76,6 +77,7 @@ function sentiment(value: number | null | undefined) {
             </tbody>
           </table>
         </div>
+        <p v-else class="is-empty">当前问题在本轮没有可展示的采集记录。</p>
         <button v-if="responses.hasMore.value" class="load-more" type="button" :disabled="responses.listLoading.value" :aria-busy="responses.listLoading.value" @click="responses.loadMore()">
           <Spinner v-if="responses.listLoading.value" variant="ring" aria-hidden="true" />
           加载更多

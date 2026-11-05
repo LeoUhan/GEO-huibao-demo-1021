@@ -5,13 +5,12 @@ import type { BuyerPersona, KnowledgeItem } from '../../../types'
 import type { DataListColumn } from '../../ui/ce/data-list/types'
 import type { DropdownSelectOption } from '../../ui/ce/dropdown-select/types'
 import type { KnowledgeEditorTab } from './CurrentBrandKnowledge.vue'
-import { computed, shallowRef } from 'vue'
+import { computed, ref, shallowRef } from 'vue'
 import BuyerPersonaEditorDialog from '../../onboarding/buyer-persona/BuyerPersonaEditorDialog.vue'
 import { Button, DataList } from '../../ui/ce'
 import Spinner from '../../ui/ce/spinner/Spinner.vue'
 import AddMonitoringQuestionDialog from '../questions/AddMonitoringQuestionDialog.vue'
 import BulkMonitoringQuestionsDialog from '../questions/BulkMonitoringQuestionsDialog.vue'
-import BuyerPersonaViewDrawer from './BuyerPersonaViewDrawer.vue'
 import CurrentBrandKnowledge from './CurrentBrandKnowledge.vue'
 
 const props = defineProps<{
@@ -27,12 +26,13 @@ const props = defineProps<{
   knowledgeItems: KnowledgeItem[]
   pendingCompetitorNames: readonly string[]
   loading: boolean
+  recommendationsPending?: boolean
   errors: { brand: string, competitors: string, competitorRecommendations: string, personas: string, questions: string, themes: string }
 }>()
 
-const emit = defineEmits<{ retry: [], editKnowledge: [tab: KnowledgeEditorTab], viewKnowledge: [tab: KnowledgeEditorTab], reviewCompetitors: [], addQuestion: [question: MonitoringQuestion], updateQuestions: [questions: MonitoringQuestion[]] }>()
-const selectedPersona = shallowRef<BuyerPersonaRecord | null>(null)
+const emit = defineEmits<{ retry: [], editKnowledge: [tab: KnowledgeEditorTab], viewKnowledge: [tab: KnowledgeEditorTab], reviewCompetitors: [], addQuestion: [question: MonitoringQuestion], updateQuestions: [questions: MonitoringQuestion[]], manageRecommendations: [] }>()
 const personaEditorOpen = shallowRef(false)
+const personaEditorMode = ref<'edit' | 'view'>('edit')
 const addQuestionOpen = shallowRef(false)
 const editQuestionsOpen = shallowRef(false)
 const personaDrafts = computed<BuyerPersona[]>(() => props.personas.map(persona => ({
@@ -127,6 +127,11 @@ function localizedValue(options: readonly DropdownSelectOption[], value: string)
   return options.find(option => option.value === value)?.label ?? value
 }
 
+function openPersonaDialog(mode: 'edit' | 'view') {
+  personaEditorMode.value = mode
+  personaEditorOpen.value = true
+}
+
 function personaStages(persona: BuyerPersonaRecord) {
   return persona.purchaseStages?.map(stage => localizedValue(props.purchaseStageOptions, stage)).join('、') || '—'
 }
@@ -141,7 +146,7 @@ function personaStages(persona: BuyerPersonaRecord) {
           <span class="market-config__count">{{ stage === 2 ? `${personas.length} 类` : `${questions.length} 条` }}</span>
         </h2>
       </div>
-      <Button v-if="stage === 2" variant="outline" :disabled="loading" @click="personaEditorOpen = true">
+      <Button v-if="stage === 2" variant="outline" :disabled="loading" @click="openPersonaDialog('edit')">
         维护买家人设
       </Button>
       <div v-else class="market-config__question-actions">
@@ -179,7 +184,7 @@ function personaStages(persona: BuyerPersonaRecord) {
             <h3 class="market-config__persona-name">
               {{ persona.personaName || '—' }}
             </h3>
-            <Button variant="outline" size="sm" :aria-label="`查看${persona.personaName || '买家人设'}`" @click="selectedPersona = persona">
+            <Button variant="outline" size="sm" :aria-label="`查看${persona.personaName || '买家人设'}`" @click="openPersonaDialog('view')">
               查看
             </Button>
           </header>
@@ -188,19 +193,10 @@ function personaStages(persona: BuyerPersonaRecord) {
           </div>
         </article>
       </div>
-      <BuyerPersonaViewDrawer
-        :persona="selectedPersona"
-        :open="selectedPersona !== null"
-        :persona-type-options="personaTypeOptions"
-        :purchase-stage-options="purchaseStageOptions"
-        :company-scale-options="companyScaleOptions"
-        :decision-role-options="decisionRoleOptions"
-        @close="selectedPersona = null"
-      />
       <BuyerPersonaEditorDialog
         v-model:open="personaEditorOpen"
         :personas="personaDrafts"
-        mode="edit"
+        :mode="personaEditorMode"
         :type-options="personaTypeOptions"
         :stage-options="purchaseStageOptions"
         :company-scale-options="companyScaleOptions"
@@ -216,6 +212,15 @@ function personaStages(persona: BuyerPersonaRecord) {
         </Button>
       </p>
       <div v-else class="market-config__questions">
+        <section v-if="recommendationsPending" class="recommendation-notice" aria-label="AI 推荐问题待处理">
+          <div>
+            <strong>AI 推荐问题已生成，待你处理</strong>
+            <p>现有监测问题保持不变；可在各市场选择加入推荐问题或移除旧问题。</p>
+          </div>
+          <Button variant="outline" size="sm" @click="emit('manageRecommendations')">
+            去选择问题
+          </Button>
+        </section>
         <p v-if="errors.themes" class="market-config__error" role="alert">
           {{ errors.themes }}
         </p>
@@ -259,6 +264,13 @@ function personaStages(persona: BuyerPersonaRecord) {
     </template>
   </section>
 </template>
+
+<style scoped>
+.recommendation-notice { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 12px; padding: 12px 14px; border: 1px solid var(--status-warning-border, #f3c66d); border-radius: 10px; background: var(--status-warning-background, #fff9e9); }
+.recommendation-notice strong { color: var(--status-warning-foreground, #9a5a14); font-size: 13px; line-height: 1.4; }
+.recommendation-notice p { margin: 3px 0 0; color: var(--text-secondary); font-size: 12px; line-height: 1.45; }
+@media (max-width: 600px) { .recommendation-notice { align-items: flex-start; flex-direction: column; } }
+</style>
 
 <style scoped>
 .market-config { display: grid; gap: 16px; margin-top: 0; padding: 18px; border: 0; border-radius: 0; background: transparent; color: var(--text-primary); }

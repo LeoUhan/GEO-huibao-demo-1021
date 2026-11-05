@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { MarketLanguageDraft } from '../../../types'
 import type { DropdownSelectOption } from '../../ui/ce'
-import { DropdownSelect, Tag } from '../../ui/ce'
+import { DropdownSelect } from '../../ui/ce'
 
 withDefaults(defineProps<{ errors: Record<string, string>, readOnly?: boolean }>(), { readOnly: false })
 const model = defineModel<MarketLanguageDraft>({ required: true })
@@ -35,9 +35,6 @@ const languageOptions: DropdownSelectOption[] = [
       <div class="market-field">
         <div class="market-field__heading">
           <label id="market-label">目标市场 <span aria-hidden="true">*</span></label>
-          <Tag tone="green" variant="soft" size="sm">
-            已同步
-          </Tag>
         </div>
         <p v-if="readOnly" class="market-field__value">
           {{ model.market || '未设置' }}
@@ -51,9 +48,6 @@ const languageOptions: DropdownSelectOption[] = [
       <div class="market-field">
         <div class="market-field__heading">
           <label id="language-label">语言 <span aria-hidden="true">*</span></label>
-          <Tag tone="green" variant="soft" size="sm">
-            已同步
-          </Tag>
         </div>
         <p v-if="readOnly" class="market-field__value">
           {{ model.language || '未设置' }}

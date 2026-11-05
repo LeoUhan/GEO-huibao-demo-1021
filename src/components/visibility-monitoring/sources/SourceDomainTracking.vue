@@ -4,7 +4,7 @@ import type { CitedPage, MonitoringPlatformId, SourceDomain } from '../../../dat
 const props = defineProps<{ sources: readonly SourceDomain[], pages: readonly CitedPage[], platforms: readonly { id: MonitoringPlatformId, label: string }[] }>()
 const emit = defineEmits<{ selectSource: [sourceId: string] }>()
 function platformNames(ids: MonitoringPlatformId[]) {
-  return ids.map(id => ({ id, label: props.platforms.find(platform => platform.id === id)?.label ?? id }))
+  return ids.filter(id => id !== 'perplexity').map(id => ({ id, label: props.platforms.find(platform => platform.id === id)?.label ?? id }))
 }
 function domainName(id: string) {
   return props.sources.find(source => source.id === id)?.domain ?? id
@@ -94,7 +94,6 @@ tbody tr:last-child th, tbody tr:last-child td { border-bottom: 0; }
 .vm-platform-list { display: flex; flex-wrap: wrap; gap: 5px; min-width: 126px; }
 .vm-platform-chip { display: inline-flex; align-items: center; gap: 5px; padding: 3px 8px; border: 1px solid var(--border-default); border-radius: 999px; color: var(--text-secondary); font-size: 11px; white-space: nowrap; }
 .vm-platform-chip i { width: 7px; height: 7px; border-radius: 50%; background: #2563eb; }
-.platform-perplexity { background: #7c3aed !important; }
 .platform-google-ai { background: #f59e0b !important; }
 .platform-gemini { background: #059669 !important; }
 .platform-ai-mode { background: #0891b2 !important; }

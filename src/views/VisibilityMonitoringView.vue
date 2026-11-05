@@ -6,7 +6,6 @@ import type { BuyerPersona, KnowledgeItem } from '../types'
 import { computed, onMounted, ref, shallowRef } from 'vue'
 import { addPersona, addQuestion, deleteBrandProduct, deleteCompetitor, deletePersona, getActivePlan, getDictionary, getMarkets, saveBrandInfo, updatePersona, updateQuestion } from '../api/geo-config'
 import { triggerRound } from '../api/monitoring'
-import KnowledgeEditorDialog from '../components/onboarding/knowledge/KnowledgeEditorDialog.vue'
 import KnowledgeViewDialog from '../components/onboarding/knowledge/KnowledgeViewDialog.vue'
 import { defaultMonitoringPlatformsForPlan, frequencyForPlan } from '../components/onboarding/monitoring-plan/monitoring-plan'
 import { Button, Modal } from '../components/ui/ce'
@@ -16,6 +15,8 @@ import ReferenceMonitoringResults from '../components/visibility-monitoring/anal
 import PotentialCompetitorReviewDialog from '../components/visibility-monitoring/analysis/PotentialCompetitorReviewDialog.vue'
 import SamplingTrustSection from '../components/visibility-monitoring/sampling/SamplingTrustSection.vue'
 import MarketConfigurationPanel from '../components/visibility-monitoring/settings/MarketConfigurationPanel.vue'
+import BrandKnowledgeUpdateFlow from '../components/visibility-monitoring/settings/brand-knowledge-update/BrandKnowledgeUpdateFlow.vue'
+import { createMockBrandKnowledgeUpdateService } from '../components/visibility-monitoring/settings/brand-knowledge-update/mock-service'
 import MonitoringProcessNav from '../components/visibility-monitoring/settings/MonitoringProcessNav.vue'
 import MonitoringSettingsDialog from '../components/visibility-monitoring/settings/MonitoringSettingsDialog.vue'
 import GeoPageIntro from '../components/workbench/shared/GeoPageIntro.vue'
@@ -40,7 +41,10 @@ const roundTriggerPending = ref(false)
 const roundTriggerError = ref('')
 const marketLanguage = shallowRef({ market: '', language: '' })
 const marketLabel = computed(() => [marketLanguage.value.market, marketLanguage.value.language].filter(Boolean).join(' / '))
-const brandKnowledgeEditorOpen = shallowRef(false)
+const brandKnowledgeUpdateOpen = shallowRef(false)
+const brandKnowledgeUpdateStartAtManager = shallowRef(false)
+const brandRecommendationPending = shallowRef(false)
+const brandKnowledgeUpdateService = createMockBrandKnowledgeUpdateService()
 const brandKnowledgeViewerOpen = shallowRef(false)
 const competitorReviewOpen = shallowRef(false)
 const brandKnowledgeTab = shallowRef<KnowledgeEditorTab>('brand')
@@ -211,7 +215,12 @@ async function updateCurrentMonitoringQuestions(questions: MonitoringQuestion[])
 }
 function openKnowledgeEditor(tab: KnowledgeEditorTab) {
   brandKnowledgeTab.value = tab
-  brandKnowledgeEditorOpen.value = true
+  brandKnowledgeUpdateStartAtManager.value = false
+  brandKnowledgeUpdateOpen.value = true
+}
+function openBrandRecommendationManager() {
+  brandKnowledgeUpdateStartAtManager.value = true
+  brandKnowledgeUpdateOpen.value = true
 }
 function openKnowledgeViewer(tab: KnowledgeEditorTab) {
   brandKnowledgeTab.value = tab
@@ -223,6 +232,19 @@ async function saveBrandKnowledge(items: KnowledgeItem[]) {
     throw new Error('品牌资料缺失')
   await saveBrandInfo({ brandName: brand.name, industry: brand.industry, aliasNames: brand.alias, positioning: brand.description })
   await marketConfiguration.load()
+}
+async function commitBrandKnowledgeChange(items: KnowledgeItem[], snapshot: { markets: Array<{ processed: boolean }> }) {
+  await saveBrandKnowledge(items)
+  brandRecommendationPending.value = snapshot.markets.some(market => !market.processed)
+  if (monitoringSchedule.enabled.value)
+    await monitoringSchedule.toggle()
+}
+function updateBrandRecommendationPending(snapshot: { markets: Array<{ processed: boolean }> }) {
+  brandRecommendationPending.value = snapshot.markets.some(market => !market.processed)
+}
+async function resumeMonitoringForEnabledMarkets() {
+  if (!monitoringSchedule.enabled.value && monitoringSchedule.schedule.value)
+    await monitoringSchedule.toggle()
 }
 async function removeBrandProduct(id: string) {
   await deleteBrandProduct(Number(id))
@@ -377,6 +399,7 @@ async function launchManualRound() {
         :decision-role-options="decisionRoleOptions"
         :persist-personas="persistMarketPersonas"
         :loading="marketConfiguration.loading.value"
+        :recommendations-pending="brandRecommendationPending"
         :errors="marketConfiguration.errors.value"
         @retry="marketConfiguration.load()"
         @edit-knowledge="openKnowledgeEditor"
@@ -384,6 +407,7 @@ async function launchManualRound() {
         @review-competitors="competitorReviewOpen = true"
         @add-question="addCurrentMonitoringQuestion"
         @update-questions="updateCurrentMonitoringQuestions"
+        @manage-recommendations="openBrandRecommendationManager"
       />
     </div>
 
@@ -418,21 +442,21 @@ async function launchManualRound() {
     </section>
 
     <MonitoringSettingsDialog :open="settingsOpen" :frequency="frequencyChoice" :selected-platforms="settingsPlatformSelection" :plan-name="activePlanName" :saving="monitoringPlatforms.saving.value || monitoringSchedule.saving.value" :error="settingsError || monitoringPlatforms.error.value" @close="settingsOpen = false" @save="saveSettings" />
-    <KnowledgeEditorDialog
-      v-model:open="brandKnowledgeEditorOpen"
+    <BrandKnowledgeUpdateFlow
+      v-model:open="brandKnowledgeUpdateOpen"
       :items="brandKnowledgeItems"
       :initial-tab="brandKnowledgeTab"
-      footer-mode="brand-only"
-      read-only-market
       persist-products
       persist-competitors
       :delete-product="removeBrandProduct"
       :delete-competitor="removeMarketCompetitor"
-      :persist-knowledge="saveBrandKnowledge"
-      @product-saved="refreshBrandKnowledge"
-      @product-accepted="refreshBrandKnowledge"
-      @competitor-saved="refreshBrandKnowledge"
-      @competitor-accepted="refreshBrandKnowledge"
+      :service="brandKnowledgeUpdateService"
+      :start-at-market-manager="brandKnowledgeUpdateStartAtManager"
+      @knowledge-committed="commitBrandKnowledgeChange"
+      @market-selection-saved="updateBrandRecommendationPending"
+      @enable-all-markets="resumeMonitoringForEnabledMarkets"
+      @refresh-knowledge="refreshBrandKnowledge"
+      @market-manager-closed="activeStep = 3"
     />
     <KnowledgeViewDialog v-model:open="brandKnowledgeViewerOpen" :items="brandKnowledgeItems" :initial-tab="brandKnowledgeTab" />
     <PotentialCompetitorReviewDialog

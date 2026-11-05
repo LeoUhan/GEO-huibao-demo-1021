@@ -12,6 +12,8 @@ export interface MarketRecommendationState {
   language: string
   enabled: boolean
   processed: boolean
+  processedAddedCount?: number
+  processedRemovedCount?: number
   candidates: MonitoringQuestion[]
   selectedCandidateIds: string[]
   existingQuestions: MonitoringQuestion[]
@@ -35,6 +37,7 @@ export interface BrandKnowledgeUpdateService {
   getSnapshot: () => Promise<BrandKnowledgeUpdateSnapshot>
   previewChange: (items: KnowledgeItem[]) => Promise<BrandKnowledgeChangeImpact>
   confirmChange: (items: KnowledgeItem[]) => Promise<BrandKnowledgeUpdateSnapshot>
-  saveMarketSelection: (marketId: string, candidateIds: string[]) => Promise<BrandKnowledgeUpdateSnapshot>
+  saveMarketSelection: (marketId: string, candidateIds: string[], removedQuestionIds?: string[]) => Promise<BrandKnowledgeUpdateSnapshot>
+  setMarketEnabled?: (marketId: string, enabled: boolean) => Promise<BrandKnowledgeUpdateSnapshot>
   enableAllMarkets: () => Promise<BrandKnowledgeUpdateSnapshot>
 }

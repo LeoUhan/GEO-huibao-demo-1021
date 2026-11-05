@@ -889,7 +889,7 @@ provide(geoWorkbenchRouteContextKey, {
           </div>
         </template>
       </section>
-      <RouterLink class="geo-workbench-sidebar__onboarding" :to="{ name: 'onboarding', query: { preview: '1' } }">
+      <RouterLink class="geo-workbench-sidebar__onboarding" :to="{ name: 'onboarding', query: { preview: '1', entryCheck: 'website' } }">
         新人引导演示
       </RouterLink>
     </aside>

@@ -12,7 +12,7 @@ import MonitoringQuestionStep from '../components/onboarding/monitoring-question
 import BottomActionBar from '../components/onboarding/shared/BottomActionBar.vue'
 import OnboardingHelp from '../components/onboarding/shared/OnboardingHelp.vue'
 import OnboardingSteps from '../components/onboarding/shared/OnboardingSteps.vue'
-import { Alert, Spinner, Tag, Toast } from '../components/ui/ce'
+import { Alert, Modal, Spinner, Tag, Toast } from '../components/ui/ce'
 import { useFirstConfigWizard } from '../composables/use-first-config-wizard'
 import { useOnboardingStore } from '../stores/onboarding'
 
@@ -35,6 +35,14 @@ const currentMarket = computed(() => store.knowledgeItems.find(item => item.id =
 const currentLanguage = computed(() => store.knowledgeItems.find(item => item.id === 'market')?.marketLanguage?.language ?? '')
 const options = (key: string): DropdownSelectOption[] => wizard.dictionaryOptions.value[key] ?? []
 const personaOptions = computed<DropdownSelectOption[]>(() => store.buyerPersonas.map(persona => ({ value: persona.id, label: persona.type })))
+const entryCheck = computed(() => ['service', 'website', 'knowledge'].includes(String(route.query.entryCheck)) ? String(route.query.entryCheck) : null)
+const entryCheckCopy = computed(() => {
+  if (entryCheck.value === 'service')
+    return { title: '请先开通 AI 建站服务', body: '请先开通独立站营销智能体建站服务，再开启 GEO。', action: '开通服务后，重新检查' }
+  if (entryCheck.value === 'knowledge')
+    return { title: '请先完成企业知识库同步', body: '请完善企业知识库或重新同步，确认内容可读取后再开启 GEO。', action: '完成后，重新检查' }
+  return { title: '请先完成网站建设', body: '请先完成网站建设并绑定可用域名，再开启 GEO。', action: '完成建站并绑定域名后，重新检查' }
+})
 
 onMounted(() => void loadWizard())
 
@@ -47,6 +55,11 @@ async function loadWizard() {
   catch {
     showToast(wizard.error.value ? `新人引导加载失败：${wizard.error.value}` : '新人引导加载失败', 'error')
   }
+}
+
+function advanceEntryCheck() {
+  const nextState = entryCheck.value === 'service' ? 'website' : entryCheck.value === 'website' ? 'knowledge' : undefined
+  void router.replace({ name: 'onboarding', query: { ...route.query, entryCheck: nextState } })
 }
 
 function openEditor(item: KnowledgeItem) {
@@ -349,6 +362,30 @@ onBeforeUnmount(() => {
       @next="goNext"
     />
 
+    <Modal
+      :open="!!entryCheck"
+      title=""
+      width="min(720px, calc(100vw - 32px))"
+      confirm-text=""
+      cancel-text=""
+      processing-text=""
+      close-label="完成 GEO 启动条件检查"
+      :show-close="false"
+      :show-cancel="false"
+      :close-disabled="true"
+      :footer="null"
+      class="geo-entry-prompt"
+    >
+      <div class="geo-entry-prompt__content">
+        <span class="geo-entry-prompt__icon" aria-hidden="true">↗</span>
+        <h2>{{ entryCheckCopy.title }}</h2>
+        <p>{{ entryCheckCopy.body }}</p>
+        <button type="button" class="geo-entry-prompt__action" @click="advanceEntryCheck">
+          {{ entryCheckCopy.action }}
+        </button>
+      </div>
+    </Modal>
+
     <KnowledgeEditorDialog v-model:open="editVisible" :items="store.knowledgeItems" :initial-tab="currentEditItem?.id" footer-mode="brand-only" :competitor-count-limit="wizard.competitorCountLimit.value" :delete-product="wizard.deleteProduct" :delete-competitor="wizard.deleteCompetitor" read-only-market persist-products persist-competitors :persist-knowledge="wizard.saveKnowledgeItems" @saved="handleEditorSaved" @product-accepted="handleProductAccepted" @product-saved="handleProductSaved" @competitor-accepted="handleCompetitorAccepted" @competitor-saved="handleCompetitorSaved" />
   </main>
 
@@ -370,4 +407,19 @@ onBeforeUnmount(() => {
   padding: 0;
   place-items: center;
 }
+
+:global(.geo-entry-prompt) {
+  --modal-backdrop: rgb(20 31 50 / 46%);
+  --modal-backdrop-blur: 0px;
+  --modal-shadow: 0 18px 54px rgb(15 23 42 / 22%);
+}
+:global(.geo-entry-prompt .ce-modal) { border-radius: 16px; }
+:global(.geo-entry-prompt .ce-modal-header) { display: none; }
+:global(.geo-entry-prompt .ce-modal-body) { padding: 30px 28px 34px; }
+.geo-entry-prompt__content { display: flex; min-height: 220px; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
+.geo-entry-prompt__icon { display: grid; width: 42px; height: 42px; margin-bottom: 12px; place-items: center; border-radius: 50%; background: var(--status-warning-background); color: var(--status-warning-foreground); font-size: 23px; font-weight: 700; }
+.geo-entry-prompt__content h2 { margin: 0 0 6px; color: var(--text-primary); font-size: 20px; line-height: 28px; }
+.geo-entry-prompt__content p { margin: 0; color: var(--text-secondary); font-size: 14px; line-height: 22px; }
+.geo-entry-prompt__action { min-height: 40px; margin-top: 20px; padding: 0 18px; border: 0; border-radius: 8px; background: var(--action-accent); color: white; font: inherit; font-weight: 600; cursor: pointer; }
+.geo-entry-prompt__action:hover { filter: brightness(.96); }
 </style>

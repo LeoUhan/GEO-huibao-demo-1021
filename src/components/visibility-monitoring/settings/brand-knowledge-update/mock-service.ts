@@ -93,20 +93,21 @@ export function createMockBrandKnowledgeUpdateService(seed?: BrandKnowledgeUpdat
     return getSnapshot()
   }
 
-  const saveMarketSelection = async (marketId: string, candidateIds: string[]): Promise<BrandKnowledgeUpdateSnapshot> => {
+  const saveMarketSelection = async (marketId: string, candidateIds: string[], removedQuestionIds: string[] = []): Promise<BrandKnowledgeUpdateSnapshot> => {
     const market = state.markets.find(item => item.id === marketId)
     if (!market)
       throw new Error('未找到该市场')
 
     const uniqueIds = [...new Set(candidateIds)]
-    if (uniqueIds.length > 5)
-      throw new Error('每个市场最多选择 5 条推荐问题')
+    if (uniqueIds.length > 10)
+      throw new Error('每个市场最多选择 10 条推荐问题')
     const candidateById = new Map(market.candidates.map(candidate => [candidate.id, candidate]))
     if (uniqueIds.some(id => !candidateById.has(id)))
       throw new Error('选择中包含无效或已过期的候选问题')
 
     const currentIds = new Set(market.existingQuestions.map(question => question.id))
     const selectedQuestions = uniqueIds.map(id => candidateById.get(id)!).filter(question => !currentIds.has(question.id))
+    const removedIds = new Set(removedQuestionIds.filter(id => currentIds.has(id)))
     state = {
       ...state,
       markets: state.markets.map(item => item.id === marketId
@@ -114,7 +115,9 @@ export function createMockBrandKnowledgeUpdateService(seed?: BrandKnowledgeUpdat
             ...item,
             processed: true,
             selectedCandidateIds: uniqueIds,
-            existingQuestions: [...item.existingQuestions, ...clone(selectedQuestions)],
+            processedAddedCount: selectedQuestions.length,
+            processedRemovedCount: removedIds.size,
+            existingQuestions: [...item.existingQuestions.filter(question => !removedIds.has(question.id)), ...clone(selectedQuestions)],
           }
         : item),
     }
@@ -126,7 +129,12 @@ export function createMockBrandKnowledgeUpdateService(seed?: BrandKnowledgeUpdat
     return getSnapshot()
   }
 
-  return { getSnapshot, previewChange, confirmChange, saveMarketSelection, enableAllMarkets }
+  const setMarketEnabled = async (marketId: string, enabled: boolean): Promise<BrandKnowledgeUpdateSnapshot> => {
+    state = { ...state, markets: state.markets.map(market => market.id === marketId ? { ...market, enabled } : market) }
+    return getSnapshot()
+  }
+
+  return { getSnapshot, previewChange, confirmChange, saveMarketSelection, setMarketEnabled, enableAllMarkets }
 }
 
 export type { MonitoringQuestion }

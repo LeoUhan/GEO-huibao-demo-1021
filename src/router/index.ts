@@ -68,6 +68,12 @@ export function createAppRouter() {
             component: () => import('../views/OnboardingView.vue'),
             meta: { title: '品牌知识引导' },
           },
+          {
+            path: 'geo-entry-check',
+            name: 'geo-entry-check',
+            redirect: to => ({ name: 'onboarding', query: { ...to.query, preview: '1', entryCheck: to.query.entryCheck ?? 'website' } }),
+            meta: { title: 'GEO 启动检查' },
+          },
         ],
       },
       {
@@ -90,8 +96,13 @@ export function createAppRouter() {
   router.beforeEach(async (to) => {
     const geoContext = useGeoContextStore()
     let entryStatus = geoContext.entryStatus?.entryStatus
-    if (to.name === 'onboarding')
-      return entryStatus === 'CONFIGURED' && to.query.preview !== '1' ? { name: 'overview' } : true
+    if (to.name === 'onboarding') {
+      if (to.query.preview === '1' || to.query.preflight === 'passed')
+        return true
+      return entryStatus === 'CONFIGURED'
+        ? { name: 'overview' }
+        : { name: 'onboarding', query: { ...to.query, preview: '1', entryCheck: to.query.entryCheck ?? 'service' } }
+    }
     if (!to.meta.requiresOnboarding || entryStatus === 'CONFIGURED')
       return true
 
@@ -100,13 +111,13 @@ export function createAppRouter() {
         entryStatus = (await geoContext.refreshEntryStatus()).entryStatus
       }
       catch {
-        return { name: 'onboarding', query: { returnTo: to.fullPath } }
+        return { name: 'onboarding', query: { preview: '1', entryCheck: 'service', returnTo: to.fullPath } }
       }
     }
 
     if (entryStatus === 'CONFIGURED')
       return true
-    return { name: 'onboarding', query: { returnTo: to.fullPath } }
+    return { name: 'onboarding', query: { preview: '1', entryCheck: 'service', returnTo: to.fullPath } }
   })
 
   router.afterEach((to) => {

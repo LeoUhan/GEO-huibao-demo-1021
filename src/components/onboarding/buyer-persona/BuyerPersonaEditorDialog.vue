@@ -344,7 +344,7 @@ watch([open, () => props.mode], ([isOpen]) => {
 .buyer-persona-form { padding: var(--space-3); border: 1px solid var(--border-default); border-radius: var(--radius-card); background: var(--background-primary); }
 .buyer-persona-form__questions { margin-top: var(--space-3); gap: 8px; }
 .buyer-persona-form__questions textarea { box-sizing: border-box; width: 100%; min-height: 84px; padding: 12px; border: 1px solid var(--border-default); border-radius: var(--radius-control); color: var(--text-primary); background: var(--background-primary); font: inherit; resize: vertical; }
-.buyer-persona-form__questions-value { white-space: pre-line; }
+.buyer-persona-form__questions-value { min-height: 68px; align-items: flex-start; background: var(--background-primary); white-space: pre-line; }
 .buyer-persona-form__header { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); margin-bottom: var(--space-3); }
 .buyer-persona-form__header h3 { margin: 0; color: var(--text-primary); font-size: var(--font-size-section-title); line-height: var(--line-height-section-title); font-weight: var(--weight-semibold); }
 .buyer-persona-form__fields,.buyer-persona-form__optional-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-3); }

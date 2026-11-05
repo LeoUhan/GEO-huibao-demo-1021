@@ -1,33 +1,43 @@
 <script setup lang="ts">
 import type { BrandKnowledgeUpdateSnapshot, MarketRecommendationState } from './types'
-import { computed } from 'vue'
 import Button from '../../../ui/ce/button/Button.vue'
 import Modal from '../../../ui/ce/modal/Modal.vue'
 import Spinner from '../../../ui/ce/spinner/Spinner.vue'
+import MarketRecommendationEditor from './MarketRecommendationEditor.vue'
 
 const props = withDefaults(defineProps<{
   open: boolean
   snapshot?: BrandKnowledgeUpdateSnapshot | null
+  activeMarket?: MarketRecommendationState | null
+  selectedIds?: string[]
+  removedIds?: string[]
+  activeTab?: 'all' | 'candidates' | 'current'
   pendingAction?: string | null
   error?: string | null
-}>(), { snapshot: null, pendingAction: null, error: null })
+}>(), {
+  snapshot: null,
+  activeMarket: null,
+  selectedIds: () => [],
+  removedIds: () => [],
+  activeTab: 'candidates',
+  pendingAction: null,
+  error: null,
+})
 
 const emit = defineEmits<{
   processMarket: [marketId: string]
   enableAll: []
   close: []
   retry: []
+  'update:selectedIds': [ids: string[]]
+  'update:removedIds': [ids: string[]]
+  'update:activeTab': [tab: 'all' | 'candidates' | 'current']
+  save: [candidateIds: string[], removedIds: string[]]
+  pauseMarket: []
+  toggleMarket: []
 }>()
 
-const allMarketsPaused = computed(() => {
-  const markets = props.snapshot?.markets ?? []
-  return markets.length > 0 && markets.every(market => !market.enabled)
-})
-const allMarketsEnabled = computed(() => {
-  const markets = props.snapshot?.markets ?? []
-  return markets.length > 0 && markets.every(market => market.enabled)
-})
-
+const enabledCount = () => (props.snapshot?.markets ?? []).filter(market => market.enabled).length
 function pendingCount(market: MarketRecommendationState): number {
   return Math.max(0, market.candidates.length - market.selectedCandidateIds.length)
 }
@@ -38,217 +48,138 @@ function pendingCount(market: MarketRecommendationState): number {
     class="market-recommendation-list"
     :open="open"
     title="各市场监测问题"
-    :width="720"
-    :footer="null"
+    width="min(1240px, calc(100vw - 40px))"
     confirm-text=""
     cancel-text=""
-    close-label="关闭市场列表"
+    close-label="关闭市场问题处理"
     processing-text="正在更新市场状态…"
     :show-cancel="false"
     :loading="pendingAction === 'enable-all'"
     @close="emit('close')"
   >
-    <div class="market-list">
-      <p class="market-list__intro">
-        品牌知识已保存，推荐问题按市场分别生成。加入或移出问题都在对应市场的“监测问题”列表中操作。
-      </p>
-
-      <div v-if="error" class="market-list__error" role="alert">
-        <span>{{ error }}</span>
-        <Button size="xs" variant="outline" aria-label="重试市场操作" @click="emit('retry')">
-          重试
-        </Button>
-      </div>
-
-      <div v-if="snapshot?.markets.length" class="market-list__rows">
-        <article v-for="market in snapshot.markets" :key="market.id" class="market-row">
-          <div class="market-row__main">
-            <div class="market-row__title">
-              <h3>{{ market.name }}</h3>
-              <span class="market-row__status" :class="market.enabled ? 'is-enabled' : 'is-paused'">
-                <span class="market-row__status-dot" aria-hidden="true" />
-                {{ market.enabled ? '已启用' : '已暂停' }}
-              </span>
-            </div>
-            <p class="market-row__meta">
-              <template v-if="market.processed">
-                已处理 · 已加入 {{ market.selectedCandidateIds.length }} 条推荐问题
-              </template>
-              <template v-else>
-                待处理 · {{ pendingCount(market) }} 条推荐问题
-              </template>
-              <span v-if="market.candidates.length === 0 && !market.processed"> · 暂无候选</span>
-            </p>
-          </div>
-          <Button
-            size="sm"
-            variant="outline"
-            :aria-label="`处理${market.name}的推荐问题`"
+    <div class="market-manager">
+      <aside class="market-manager__sidebar" aria-label="市场列表">
+        <header class="market-manager__sidebar-head">
+          <strong>已启用市场 {{ enabledCount() }}</strong>
+          <span>{{ snapshot?.markets.filter(market => !market.processed).length ?? 0 }} 个待处理</span>
+        </header>
+        <div v-if="snapshot?.markets.length" class="market-manager__markets">
+          <button
+            v-for="market in snapshot.markets"
+            :key="market.id"
+            type="button"
+            class="market-manager__market"
+            :class="{ 'is-active': activeMarket?.id === market.id, 'is-processed': market.processed }"
+            :aria-pressed="activeMarket?.id === market.id"
             :disabled="Boolean(pendingAction)"
             @click="emit('processMarket', market.id)"
           >
-            {{ market.processed ? '查看已选问题' : '处理监测问题' }}
-          </Button>
-        </article>
-      </div>
-      <div v-else-if="snapshot" class="market-list__empty" role="status">
-        <strong>当前没有需要处理的市场</strong>
-        <span>市场状态已由服务同步。</span>
-      </div>
-      <p v-else class="market-list__loading" role="status">
-        <Spinner variant="ring" aria-hidden="true" />
-      </p>
+            <span class="market-manager__market-name">{{ market.name }}</span>
+            <span class="market-manager__market-status" :class="market.enabled ? 'is-enabled' : 'is-paused'">
+              <i aria-hidden="true" />{{ market.enabled ? '运行中' : '已暂停' }}
+            </span>
+            <small>{{ market.processed ? '✓ 已处理' : `${pendingCount(market)} 条待处理` }}</small>
+          </button>
+        </div>
+        <p v-else-if="snapshot" class="market-manager__empty">当前没有需要处理的市场</p>
+        <p v-else class="market-manager__loading" role="status"><Spinner variant="ring" aria-hidden="true" /></p>
+      </aside>
 
-      <div v-if="snapshot?.markets.length" class="market-list__footer">
-        <p v-if="allMarketsPaused">
-          未调整的市场保留现有监测问题。所有市场当前已暂停，可通过统一入口一次开启全部市场。
-        </p>
-        <p v-else-if="allMarketsEnabled">
-          未调整的市场保留现有监测问题。所有市场当前已开启。
-        </p>
-        <p v-else>
-          未调整的市场保留现有监测问题。可通过统一入口开启已暂停市场。
-        </p>
-        <Button class="is-primary" variant="primary" size="sm" :disabled="Boolean(pendingAction) || allMarketsEnabled" :loading="pendingAction === 'enable-all'" @click="emit('enableAll')">
-          {{ allMarketsEnabled ? '全部市场已开启' : '开启全部市场' }}
+      <main class="market-manager__content">
+        <div v-if="error" class="market-manager__error" role="alert">
+          <span>{{ error }}</span>
+          <Button size="xs" variant="outline" aria-label="重试市场操作" @click="emit('retry')">重试</Button>
+        </div>
+        <template v-if="activeMarket">
+          <MarketRecommendationEditor
+            :market="activeMarket"
+            :selected-ids="selectedIds"
+            :removed-ids="removedIds"
+            :pending="Boolean(pendingAction)"
+            :error="null"
+            :show-return-button="false"
+            :tab="activeTab"
+            @update:tab="emit('update:activeTab', $event)"
+            @update:selected-ids="emit('update:selectedIds', $event)"
+            @update:removed-ids="emit('update:removedIds', $event)"
+            @save="(candidateIds, removedQuestionIds) => emit('save', candidateIds, removedQuestionIds)"
+            @pause-market="emit('pauseMarket')"
+            @toggle-market="emit('toggleMarket')"
+          />
+        </template>
+        <p v-else-if="snapshot" class="market-manager__placeholder">选择一个市场处理监测问题</p>
+        <p v-else class="market-manager__loading" role="status"><Spinner variant="ring" aria-hidden="true" /></p>
+      </main>
+    </div>
+
+    <template #footer>
+      <div class="market-manager__footer">
+        <Button variant="outline" @click="emit('close')">关闭</Button>
+        <span>未确认的问题修改不会应用；可以按现有配置开启市场</span>
+        <Button class="is-primary" variant="primary" :disabled="Boolean(pendingAction)" :loading="pendingAction === 'enable-all'" @click="emit('enableAll')">
+          按现有配置开启全部市场
         </Button>
       </div>
-    </div>
+    </template>
   </Modal>
 </template>
 
 <style scoped>
 :global(dialog.ce-modal-root.market-recommendation-list) {
-  --modal-inset: 20px;
-  --modal-title-font-size: 17px;
-  --modal-title-line-height: 24px;
-  width: min(720px, calc(100vw - 32px));
-  max-height: min(680px, calc(100vh - 32px));
+  --modal-inset: 0px;
+  --modal-title-font-size: 18px;
+  --modal-title-line-height: 26px;
+  width: min(1240px, calc(100vw - 40px));
+  max-height: min(820px, calc(100vh - 32px));
 }
-
-:global(dialog.ce-modal-root.market-recommendation-list .ce-modal) {
-  max-height: min(680px, calc(100vh - 32px));
-}
-
-:global(dialog.ce-modal-root.market-recommendation-list .ce-modal-header) {
-  padding-bottom: 10px;
-}
-
-:global(dialog.ce-modal-root.market-recommendation-list .ce-modal-body) {
-  padding-bottom: 20px;
-}
-
-.market-list {
-  display: grid;
-  gap: 14px;
-  color: var(--text-primary);
-  font-size: 14px;
-  line-height: 1.5;
-}
-
-.market-list__intro,
-.market-list__footer p,
-.market-row__meta {
-  margin: 0;
-  color: var(--text-secondary);
-}
-
-.market-list__loading { display: flex; min-height: 64px; align-items: center; justify-content: center; --spinner-color: var(--action-accent); }
-
-.market-list__rows {
-  display: grid;
-  gap: 12px;
-}
-
-.market-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  min-width: 0;
-  padding: 12px 14px;
-  border: 0;
-  border-radius: 10px;
-  background: var(--background-subtle);
-}
-
-.market-row__main {
-  min-width: 0;
-}
-
-.market-row__title {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 8px 12px;
-}
-
-.market-row__title h3 {
-  min-width: 0;
-  margin: 0;
-  font-size: 15px;
-  font-weight: 620;
-  line-height: 1.4;
-  overflow-wrap: anywhere;
-}
-
-.market-row__status {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  color: var(--text-secondary);
-  font-size: 12px;
-  white-space: nowrap;
-}
-
-.market-row__status-dot {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--text-muted);
-}
-
-.market-row__status.is-enabled .market-row__status-dot { background: var(--status-success, #16845b); }
-.market-row__status.is-paused .market-row__status-dot { background: var(--status-warning, #c17c16); }
-.market-row__meta { margin-top: 4px; font-size: var(--font-size-caption); line-height: var(--line-height-caption); overflow-wrap: anywhere; }
-
-.market-list__error {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 10px 12px;
-  border-radius: 8px;
-  background: var(--background-subtle);
-  color: var(--text-secondary);
-  font-size: var(--font-size-body);
-  line-height: var(--line-height-body);
-}
-
-.market-list__empty {
-  display: grid;
-  gap: 4px;
-  padding: 20px 0;
-  color: var(--text-secondary);
-}
-
-.market-list__empty strong { color: var(--text-primary); font-weight: 600; }
-.market-list__empty span { color: var(--text-muted); font-size: var(--font-size-body); line-height: var(--line-height-body); }
-
-.market-list__footer {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  padding-top: 14px;
-}
-
-.market-list__footer p { min-width: 0; font-size: var(--font-size-body); line-height: var(--line-height-body); }
-
-@media (max-width: 560px) {
-  :global(dialog.ce-modal-root.market-recommendation-list) { --modal-inset: 16px; }
-  .market-row { align-items: flex-start; gap: 10px; }
-  .market-row :deep(.ce-button) { flex: 0 0 auto; }
-  .market-list__footer { align-items: stretch; flex-direction: column; }
+:global(dialog.ce-modal-root.market-recommendation-list .ce-modal) { display: grid; grid-template-rows: auto minmax(0, 1fr) auto; max-height: min(820px, calc(100vh - 32px)); overflow: hidden; }
+:global(dialog.ce-modal-root.market-recommendation-list .ce-modal-header) { padding: 16px 22px; border-bottom: 1px solid var(--border-divider); }
+:global(dialog.ce-modal-root.market-recommendation-list .ce-modal-body) { min-height: 0; padding: 0; overflow: hidden; }
+:global(dialog.ce-modal-root.market-recommendation-list .ce-modal-footer) { padding: 0; border-top: 1px solid var(--border-divider); }
+.market-manager { display: grid; grid-template-columns: 270px minmax(0, 1fr); min-height: 480px; height: min(650px, calc(100vh - 180px)); color: var(--text-primary); }
+.market-manager__sidebar { display: grid; grid-template-rows: auto minmax(0, 1fr); min-height: 0; border-right: 1px solid var(--border-divider); background: var(--background-subtle); }
+.market-manager__sidebar-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 16px 18px; border-bottom: 1px solid var(--border-divider); font-size: 13px; }
+.market-manager__sidebar-head span { color: var(--action-accent); font-weight: 600; white-space: nowrap; }
+.market-manager__markets { display: grid; align-content: start; gap: 9px; min-height: 0; overflow: auto; padding: 14px; }
+.market-manager__market { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 8px; width: 100%; padding: 12px; border: 1px solid var(--border-default); border-radius: 10px; color: var(--text-primary); background: var(--background-primary); text-align: left; cursor: pointer; }
+.market-manager__market.is-active { border-color: var(--action-accent); color: var(--action-accent); background: var(--action-subtle-background); box-shadow: 0 0 0 1px color-mix(in srgb, var(--action-accent) 14%, transparent); }
+.market-manager__market.is-processed:not(.is-active) { background: color-mix(in srgb, var(--status-success, #16845b) 4%, var(--background-primary)); }
+.market-manager__market:disabled { cursor: default; opacity: .7; }
+.market-manager__market-name { min-width: 0; font-size: 13px; font-weight: 650; }
+.market-manager__market small { grid-column: 1 / -1; color: var(--text-secondary); font-size: 11px; }
+.market-manager__market-status { display: inline-flex; align-items: center; gap: 5px; color: var(--text-secondary); font-size: 11px; white-space: nowrap; }
+.market-manager__market-status i { width: 7px; height: 7px; border-radius: 50%; background: var(--text-muted); }
+.market-manager__market-status.is-enabled i { background: var(--status-success, #16845b); }
+.market-manager__market-status.is-paused i { background: var(--status-warning, #c17c16); }
+.market-manager__content { display: grid; grid-template-rows: auto minmax(0, 1fr); gap: 12px; min-width: 0; min-height: 0; overflow: hidden; padding: 16px 20px; }
+.market-manager__content :deep(.recommendation-editor) { grid-template-rows: auto auto minmax(0, 1fr); gap: 10px; min-height: 0; overflow: hidden; }
+.market-manager__content :deep(.recommendation-editor.is-all) { grid-template-rows: auto auto auto auto; overflow: auto; }
+.market-manager__content :deep(.recommendation-editor__tabs) { margin: 0; }
+.market-manager__content :deep(.recommendation-editor__panel) { padding: 0; border: 0; border-radius: 0; background: transparent; }
+.market-manager__content :deep(.recommendation-editor__recommendations) { display: flex; flex-direction: column; gap: 0; min-height: 0; }
+.market-manager__content :deep(.recommendation-editor__header) { display: none; }
+.market-manager__content :deep(.recommendation-editor__section-head) { margin: 0 0 8px; }
+.market-manager__content :deep(.recommendation-candidates) { max-height: none; min-height: 0; }
+.market-manager__content :deep(.recommendation-editor__recommendations .recommendation-candidates) { flex: 1 1 auto; }
+.market-manager__content :deep(.recommendation-editor__existing) { min-height: 0; overflow: auto; }
+.market-manager__content :deep(.recommendation-editor__actions) { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border-divider); }
+.market-manager__content :deep(.recommendation-editor__buttons) { margin-left: auto; }
+.market-manager__content :deep(.recommendation-editor__empty) { align-self: center; justify-self: center; }
+.market-manager__error { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 10px; border-radius: 8px; color: var(--text-danger, #b42318); background: var(--background-danger-subtle, #fff1f0); font-size: 12px; }
+.market-manager__loading, .market-manager__placeholder, .market-manager__empty { display: flex; align-items: center; justify-content: center; margin: 0; padding: 24px; color: var(--text-muted); font-size: 13px; }
+.market-manager__loading { --spinner-color: var(--action-accent); }
+.market-manager__footer { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 12px; width: 100%; padding: 12px 20px; background: var(--background-subtle); }
+.market-manager__footer span { color: var(--text-secondary); font-size: 12px; }
+@media (max-width: 760px) {
+  :global(dialog.ce-modal-root.market-recommendation-list) { width: calc(100vw - 20px); }
+  .market-manager { grid-template-columns: 170px minmax(0, 1fr); min-height: 420px; height: min(650px, calc(100vh - 150px)); }
+  .market-manager__sidebar-head { align-items: flex-start; flex-direction: column; gap: 3px; padding: 12px; }
+  .market-manager__markets { padding: 8px; }
+  .market-manager__market { padding: 9px; }
+  .market-manager__market-status { grid-column: 1 / -1; }
+  .market-manager__content { padding: 12px; }
+  .market-manager__footer { grid-template-columns: auto minmax(0, 1fr); padding: 10px; }
+  .market-manager__footer span { display: none; }
+  .market-manager__footer :deep(.ce-button:last-child) { grid-column: 2; }
 }
 </style>

@@ -26,8 +26,8 @@ const selectedBatchId = shallowRef<string | null>(null)
 const expandedPlatform = shallowRef<MonitoringPlatformId | null>(null)
 const pages = computed(() => props.pages ?? visibilityMonitoringData.citedPages)
 const sources = computed(() => props.sources ?? visibilityMonitoringData.sources)
-const platformResults = computed(() => props.question?.batchResults?.[selectedBatchId.value ?? ''] ?? props.question?.platformResults ?? [])
-const trendOption = computed(() => createTrendOption({ weeks: props.question?.trendWeeks ?? [], series: props.question?.platformTrends ?? [] }))
+const platformResults = computed(() => (props.question?.batchResults?.[selectedBatchId.value ?? ''] ?? props.question?.platformResults ?? []).filter(result => result.platform !== 'perplexity'))
+const trendOption = computed(() => createTrendOption({ weeks: props.question?.trendWeeks ?? [], series: (props.question?.platformTrends ?? []).filter(series => series.id !== 'perplexity') }))
 const summary = computed(() => props.question ? getQuestionSummary(props.question) : null)
 const selectedBatch = computed(() => props.question?.samplingBatches.find(batch => batch.id === selectedBatchId.value)
   ?? props.question?.samplingBatches[0]
@@ -42,15 +42,16 @@ const mentionRows = computed(() => {
   const question = props.question
   if (!question)
     return []
-  const total = question.platformResults.length
+  const currentResults = question.platformResults.filter(result => result.platform !== 'perplexity')
+  const total = currentResults.length
   const rows = [{
     name: props.brand ?? visibilityMonitoringData.overview.brand,
     type: '我方品牌',
-    hits: question.platformResults.filter(result => result.ownBrandMentioned).length,
+    hits: currentResults.filter(result => result.ownBrandMentioned).length,
   }, ...question.competitors.map(name => ({
     name,
     type: '竞品',
-    hits: question.platformResults.filter(result => result.competitorsMentioned.includes(name)).length,
+    hits: currentResults.filter(result => result.competitorsMentioned.includes(name)).length,
   }))]
   return rows.map(row => ({ ...row, rate: total ? Math.round(row.hits / total * 100) : 0, total }))
 })
@@ -58,7 +59,7 @@ const citedPages = computed(() => {
   const question = props.question
   if (!question)
     return []
-  const allResults = question.batchResults ? Object.values(question.batchResults).flat() : question.platformResults
+  const allResults = (question.batchResults ? Object.values(question.batchResults).flat() : question.platformResults).filter(result => result.platform !== 'perplexity')
   const pageIds = [...new Set(allResults.flatMap(result => result.citedPages))]
   return pageIds.map((id) => {
     const page = pages.value.find(item => item.id === id)
@@ -109,7 +110,7 @@ watch(() => props.question?.id, () => {
           <span class="vm-section-kicker">{{ question.id }} · {{ question.type }}</span>
         </div>
         <div class="vm-detail-metrics">
-          <article><span>命中 AI 平台</span><strong>{{ summary?.platformHits }} / {{ question.platformResults.length }}</strong><small>{{ question.platformResults.map(result => platformName(result.platform)).join(' · ') }}</small></article>
+          <article><span>命中 AI 平台</span><strong>{{ summary?.platformHits }} / {{ question.platformResults.filter(result => result.platform !== 'perplexity').length }}</strong><small>{{ question.platformResults.filter(result => result.platform !== 'perplexity').map(result => platformName(result.platform)).join(' · ') }}</small></article>
           <article><span>我方提及率 <MetricDefinitionButton id="soa" /></span><strong>{{ summary?.ownMentionRate }}%</strong><small>按当前平台结果统计</small></article>
           <article><span>我方官网引用率 <MetricDefinitionButton id="officialCitation" /></span><strong>{{ summary?.citationRate }}%</strong><small>引用我方官网的有效回答占比</small></article>
           <article><span>平均位次 <MetricDefinitionButton id="rank" /></span><strong>{{ summary?.averageRank ?? '—' }}</strong><small>仅统计有排名结果</small></article>

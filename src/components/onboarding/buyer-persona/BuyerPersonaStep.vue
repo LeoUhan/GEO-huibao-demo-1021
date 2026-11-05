@@ -68,17 +68,18 @@ function handlePersonasSaved(personas: BuyerPersona[]) {
 
     <OnboardingSteps :current-step="currentStep" :steps="steps" />
 
-    <p class="buyer-persona-step__market">
-      {{ marketSetup ? '当前配置市场：' : '当前分析市场：' }}<strong>{{ market || '尚未设置' }}</strong>{{ marketSetup ? '。为该市场添加需监测的人设，配置仅对此市场生效。' : '。请按需添加人设，类型限以下 6 类。' }}
-    </p>
-
     <section class="knowledge-panel buyer-persona-step__panel" aria-labelledby="buyer-persona-panel-title">
       <div class="knowledge-panel__header">
         <div class="buyer-persona-step__section-title">
-          <h2 id="buyer-persona-panel-title" class="knowledge-panel__title">
-            {{ marketSetup ? '该市场买家人设' : '当前买家人设' }}
-          </h2>
-          <OnboardingHelp label="当前买家人设说明" :message="marketSetup ? '仅添加该市场实际需要监测的人设。每套必填人设类型和采购阶段，其余信息均为选填。' : '仅添加实际需要用于监测的人设。每套必填人设类型和采购阶段，其余信息均为选填。'" />
+          <div class="buyer-persona-step__section-title-row">
+            <h2 id="buyer-persona-panel-title" class="knowledge-panel__title">
+              {{ marketSetup ? '该市场买家人设' : '当前买家人设' }}
+            </h2>
+            <OnboardingHelp label="当前买家人设说明" :message="marketSetup ? '仅添加该市场实际需要监测的人设。每套必填人设类型和采购阶段，其余信息均为选填。' : '仅添加实际需要用于监测的人设。每套必填人设类型和采购阶段，其余信息均为选填。'" />
+          </div>
+          <p class="buyer-persona-step__market">
+            {{ marketSetup ? '当前配置市场：' : '当前分析市场：' }}<strong>{{ market || '尚未设置' }}</strong>{{ marketSetup ? '。为该市场添加需监测的人设，配置仅对此市场生效。' : '。请按需添加人设，类型限以下 6 类。' }}
+          </p>
         </div>
         <Tag tone="neutral" variant="soft" size="sm">
           {{ countLabel }}
@@ -129,11 +130,12 @@ function handlePersonasSaved(personas: BuyerPersona[]) {
 .buyer-persona-step { display: grid; gap: var(--space-5); }
 .buyer-persona-step .page-header { margin-bottom: 0; }
 .buyer-persona-step :deep(.onboarding-steps) { margin-bottom: 0; }
-.buyer-persona-step__market { margin: 0; padding: 0 var(--space-2); color: var(--text-secondary); font-size: var(--font-size-body); line-height: var(--line-height-body); }
+.buyer-persona-step__market { margin: var(--space-1) 0 0; color: var(--text-secondary); font-size: var(--font-size-caption); line-height: var(--line-height-caption); }
 .buyer-persona-step__market strong { color: var(--text-primary); font-weight: var(--weight-semibold); }
 .buyer-persona-step__panel { overflow: hidden; border-radius: var(--radius-metric); }
 .buyer-persona-step__panel :deep(.knowledge-panel__header .ce-tag) { border-radius: var(--radius-control); }
-.buyer-persona-step__section-title { display: inline-flex; align-items: center; gap: var(--space-2); }
+.buyer-persona-step__section-title { display: grid; gap: var(--space-1); }
+.buyer-persona-step__section-title-row { display: flex; align-items: center; gap: var(--space-2); }
 .buyer-persona-step__list { display: grid; gap: var(--space-4); padding: var(--space-surface-content); }
 .buyer-persona-card { min-width: 0; padding: var(--space-5); border: 1px solid var(--border-default); border-radius: var(--radius-metric); background: var(--background-primary); }
 .buyer-persona-card__heading,.buyer-persona-card__heading > div:first-child,.buyer-persona-card__actions { display: flex; align-items: center; gap: var(--space-3); }

@@ -34,6 +34,8 @@ function platformHits(raw: string | null) {
       return ''
     const record = item as { platform?: unknown, mentioned?: unknown }
     const id = String(record.platform ?? '')
+    if (id.toLocaleLowerCase().includes('perplexity'))
+      return ''
     const label = analysisData.platforms.find(platform => platform.id === id || platform.id.replace('-', '_') === id)?.label ?? id
     return label ? `${label}：${record.mentioned === true ? '提及' : record.mentioned === false ? '未提及' : '—'}` : ''
   }).filter(Boolean).join(' / ') || '—'

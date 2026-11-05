@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { BrandKnowledgeDraft } from '../../../types'
-import { Input, Tag } from '../../ui/ce'
+import { Input } from '../../ui/ce'
 import Textarea from '../../ui/Textarea.vue'
 
 defineProps<{ errors: Record<string, string> }>()
@@ -18,9 +18,6 @@ const model = defineModel<BrandKnowledgeDraft>({ required: true })
       <div class="knowledge-field">
         <div class="knowledge-field__heading">
           <label for="brand-name">品牌名称 <span aria-hidden="true">*</span></label>
-          <Tag tone="green" variant="soft" size="sm">
-            企业知识库
-          </Tag>
         </div>
         <Input id="brand-name" v-model="model.name" autocomplete="organization" :aria-invalid="Boolean(errors.name)" :aria-describedby="errors.name ? 'brand-name-error' : undefined" placeholder="请输入品牌名称" />
         <p v-if="errors.name" id="brand-name-error" class="knowledge-field__error" role="alert">
@@ -31,9 +28,6 @@ const model = defineModel<BrandKnowledgeDraft>({ required: true })
       <div class="knowledge-field">
         <div class="knowledge-field__heading">
           <label for="brand-alias">品牌别名 / 对外称谓</label>
-          <Tag tone="green" variant="soft" size="sm">
-            企业知识库
-          </Tag>
         </div>
         <Input id="brand-alias" v-model="model.alias" placeholder="例如：APW Waterjet · 安培威" />
       </div>
@@ -41,9 +35,6 @@ const model = defineModel<BrandKnowledgeDraft>({ required: true })
       <div class="knowledge-field knowledge-field--wide">
         <div class="knowledge-field__heading">
           <label for="brand-industry">主营行业 <span aria-hidden="true">*</span></label>
-          <Tag tone="green" variant="soft" size="sm">
-            企业知识库
-          </Tag>
         </div>
         <Input id="brand-industry" v-model="model.industry" :aria-invalid="Boolean(errors.industry)" :aria-describedby="errors.industry ? 'brand-industry-error' : undefined" placeholder="可用“ / ”分隔多个领域" />
         <p v-if="errors.industry" id="brand-industry-error" class="knowledge-field__error" role="alert">
@@ -54,9 +45,6 @@ const model = defineModel<BrandKnowledgeDraft>({ required: true })
       <div class="knowledge-field knowledge-field--wide">
         <div class="knowledge-field__heading">
           <label for="brand-description">品牌定位 / 品牌描述 <span aria-hidden="true">*</span></label>
-          <Tag tone="blue" variant="soft" size="sm">
-            AI 已生成
-          </Tag>
         </div>
         <Textarea id="brand-description" v-model="model.description" :aria-invalid="Boolean(errors.description)" :aria-describedby="errors.description ? 'brand-description-error' : undefined" placeholder="描述品牌定位、服务对象和核心价值" :rows="4" />
         <p v-if="errors.description" id="brand-description-error" class="knowledge-field__error" role="alert">

@@ -3,16 +3,21 @@ import type { MarketRecommendationState } from './types'
 import { computed } from 'vue'
 import Button from '../../../ui/ce/button/Button.vue'
 
-const props = defineProps<{ market: MarketRecommendationState, selectedIds: string[], pending: boolean }>()
+const props = withDefaults(defineProps<{ market: MarketRecommendationState, selectedIds: string[], removedIds?: string[], pending: boolean, error?: string | null, showReturnButton?: boolean }>(), { removedIds: () => [], error: null, showReturnButton: true })
 const emit = defineEmits<{
   'update:selectedIds': [ids: string[]]
-  'save': [ids: string[]]
+  'update:removedIds': [ids: string[]]
+  'save': [ids: string[], removedIds: string[]]
+  'pauseMarket': []
+  'toggleMarket': []
   'returnToMarkets': []
 }>()
 
 const candidateIds = computed(() => new Set(props.market.candidates.map(candidate => candidate.id)))
-const safeSelectedIds = computed(() => [...new Set(props.selectedIds)].filter(id => candidateIds.value.has(id)).slice(0, 5))
+const safeSelectedIds = computed(() => [...new Set(props.selectedIds)].filter(id => candidateIds.value.has(id)).slice(0, 10))
 const selectedCount = computed(() => safeSelectedIds.value.length)
+const activeTab = defineModel<'all' | 'candidates' | 'current'>('tab', { default: 'all' })
+const safeRemovedIds = computed(() => props.removedIds.filter(id => props.market.existingQuestions.some(question => question.id === id)))
 const existingQuestionFields = [
   { key: 'keyword', label: '关键词' },
   { key: 'type', label: '类型' },
@@ -25,7 +30,7 @@ const existingQuestionFields = [
 function toggleCandidate(id: string, checked: boolean) {
   const current = safeSelectedIds.value
   if (checked) {
-    if (current.length >= 5 || current.includes(id))
+    if (current.length >= 10 || current.includes(id))
       return
     emit('update:selectedIds', [...current, id])
     return
@@ -34,36 +39,69 @@ function toggleCandidate(id: string, checked: boolean) {
 }
 
 function isDisabled(id: string) {
-  return props.pending || (!safeSelectedIds.value.includes(id) && selectedCount.value >= 5)
+  return props.pending || (!safeSelectedIds.value.includes(id) && selectedCount.value >= 10)
+}
+
+function toggleRemoved(id: string, checked: boolean) {
+  emit('update:removedIds', checked ? [...new Set([...safeRemovedIds.value, id])] : safeRemovedIds.value.filter(item => item !== id))
 }
 
 function saveSelection() {
   if (!props.pending)
-    emit('save', safeSelectedIds.value)
+    emit('save', safeSelectedIds.value, safeRemovedIds.value)
 }
 </script>
 
 <template>
-  <section class="recommendation-editor" aria-labelledby="recommendation-editor-title">
+  <section class="recommendation-editor" :class="{ 'is-all': activeTab === 'all' }" aria-labelledby="recommendation-editor-title">
+    <p v-if="error" class="recommendation-editor__error" role="alert">{{ error }}</p>
+    <nav class="recommendation-editor__tabs" aria-label="问题分类">
+      <button type="button" :aria-pressed="activeTab === 'all'" @click="activeTab = 'all'">全部问题 {{ (market.processed ? 0 : market.candidates.length) + market.existingQuestions.length }}</button>
+      <button type="button" :aria-pressed="activeTab === 'candidates'" @click="activeTab = 'candidates'">AI 推荐候选 {{ market.processed ? 0 : market.candidates.length }}</button>
+      <button type="button" :aria-pressed="activeTab === 'current'" @click="activeTab = 'current'">当前监测问题 {{ market.existingQuestions.length }}</button>
+    </nav>
+    <header v-if="!props.showReturnButton" class="recommendation-editor__market-heading">
+      <div class="recommendation-editor__market-name">
+        <h2>{{ market.name }}</h2>
+        <span class="recommendation-editor__market-status" :class="market.enabled ? 'is-enabled' : 'is-paused'"><i aria-hidden="true" />{{ market.enabled ? '运行中' : '已暂停' }}</span>
+        <Button size="xs" variant="outline" :disabled="pending" @click="emit('toggleMarket')">{{ market.enabled ? '模拟暂停' : '模拟开启' }}</Button>
+      </div>
+      <p>勾选 AI 推荐问题加入监测；可在当前监测问题中移除旧问题。</p>
+    </header>
+    <template v-if="activeTab !== 'current' && market.processed">
+      <section class="recommendation-editor__processed" aria-live="polite">
+        <div class="recommendation-editor__processed-check" aria-hidden="true">✓</div>
+        <h3>该市场已处理</h3>
+        <p v-if="(market.processedAddedCount ?? market.selectedCandidateIds.length) === 0 && (market.processedRemovedCount ?? 0) === 0">
+          本次未加入 AI 推荐问题，现有 {{ market.existingQuestions.length }} 条监测问题保持不变。
+        </p>
+        <p v-else>
+          本次加入 {{ market.processedAddedCount ?? market.selectedCandidateIds.length }} 条 AI 推荐问题，移除 {{ market.processedRemovedCount ?? 0 }} 条旧问题；当前共 {{ market.existingQuestions.length }} 条监测问题。
+        </p>
+        <Button variant="outline" @click="activeTab = 'current'">查看当前监测问题</Button>
+        <span>可切换市场继续处理</span>
+      </section>
+    </template>
+    <template v-else-if="activeTab !== 'current'">
     <section class="recommendation-editor__panel recommendation-editor__recommendations" aria-labelledby="recommendation-editor-title">
       <header class="recommendation-editor__header">
         <div class="recommendation-editor__heading">
           <h2 id="recommendation-editor-title">
             {{ market.name }} · AI 推荐问题
           </h2>
-          <p>AI 推荐内容仅供查看；最多选择 5 条加入当前监测。未勾选的推荐将不加入，原有问题保持不变。</p>
+          <p>勾选 AI 推荐问题加入当前监测；最多选择 10 条。</p>
         </div>
-        <Button size="sm" variant="outline" aria-label="返回市场列表" :disabled="pending" @click="emit('returnToMarkets')">
+        <Button v-if="props.showReturnButton" size="sm" variant="outline" aria-label="返回市场列表" :disabled="pending" @click="emit('returnToMarkets')">
           返回市场列表
         </Button>
       </header>
 
-      <div class="recommendation-editor__section-head">
+      <div v-if="activeTab === 'all'" class="recommendation-editor__section-head">
         <h3 id="candidate-title">
           AI 推荐问题
         </h3>
         <span class="recommendation-editor__count" aria-live="polite">
-          已选择 {{ selectedCount }} / 5 条 · 共 {{ market.candidates.length }} 条候选
+            已选择 {{ selectedCount }} / 10 条 · 共 {{ market.candidates.length }} 条候选
         </span>
       </div>
 
@@ -94,20 +132,24 @@ function saveSelection() {
         当前没有新的推荐问题
       </div>
       <footer class="recommendation-editor__actions">
-        <span>已选问题将在保存成功后加入列表</span>
-        <Button class="is-primary" variant="primary" size="sm" :disabled="pending" :loading="pending" @click="saveSelection">
-          确认本市场选择
+        <span>已选择 {{ selectedCount }} / 10 条加入监测</span>
+        <div class="recommendation-editor__buttons">
+          <Button variant="outline" size="sm" :disabled="pending" @click="emit('save', [], [])">忽略</Button>
+        <Button class="is-primary" variant="primary" size="sm" :disabled="pending" :loading="pending" @click="market.enabled ? emit('pauseMarket') : saveSelection()">
+          {{ market.enabled ? '暂停市场，随后恢复监测' : '确认本市场选择' }}
         </Button>
+        </div>
       </footer>
     </section>
+    </template>
 
-    <section class="recommendation-editor__panel recommendation-editor__existing" aria-labelledby="existing-questions-title">
+    <section v-if="activeTab !== 'candidates'" class="recommendation-editor__panel recommendation-editor__existing" aria-labelledby="existing-questions-title">
       <div class="recommendation-editor__section-head">
         <div>
           <h3 id="existing-questions-title">
             当前监测问题
           </h3>
-          <p>仅供查看，不会因本次操作移除。</p>
+          <p>勾选需要从当前市场移除的问题。</p>
         </div>
         <span class="recommendation-editor__existing-count">{{ market.existingQuestions.length }} 条</span>
       </div>
@@ -117,7 +159,8 @@ function saveSelection() {
           <span v-for="field in existingQuestionFields" :key="field.key" role="columnheader">{{ field.label }}</span>
         </div>
         <ol class="existing-question-list" role="rowgroup">
-          <li v-for="question in market.existingQuestions" :key="question.id" class="existing-question" role="row">
+          <li v-for="question in market.existingQuestions" :key="question.id" class="existing-question" role="row" :class="{ 'is-removing': safeRemovedIds.includes(question.id) }">
+            <input type="checkbox" :checked="safeRemovedIds.includes(question.id)" :disabled="pending" :aria-label="`移除问题 ${question.id}`" @change="toggleRemoved(question.id, ($event.target as HTMLInputElement).checked)">
             <span class="existing-question__text" role="cell">
               <span class="existing-question__id">{{ question.id }}</span>
               {{ question.question }}
@@ -132,6 +175,7 @@ function saveSelection() {
         当前市场还没有监测问题。
       </p>
     </section>
+    <footer v-if="activeTab === 'current'" class="recommendation-editor__actions"><span>待移除 {{ safeRemovedIds.length }} 条 · 确认后保留 {{ market.existingQuestions.length - safeRemovedIds.length }} 条</span><div class="recommendation-editor__buttons"><Button variant="outline" :disabled="pending" @click="emit('save', [], [])">忽略</Button><Button class="is-primary" variant="primary" :disabled="pending" :loading="pending" @click="market.enabled ? emit('pauseMarket') : saveSelection()">{{ market.enabled ? '暂停市场，随后恢复监测' : '确认本市场选择' }}</Button></div></footer>
   </section>
 </template>
 
@@ -142,6 +186,22 @@ function saveSelection() {
   min-width: 0;
   color: var(--text-primary);
 }
+.recommendation-editor__tabs { display: flex; align-items: center; flex-wrap: wrap; gap: 7px; min-width: 0; padding-bottom: 10px; border-bottom: 1px solid var(--border-divider); }
+.recommendation-editor__tabs button { display: inline-flex; align-items: center; gap: 6px; min-height: 34px; padding: 6px 10px; border: 1px solid transparent; border-radius: 8px; color: var(--text-secondary); background: var(--background-subtle); font: inherit; font-size: 12px; line-height: 1.35; cursor: pointer; }
+.recommendation-editor__tabs button[aria-pressed="true"] { border-color: color-mix(in srgb, var(--action-accent) 15%, transparent); color: var(--action-accent); background: var(--action-subtle-background); font-weight: 650; }
+.recommendation-editor__market-heading { display: grid; gap: 4px; min-width: 0; }
+.recommendation-editor__market-name { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; min-width: 0; }
+.recommendation-editor__market-name h2 { margin: 0; font-size: 14px; line-height: 1.4; font-weight: 650; }
+.recommendation-editor__market-heading p { margin: 0; color: var(--text-secondary); font-size: 11px; line-height: 1.4; }
+.recommendation-editor__market-status { display: inline-flex; align-items: center; gap: 5px; color: var(--text-secondary); font-size: 11px; }
+.recommendation-editor__market-status i { width: 7px; height: 7px; border-radius: 50%; background: var(--text-muted); }
+.recommendation-editor__market-status.is-enabled i { background: var(--status-success, #16845b); }
+.recommendation-editor__market-status.is-paused i { background: var(--status-warning, #c17c16); }
+.recommendation-editor__processed { display: grid; align-content: center; justify-items: center; gap: 12px; min-height: 300px; padding: 28px; border: 1px solid color-mix(in srgb, var(--status-success, #16845b) 28%, var(--border-default)); border-radius: 14px; background: color-mix(in srgb, var(--status-success, #16845b) 4%, var(--background-primary)); text-align: center; }
+.recommendation-editor__processed-check { display: grid; place-items: center; width: 52px; height: 52px; border-radius: 50%; color: var(--status-success, #16845b); background: color-mix(in srgb, var(--status-success, #16845b) 13%, var(--background-primary)); font-size: 30px; font-weight: 700; }
+.recommendation-editor__processed h3 { margin: 0; color: var(--text-primary); font-size: 22px; line-height: 1.35; }
+.recommendation-editor__processed p { max-width: 620px; margin: 0; color: var(--text-secondary); font-size: 14px; line-height: 1.6; }
+.recommendation-editor__processed > span { color: var(--text-muted); font-size: 12px; }
 
 .recommendation-editor__panel {
   min-width: 0;
@@ -213,6 +273,7 @@ function saveSelection() {
 .candidate-question__details small { color: var(--text-muted); font-size: 10px; }
 
 .recommendation-editor__empty { margin: 0; padding: 16px 0; color: var(--text-muted); font-size: var(--font-size-body); line-height: var(--line-height-body); }
+.recommendation-editor__error { margin: 0; padding: 9px 11px; border-radius: 8px; color: var(--text-danger, #b42318); background: var(--background-danger-subtle, #fff1f0); font-size: 12px; }
 .recommendation-editor__existing { padding: 16px; }
 .recommendation-editor__existing .recommendation-editor__section-head { margin: 0 0 10px; }
 .existing-question-table { min-width: 0; overflow: hidden; border-radius: 9px; background: var(--background-subtle); }
@@ -226,6 +287,7 @@ function saveSelection() {
 .existing-question__field { color: var(--text-secondary); font-size: 12px; line-height: 1.5; overflow-wrap: anywhere; }
 .existing-question__text { font-weight: 500; }
 .recommendation-editor__actions { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 10px; }
+.recommendation-editor__buttons { display: flex; align-items: center; gap: 8px; }
 .recommendation-editor__actions span { min-width: 0; color: var(--text-muted); font-size: 11px; }
 
 @media (max-width: 680px) {
@@ -239,5 +301,6 @@ function saveSelection() {
   .existing-question-table__header,
   .existing-question { min-width: 850px; }
   .recommendation-editor__actions { align-items: flex-start; flex-direction: column; }
+  .recommendation-editor__buttons { flex-wrap: wrap; margin-left: 0; }
 }
 </style>

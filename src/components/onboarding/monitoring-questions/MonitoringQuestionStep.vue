@@ -137,10 +137,6 @@ function typeTone(type: MonitoringQuestion['type']): TagTone {
 
     <OnboardingSteps :current-step="currentStep" :steps="steps" />
 
-    <p class="monitoring-question-step__context">
-      {{ marketSetup ? '当前配置市场：' : '当前市场：' }}<strong>{{ market || '尚未设置' }} · {{ language || '尚未设置' }}</strong>{{ marketSetup ? '。候选问题将根据本市场单独生成和保存。' : '。候选问题将根据当前市场和回答语言生成。' }}
-    </p>
-
     <section class="knowledge-panel monitoring-question-panel" aria-labelledby="monitoring-question-title">
       <div class="knowledge-panel__header monitoring-question-panel__header">
         <div>
@@ -151,7 +147,7 @@ function typeTone(type: MonitoringQuestion['type']): TagTone {
             <OnboardingHelp label="候选问题说明" message="问题 · 关键词 · 类型 · 买家人设 · 采购阶段 · 意图 · 主要关注问题" />
           </div>
           <p class="monitoring-question-panel__description">
-            {{ marketSetup ? '请选择本市场需要监测的问题；不同市场的问题配置分别保存。' : `当前共有 ${candidates.length} 条候选问题，当前套餐最多可选择 ${selectionLimit} 条加入首次监测。` }}
+            {{ marketSetup ? `当前配置市场：${market || '尚未设置'} · ${language || '尚未设置'}。候选问题将根据本市场单独生成和保存；当前共有 ${candidates.length} 条候选问题。` : `当前市场：${market || '尚未设置'} · ${language || '尚未设置'}。AI 将根据当前市场和回答语言生成候选问题，可从 ${candidates.length} 条候选中选择加入首次监测，最多 ${selectionLimit} 条。` }}
           </p>
         </div>
         <div class="monitoring-question-panel__header-actions">
@@ -250,8 +246,6 @@ function typeTone(type: MonitoringQuestion['type']): TagTone {
 .monitoring-question-step { display: grid; gap: var(--space-5); min-width: 0; }
 .monitoring-question-step .page-header { margin-bottom: 0; }
 .monitoring-question-step :deep(.onboarding-steps) { margin-bottom: 0; }
-.monitoring-question-step__context { margin: 0; padding: 0 var(--space-2); color: var(--text-secondary); font-size: var(--font-size-body); line-height: var(--line-height-body); }
-.monitoring-question-step__context strong { color: var(--text-primary); font-weight: var(--weight-semibold); }
 .monitoring-question-panel { min-width: 0; }
 .monitoring-question-panel__header { align-items: flex-start; }
 .monitoring-question-panel__title-row { display: flex; align-items: center; gap: var(--space-2); }

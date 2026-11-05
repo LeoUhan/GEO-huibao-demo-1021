@@ -35,9 +35,9 @@ const title = computed(() => domain.value?.domain ?? page.value?.title ?? '信�
 const eyebrow = computed(() => domain.value ? '来源域名详情' : page.value ? '被引页面详情' : '信源详情')
 const platformLabels = computed(() => {
   const ids = domain.value?.platforms ?? page.value?.platforms ?? []
-  return ids.map(id => props.platforms.find(item => item.id === id)?.label ?? id)
+  return ids.filter(id => id !== 'perplexity').map(id => props.platforms.find(item => item.id === id)?.label ?? id)
 })
-const platformStats = computed(() => domain.value?.platformStats ?? page.value?.platformStats ?? [])
+const platformStats = computed(() => (domain.value?.platformStats ?? page.value?.platformStats ?? []).filter(item => item.platform !== 'perplexity'))
 
 function domainName(domainId: string) {
   return props.sources.find(item => item.id === domainId)?.domain ?? domainId
@@ -136,7 +136,7 @@ function domainName(domainId: string) {
             <thead><tr><th>监测问题</th><th>买家人设</th><th>引用平台</th><th>详情</th></tr></thead>
             <tbody>
               <tr v-for="question in relatedQuestions" :key="question.id">
-                <td><strong>{{ question.question }}</strong><small>{{ question.id }}</small></td><td>{{ question.persona }}</td><td>{{ question.platformResults.filter(result => result.citedPages.some(id => page?.id === id || domainPages.some(item => item.id === id))).map(result => props.platforms.find(platformItem => platformItem.id === result.platform)?.label ?? result.platform).join(' · ') }}</td><td>
+                <td><strong>{{ question.question }}</strong><small>{{ question.id }}</small></td><td>{{ question.persona }}</td><td>{{ question.platformResults.filter(result => result.platform !== 'perplexity' && result.citedPages.some(id => page?.id === id || domainPages.some(item => item.id === id))).map(result => props.platforms.find(platformItem => platformItem.id === result.platform)?.label ?? result.platform).join(' · ') }}</td><td>
                   <button type="button" class="vm-source-link geo-table-detail-button" :data-select-question="question.id" @click="emit('selectQuestion', question.id)">
                     查看详情
                   </button>
