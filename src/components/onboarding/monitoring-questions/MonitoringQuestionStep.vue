@@ -50,7 +50,7 @@ const selectedCount = computed(() => props.selectedIds.length)
 const customDialogOpen = shallowRef(false)
 const editingQuestion = shallowRef<MonitoringQuestion | null>(null)
 
-const columns: DataListColumn<unknown>[] = [
+const baseColumns: DataListColumn<unknown>[] = [
   { key: 'select', title: '选择', width: 64, minWidth: 64, className: 'monitoring-question-table__nowrap' },
   { key: 'question', title: '问题', width: 'auto', minWidth: 480 },
   { key: 'keyword', title: '关键词', width: 230, minWidth: 230, className: 'monitoring-question-table__wrap' },
@@ -59,15 +59,17 @@ const columns: DataListColumn<unknown>[] = [
   { key: 'purchaseStage', title: '采购阶段', width: 110, minWidth: 110, className: 'monitoring-question-table__nowrap' },
   { key: 'intent', title: '意图', width: 160, minWidth: 160, className: 'monitoring-question-table__nowrap' },
   { key: 'mainConcern', title: '主要关注问题', width: 130, minWidth: 130, className: 'monitoring-question-table__nowrap' },
-  { key: 'actions', title: '操作', width: 120, minWidth: 120, className: 'monitoring-question-table__nowrap' },
 ]
+const columns = computed<DataListColumn<unknown>[]>(() => props.marketSetup
+  ? [...baseColumns, { key: 'actions', title: '操作', width: 120, minWidth: 120, className: 'monitoring-question-table__nowrap' }]
+  : baseColumns)
 
 const labels = {
   bulkActions: '候选问题批量操作',
   selectedCount: (count: number) => `已选择 ${count} 条问题`,
   clearSelection: '清除选择',
   table: (label: string) => `${label}表格`,
-  selectAll: '选择全部候选问题',
+  selectAll: '选择全部监测问题',
   loading: '正在加载候选问题…',
   retry: '重试',
   selectRow: (question: string) => `选择问题：${question}`,
@@ -142,12 +144,12 @@ function typeTone(type: MonitoringQuestion['type']): TagTone {
         <div>
           <div class="monitoring-question-panel__title-row">
             <h2 id="monitoring-question-title" class="knowledge-panel__title">
-              {{ marketSetup ? '该市场候选监测问题' : 'AI 生成的候选问题' }}
+              {{ marketSetup ? '该市场监测问题列表' : '监测问题列表' }}
             </h2>
-            <OnboardingHelp label="候选问题说明" message="问题 · 关键词 · 类型 · 买家人设 · 采购阶段 · 意图 · 主要关注问题" />
+            <OnboardingHelp label="监测问题列表说明" message="问题 · 关键词 · 类型 · 买家人设 · 采购阶段 · 意图 · 主要关注问题" />
           </div>
           <p class="monitoring-question-panel__description">
-            {{ marketSetup ? `当前配置市场：${market || '尚未设置'} · ${language || '尚未设置'}。候选问题将根据本市场单独生成和保存；当前共有 ${candidates.length} 条候选问题。` : `当前市场：${market || '尚未设置'} · ${language || '尚未设置'}。AI 将根据当前市场和回答语言生成候选问题，可从 ${candidates.length} 条候选中选择加入首次监测，最多 ${selectionLimit} 条。` }}
+            {{ marketSetup ? `当前配置市场：${market || '尚未设置'} · ${language || '尚未设置'}。可从该市场的问题列表中选择首次监测问题，或手动添加。` : `当前市场：${market || '尚未设置'} · ${language || '尚未设置'}。列表包含 AI 生成和手动添加的问题，可选择最多 ${selectionLimit} 条用于首次监测。` }}
           </p>
         </div>
         <div class="monitoring-question-panel__header-actions">
@@ -156,7 +158,7 @@ function typeTone(type: MonitoringQuestion['type']): TagTone {
               已选择 {{ selectedCount }} / {{ selectionLimit }}
             </Tag>
             <Tag tone="neutral" variant="soft" size="sm">
-              {{ candidates.length }} 条候选
+              {{ candidates.length }} 条问题
             </Tag>
           </div>
           <Button variant="primary" :disabled="selectionSaving" @click="addMonitoringQuestion">
@@ -172,8 +174,8 @@ function typeTone(type: MonitoringQuestion['type']): TagTone {
           :columns="columns"
           :get-row-id="getRowId"
           :labels="labels"
-          label="AI 生成的候选问题"
-          empty-message="暂无候选问题"
+          label="监测问题列表"
+          empty-message="暂无监测问题"
           error-message="候选问题加载失败"
           density="compact"
           :is-row-activatable="() => false"

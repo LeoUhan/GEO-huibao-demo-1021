@@ -2,7 +2,7 @@
 import type { GeoPage, ServiceMode, UserRole } from '../../../data/geo-data'
 import { computed, shallowRef } from 'vue'
 import { useRouter } from 'vue-router'
-import { processingPages, type ProcessingPage } from '../../../workflows/data-processing'
+import { processingPages, type CollectionMessage, type ProcessingPage } from '../../../workflows/data-processing'
 import { useDataProcessing } from '../../../workflows/data-processing'
 import MarketSwitcher from '../../market/MarketSwitcher.vue'
 import GeoSectionNav from './GeoSectionNav.vue'
@@ -17,21 +17,32 @@ const router = useRouter()
 const processing = useDataProcessing()
 const statusOpen = shallowRef(false)
 const messagesOpen = shallowRef(false)
-const messageTab = shallowRef<'unread' | 'history'>('unread')
-const visibleMessages = computed(() => processing.messages.value.filter(message => messageTab.value === 'unread' ? !message.read : message.read))
-function messageCategory(routeName: string, title = '') { return routeName === 'report-center' ? (['次报', '周报', '月报', '季报'].find(type => title.includes(type)) || '报告') : routeName === 'diagnosis' || routeName === 'optimization' ? '诊断' : '监测' }
-function messageDescription(routeName: string, title = '') { return routeName === 'report-center' ? `${messageCategory(routeName, title)}已生成，可以查看报告内容。` : routeName === 'diagnosis' || routeName === 'optimization' ? '本轮诊断与策略结果已更新。' : '本轮监测问题已生成新的采集结果。' }
+const messageTab = shallowRef<'unread' | 'pending' | 'history'>('unread')
+const visibleMessages = computed(() => processing.messages.value.filter((message) => {
+  if (messageTab.value === 'unread') return !message.read
+  if (messageTab.value === 'pending') return message.type === 'todo' && message.todoStatus === 'pending'
+  return message.read
+}))
+const pendingItemsCount = computed(() => processing.pendingTodoCount.value)
+function messageStatus(message: CollectionMessage) {
+  if (message.type === 'todo') return message.todoStatus === 'completed' ? '已处理' : `${message.todoCount ?? 0} 项待处理`
+  if (message.type.endsWith('.failed')) return '失败'
+  if (message.type === 'monitoring.partial' || message.type === 'strategy.partial' || message.type === 'report.partial') return '部分完成'
+  return ''
+}
 function messageTime(createdAt: number) { const minutes = Math.max(0, Math.floor((Date.now() - createdAt) / 60000)); return minutes < 1 ? '刚刚' : minutes < 60 ? `${minutes} 分钟前` : `${Math.floor(minutes / 60)} 小时前` }
 function openPage(page: ProcessingPage) {
   if (!processing.isReady(page).value) return
   statusOpen.value = false
   void router.push({ name: page, query: page === 'visibility-monitoring' ? {} : { version: props.serviceMode === 'agent' ? 'client' : 'managed' } })
 }
-function openMessage(id: number, routeName: string) {
-  processing.markMessageRead(id)
+function openMessage(message: CollectionMessage) {
+  processing.markMessageRead(message.id)
   messagesOpen.value = false
-  void router.push({ name: routeName })
+  void router.push({ name: message.action.route, params: message.action.params, query: message.action.query })
 }
+function loadExamples() { processing.loadNotificationExamples(); messageTab.value = 'unread' }
+function createTodoBatch() { processing.createPendingTodoBatch(); messageTab.value = 'pending' }
 </script>
 
 <template>
@@ -71,18 +82,21 @@ function openMessage(id: number, routeName: string) {
           <template v-if="messagesOpen">
             <button type="button" class="geo-workbench-toolbar__messages-backdrop" aria-label="关闭消息边栏" @click="messagesOpen = false" />
             <aside id="geo-collection-messages" class="geo-workbench-toolbar__messages-panel" role="dialog" aria-label="消息通知">
-              <header><strong>站内通知</strong><button type="button" aria-label="关闭消息边栏" @click="messagesOpen = false">×</button></header>
+              <header><strong>站内通知</strong><div class="geo-workbench-toolbar__panel-actions"><button type="button" class="geo-workbench-toolbar__example-trigger" @click="loadExamples">生成通知示例</button><button type="button" aria-label="关闭消息边栏" @click="messagesOpen = false">×</button></div></header>
               <nav class="geo-workbench-toolbar__message-tabs" aria-label="通知分类">
                 <button type="button" :class="{ active: messageTab === 'unread' }" @click="messageTab = 'unread'">未读通知 <b>{{ processing.unreadCount.value }}</b></button>
+                <button type="button" :class="{ active: messageTab === 'pending' }" @click="messageTab = 'pending'">待处理 <b>{{ pendingItemsCount }}</b></button>
                 <button type="button" :class="{ active: messageTab === 'history' }" @click="messageTab = 'history'">历史通知 <b>{{ processing.messages.value.filter(message => message.read).length }}</b></button>
               </nav>
+              <div v-if="messageTab === 'pending'" class="geo-workbench-toolbar__pending-actions"><button type="button" @click="createTodoBatch">新建待办批次</button></div>
               <div v-if="messageTab === 'history'" class="geo-workbench-toolbar__history-actions"><button type="button" :disabled="!processing.messages.value.some(message => message.read)" @click="processing.clearReadMessages()">清空历史通知</button></div>
-              <p v-if="!visibleMessages.length" class="geo-workbench-toolbar__messages-empty">{{ messageTab === 'unread' ? '暂无未读通知' : '暂无历史通知' }}</p>
+              <p v-if="!visibleMessages.length" class="geo-workbench-toolbar__messages-empty">{{ messageTab === 'unread' ? '暂无未读通知' : messageTab === 'pending' ? '暂无待处理事项' : '暂无历史通知' }}</p>
               <article v-for="message in visibleMessages" :key="message.id" class="geo-workbench-toolbar__message-item">
-                <div class="geo-workbench-toolbar__message-meta"><span><i :class="{ read: message.read }" />{{ messageCategory(message.route, message.title) }}</span><time>{{ messageTime(message.createdAt) }}</time><button v-if="!message.read && messageTab === 'unread'" type="button" class="geo-workbench-toolbar__mark-read" @click="processing.markMessageRead(message.id)">标为已读</button></div>
-                <button type="button" class="geo-workbench-toolbar__message-content" @click="openMessage(message.id, message.route)">
-                  <span class="geo-workbench-toolbar__message-main"><strong>{{ message.title }}</strong><span class="geo-workbench-toolbar__message-description">{{ messageDescription(message.route, message.title) }}</span></span>
-                </button>
+                <div class="geo-workbench-toolbar__message-meta"><span><i :class="{ read: message.read }" />{{ message.category }}</span><time>{{ messageTime(message.createdAt) }}</time><b v-if="messageStatus(message)" class="geo-workbench-toolbar__message-status" :class="{ 'is-error': message.type.endsWith('.failed'), 'is-done': message.todoStatus === 'completed' }">{{ messageStatus(message) }}</b><button v-if="!message.read && messageTab === 'unread'" type="button" class="geo-workbench-toolbar__mark-read" @click="processing.markMessageRead(message.id)">标为已读</button></div>
+                <div class="geo-workbench-toolbar__message-content">
+                  <span class="geo-workbench-toolbar__message-main"><strong>{{ message.title }}</strong><span class="geo-workbench-toolbar__message-description">{{ message.body }}</span></span>
+                  <div class="geo-workbench-toolbar__message-actions"><button type="button" class="geo-workbench-toolbar__message-action" @click="openMessage(message)">{{ message.action.label }}</button></div>
+                </div>
               </article>
             </aside>
           </template>
@@ -118,11 +132,15 @@ select { padding: 6px 10px; border: 1px solid var(--border-default); border-radi
 .geo-workbench-toolbar__messages-panel { position:fixed; z-index:80; inset:0 0 0 auto; box-sizing:border-box; width:min(420px, 92vw); padding:24px 24px 32px; background:var(--background-primary); box-shadow:-8px 0 30px #1720331a; overflow:auto; }
 .geo-workbench-toolbar__messages-panel header { display:flex; justify-content:space-between; align-items:center; min-height:48px; padding:0 0 14px; border-bottom:1px solid var(--border-default); }
 .geo-workbench-toolbar__messages-panel header strong { color:var(--text-primary); font-size:19px; font-weight:650; }
+.geo-workbench-toolbar__panel-actions { display:flex; align-items:center; gap:8px; }
 .geo-workbench-toolbar__messages-panel header button { width:36px; height:36px; border:0; border-radius:8px; background:var(--background-subtle); color:var(--text-secondary); font-size:24px; line-height:1; cursor:pointer; }
-.geo-workbench-toolbar__message-tabs { display:grid; grid-template-columns:1fr 1fr; gap:4px; margin:18px 0; padding:5px; border-radius:11px; background:var(--background-subtle); }
+.geo-workbench-toolbar__messages-panel header .geo-workbench-toolbar__example-trigger { width:auto; height:auto; padding:7px 10px; border:1px solid var(--border-default); border-radius:8px; background:var(--background-primary); color:var(--text-secondary); font-size:12px; }
+.geo-workbench-toolbar__message-tabs { display:grid; grid-template-columns:1fr 1fr 1fr; gap:4px; margin:18px 0; padding:5px; border-radius:11px; background:var(--background-subtle); }
 .geo-workbench-toolbar__message-tabs button { min-height:42px; border:0; border-radius:8px; background:transparent; color:var(--text-secondary); font:inherit; font-size:13px; font-weight:600; cursor:pointer; }
 .geo-workbench-toolbar__message-tabs button.active { background:var(--background-primary); color:var(--action-accent); box-shadow:0 1px 4px #17203312; }
 .geo-workbench-toolbar__message-tabs b { margin-left:4px; padding:2px 6px; border-radius:10px; background:var(--background-subtle); font-size:11px; }
+.geo-workbench-toolbar__pending-actions { display:flex; justify-content:space-between; align-items:center; gap:8px; margin:-7px 0 12px; color:var(--text-secondary); font-size:11px; }
+.geo-workbench-toolbar__pending-actions button { padding:6px 9px; border:1px solid var(--border-default); border-radius:7px; background:var(--background-primary); color:var(--action-accent); font:inherit; cursor:pointer; white-space:nowrap; }
 .geo-workbench-toolbar__history-actions { display:flex; justify-content:flex-end; margin:-8px 0 12px; }
 .geo-workbench-toolbar__history-actions button { padding:5px 0; border:0; background:transparent; color:var(--text-secondary); font:inherit; font-size:12px; cursor:pointer; }
 .geo-workbench-toolbar__history-actions button:hover:not(:disabled) { color:var(--status-error-foreground, #c2413b); }
@@ -138,9 +156,14 @@ select { padding: 6px 10px; border: 1px solid var(--border-default); border-radi
 .geo-workbench-toolbar__message-meta>span { display:flex; align-items:center; gap:7px; color:var(--action-accent); font-size:12px; font-weight:600; }
 .geo-workbench-toolbar__message-meta i { width:8px; height:8px; border-radius:50%; background:#5b9bd5; }
 .geo-workbench-toolbar__message-meta i.read { background:#b8c2cf; }
+.geo-workbench-toolbar__message-status { padding:3px 7px; border-radius:10px; background:#fff5df; color:#a16207; font-size:10px; font-weight:600; white-space:nowrap; }
+.geo-workbench-toolbar__message-status.is-error { background:#fff0f0; color:#b42318; }
+.geo-workbench-toolbar__message-status.is-done { background:#e9f8ef; color:#15803d; }
 .geo-workbench-toolbar__message-meta time { color:var(--text-secondary); font-size:11px; font-weight:400; }
 .geo-workbench-toolbar__message-main strong { font-size:14px; font-weight:650; }
 .geo-workbench-toolbar__message-description { color:var(--text-secondary); font-size:12px; line-height:1.5; }
+.geo-workbench-toolbar__message-actions { display:flex; justify-content:flex-end; gap:8px; margin-top:2px; }
+.geo-workbench-toolbar__message-action { padding:7px 10px; border:1px solid var(--action-accent); border-radius:7px; background:var(--action-accent); color:#fff; font:inherit; font-size:12px; font-weight:600; cursor:pointer; }
 .geo-workbench-toolbar__processing-trigger { display: inline-flex; align-items: center; gap: 6px; min-height: 36px; padding: 6px 10px; border: 1px solid var(--action-accent); border-radius: 8px; background: var(--action-subtle-background); color: var(--action-accent); font: inherit; font-weight: 600; cursor: pointer; white-space: nowrap; }
 .geo-workbench-toolbar__processing-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--action-accent); }
 .geo-workbench-toolbar__processing-count { color: var(--action-accent); font-size: 12px; }
