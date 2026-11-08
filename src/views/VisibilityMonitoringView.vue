@@ -264,6 +264,7 @@ async function persistMarketPersonas(personas: BuyerPersona[]) {
     }
     for (const persona of personas) {
       const existing = current.get(persona.id)
+      const existingStages = existing?.purchaseStages ?? []
       const payload = {
         personaName: personaTypeOptions.value.find(option => option.value === persona.type)?.label ?? existing?.personaName ?? persona.type,
         personaType: persona.type,
@@ -275,8 +276,9 @@ async function persistMarketPersonas(personas: BuyerPersona[]) {
         purchaseBudget: persona.purchaseBudget || undefined,
         purchaseCycle: persona.purchaseCycle || undefined,
         infoChannels: persona.discoveryChannel || undefined,
+        commonQuestions: persona.commonQuestions ?? '',
         purchaseStages: persona.purchaseStage
-          ? existing?.purchaseStages?.[0] === persona.purchaseStage ? existing.purchaseStages : [persona.purchaseStage]
+          ? existingStages[0] === persona.purchaseStage ? [...existingStages] : [persona.purchaseStage]
           : [],
       }
       if (existing) {
@@ -290,7 +292,8 @@ async function persistMarketPersonas(personas: BuyerPersona[]) {
           || (existing.purchaseBudget ?? undefined) !== payload.purchaseBudget
           || (existing.purchaseCycle ?? undefined) !== payload.purchaseCycle
           || (existing.infoChannels ?? undefined) !== payload.infoChannels
-          || (existing.purchaseStages ?? []).join('\u0000') !== payload.purchaseStages.join('\u0000')
+          || (existing.commonQuestions ?? '') !== payload.commonQuestions
+          || existingStages.join('\u0000') !== payload.purchaseStages.join('\u0000')
         if (changed)
           await updatePersona(existing.id, payload)
       }

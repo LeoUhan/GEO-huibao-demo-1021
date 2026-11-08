@@ -193,16 +193,6 @@ function personaStages(persona: BuyerPersonaRecord) {
           </div>
         </article>
       </div>
-      <BuyerPersonaEditorDialog
-        v-model:open="personaEditorOpen"
-        :personas="personaDrafts"
-        :mode="personaEditorMode"
-        :type-options="personaTypeOptions"
-        :stage-options="purchaseStageOptions"
-        :company-scale-options="companyScaleOptions"
-        :decision-role-options="decisionRoleOptions"
-        :persist-personas="persistPersonas"
-      />
     </template>
     <template v-else>
       <p v-if="errors.questions" class="market-config__error" role="alert">
@@ -262,6 +252,16 @@ function personaStages(persona: BuyerPersonaRecord) {
         <BulkMonitoringQuestionsDialog v-model:open="editQuestionsOpen" :questions="questions.map(asQuestion)" market="当前市场" :question-count="questions.length" :options="questionOptions" @saved="updateQuestions" />
       </div>
     </template>
+    <BuyerPersonaEditorDialog
+      v-if="stage === 2"
+      v-model:open="personaEditorOpen"
+      :personas="personaDrafts"
+      :mode="personaEditorMode"
+      :type-options="personaTypeOptions"
+      :stage-options="purchaseStageOptions"
+      :persist-personas="persistPersonas"
+      confirm-monitoring-impact
+    />
   </section>
 </template>
 

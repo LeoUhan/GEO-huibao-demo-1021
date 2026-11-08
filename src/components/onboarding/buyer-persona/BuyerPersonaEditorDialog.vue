@@ -15,6 +15,7 @@ const props = defineProps<{
   typeOptions?: readonly DropdownSelectOption[]
   stageOptions?: readonly DropdownSelectOption[]
   persistPersonas?: PersistPersonas
+  confirmMonitoringImpact?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -26,6 +27,7 @@ const drafts = ref<BuyerPersonaDraft[]>([])
 const errors = ref<Record<string, string>>({})
 const saving = ref(false)
 const saveError = ref('')
+const confirmationOpen = ref(false)
 const availableTypeOptions = computed(() => props.typeOptions ?? buyerPersonaTypeOptions)
 const availableStageOptions = computed(() => props.stageOptions ?? purchaseStageOptions)
 const isReadOnly = computed(() => props.mode === 'view')
@@ -96,22 +98,32 @@ function clearError(key: string) {
   errors.value = next
 }
 
-async function save() {
+function requestSave() {
   errors.value = validateBuyerPersonas(drafts.value)
   if (Object.keys(errors.value).length)
+    return
+  saveError.value = ''
+  if (props.confirmMonitoringImpact) {
+    confirmationOpen.value = true
+    return
+  }
+  void save()
+}
+
+async function save() {
+  if (saving.value)
     return
   saveError.value = ''
   saving.value = true
   try {
     const next = drafts.value.map(item => ({ ...item }))
     const saved = props.persistPersonas ? await props.persistPersonas(next) : next
-    // Close the dialog before notifying parents. Parent listeners may replace
-    // the persona list (or change onboarding steps) as part of the save.
+    confirmationOpen.value = false
     open.value = false
     emit('saved', saved)
   }
   catch (cause) {
-    saveError.value = cause instanceof Error ? cause.message : '保存人设失败，请重试。'
+    saveError.value = cause instanceof Error && cause.name !== 'DataCloneError' ? cause.message : '保存人设失败，请重试。'
   }
   finally {
     saving.value = false
@@ -119,9 +131,12 @@ async function save() {
 }
 
 watch([open, () => props.mode], ([isOpen]) => {
-  if (isOpen)
+  confirmationOpen.value = false
+  if (isOpen) {
+    saveError.value = ''
     resetDraft()
-})
+  }
+}, { immediate: true })
 </script>
 
 <template>
@@ -200,7 +215,7 @@ watch([open, () => props.mode], ([isOpen]) => {
       <p v-if="!isReadOnly && errors.form" class="buyer-persona-editor__error" role="alert">
         {{ errors.form }}
       </p>
-      <p v-if="!isReadOnly && saveError" class="buyer-persona-editor__error" role="alert">
+      <p v-if="!isReadOnly && saveError && !confirmationOpen" class="buyer-persona-editor__error" role="alert">
         {{ saveError }}
       </p>
       <Button
@@ -225,16 +240,37 @@ watch([open, () => props.mode], ([isOpen]) => {
         <Button variant="outline" :disabled="saving" @click="open = false">
           取消
         </Button>
-        <Button variant="primary" :loading="saving" @click="save">
+        <Button variant="primary" :loading="saving" @click="requestSave">
           保存
         </Button>
       </template>
     </template>
   </Modal>
+
+  <Modal
+    v-if="confirmMonitoringImpact"
+    v-model:open="confirmationOpen"
+    title="确认保存买家人设？"
+    width="min(560px, calc(100vw - 32px))"
+    confirm-text="确认保存"
+    cancel-text="返回编辑"
+    processing-text="保存中…"
+    close-label="关闭保存确认"
+    :loading="saving"
+    @confirm="save"
+  >
+    <div class="buyer-persona-save-confirmation">
+      <p>保存后，AI 后续生成监测问题时可能参考更新后的买家人设。</p>
+      <p>现有监测问题、SOA 基线和历史数据均保留，监测照常进行。</p>
+      <p v-if="saveError" class="buyer-persona-editor__error" role="alert">{{ saveError }}</p>
+    </div>
+  </Modal>
 </template>
 
 <style scoped>
 .buyer-persona-editor { display: grid; gap: var(--space-3); }
+.buyer-persona-save-confirmation { display: grid; gap: var(--space-2); color: var(--text-secondary); }
+.buyer-persona-save-confirmation p { margin: 0; }
 .buyer-persona-editor__intro,.buyer-persona-editor__hint { margin: 0; color: var(--text-secondary); font-size: var(--font-size-body); line-height: var(--line-height-body); }
 .buyer-persona-editor__list { display: grid; gap: var(--space-3); }
 .buyer-persona-form { padding: var(--space-3); border: 1px solid var(--border-default); border-radius: var(--radius-card); background: var(--background-primary); }

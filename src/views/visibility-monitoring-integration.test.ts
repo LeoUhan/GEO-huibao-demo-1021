@@ -1,6 +1,8 @@
 import { flushPromises, mount } from '@vue/test-utils'
 import { createPinia } from 'pinia'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { updatePersona as updateLocalPersona } from '../mock/config-service'
+import { readMockState, updateMockState } from '../mock/repository'
 import { useGeoContextStore } from '../stores/geo-context'
 import VisibilityMonitoringView from './VisibilityMonitoringView.vue'
 
@@ -161,26 +163,52 @@ describe('visibility monitoring integration', () => {
     await flushPromises()
     expect(document.body.textContent).toContain('维护买家人设')
     expect(document.body.textContent).toContain('人设 1')
-    await wrapper.get('.buyer-persona-form__toggle').trigger('click')
-    await wrapper.get('#persona-role-3').setValue('采购工程师')
+    const questionText = '设备的交货周期多久？'
+    await wrapper.get('#persona-questions-3').setValue(questionText)
     const saveButton = wrapper.findAll('button').find(button => button.text().trim() === '保存')
     expect(saveButton).toBeTruthy()
     await saveButton!.trigger('click')
     await flushPromises()
-    expect(geoConfigApi.updatePersona).toHaveBeenCalledWith(3, expect.objectContaining({ actualPosition: '采购工程师' }))
+    expect(wrapper.get('.buyer-persona-save-confirmation').text()).toContain('SOA 基线')
+    expect(geoConfigApi.updatePersona).not.toHaveBeenCalled()
+    await wrapper.get('.ce-modal-cancel').trigger('click')
+    expect(wrapper.find('.buyer-persona-save-confirmation').exists()).toBe(false)
+    expect((wrapper.get('#persona-questions-3').element as HTMLTextAreaElement).value).toBe(questionText)
+
+    const currentPersonas = await geoConfigApi.getMarketPersonas.mock.results[0]!.value
+    updateMockState((draft) => { draft.config.personas = currentPersonas })
+    geoConfigApi.updatePersona.mockImplementationOnce(updateLocalPersona)
+    let finishRefresh!: () => void
+    geoConfigApi.getMarketPersonas.mockImplementationOnce(() => new Promise((resolve) => {
+      finishRefresh = () => resolve(readMockState().config.personas)
+    }))
+    await saveButton!.trigger('click')
+    await wrapper.get('.ce-modal-confirm').trigger('click')
+    await flushPromises()
+    expect(geoConfigApi.updatePersona).toHaveBeenCalledWith(3, expect.objectContaining({ commonQuestions: questionText }))
+    expect(monitoringApi.pauseMonitoring).not.toHaveBeenCalled()
+    expect(wrapper.find('.buyer-persona-save-confirmation').exists()).toBe(true)
+    expect((wrapper.get('#persona-questions-3').element as HTMLTextAreaElement).value).toBe(questionText)
+    finishRefresh()
+    await flushPromises()
+    expect(wrapper.find('.buyer-persona-modal').exists()).toBe(false)
+    expect(readMockState().config.personas[0]).toMatchObject({
+      commonQuestions: questionText,
+      purchaseStages: ['supplier_evaluation', 'purchase_decision'],
+    })
 
     await wrapper.get('.market-config__persona-grid button').trigger('click')
     await flushPromises()
     expect(document.body.textContent).toContain('查看买家人设')
-    for (const field of ['人设名称', '人设类型', '采购阶段', '实际职位', '所属行业', '企业规模', '决策角色', '采购触发场景', '采购预算', '采购周期', '了解渠道', '人设描述', '关注主题'])
+    for (const field of ['人设类型', '采购阶段', '买家常问的问题'])
       expect(document.body.textContent).toContain(field)
-    for (const value of ['采购负责人', '供应商评估', '采购决策', '采购经理', '工业设备', '大型企业', '决策者', '设备更换', '100万', '3个月'])
+    for (const value of ['采购负责人', '供应商评估', questionText])
       expect(document.body.textContent).toContain(value)
     expect(document.body.textContent).not.toContain('procurement_lead')
     expect(document.body.textContent).not.toContain('supplier_evaluation')
     expect(document.body.textContent).not.toContain('接口状态')
     expect(document.body.textContent).not.toContain('来源类型')
-    await wrapper.get('.ce-drawer-close').trigger('click')
+    await wrapper.get('.buyer-persona-modal .ce-modal-close').trigger('click')
 
     await wrapper.get('#visibility-setup-tab-3').trigger('click')
     expect(geoConfigApi.getMarketQuestions).toHaveBeenCalledTimes(2)
