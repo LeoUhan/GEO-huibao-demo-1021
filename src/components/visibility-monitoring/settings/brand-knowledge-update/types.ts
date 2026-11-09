@@ -27,7 +27,9 @@ export interface BrandKnowledgeUpdateSnapshot {
 }
 
 export interface BrandKnowledgeChangeImpact {
-  activeMarketCount: number
+  affectedMarkets: string[]
+  brandBaseline?: boolean
+  citationBaseline?: boolean
   editCost: number
   remainingEdits: number
   quotaAvailable: boolean
@@ -38,6 +40,4 @@ export interface BrandKnowledgeUpdateService {
   previewChange: (items: KnowledgeItem[]) => Promise<BrandKnowledgeChangeImpact>
   confirmChange: (items: KnowledgeItem[]) => Promise<BrandKnowledgeUpdateSnapshot>
   saveMarketSelection: (marketId: string, candidateIds: string[], removedQuestionIds?: string[]) => Promise<BrandKnowledgeUpdateSnapshot>
-  setMarketEnabled?: (marketId: string, enabled: boolean) => Promise<BrandKnowledgeUpdateSnapshot>
-  enableAllMarkets: () => Promise<BrandKnowledgeUpdateSnapshot>
 }

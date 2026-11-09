@@ -240,7 +240,7 @@ describe('visibility monitoring integration', () => {
     await flushPromises()
     expect(wrapper.get('.vm-round-summary__status').text()).toBe('未配置')
     expect(wrapper.findAll('.vm-round-summary__metrics dt').map(item => item.text())).toEqual([
-      '监测日期',
+      '监测时间 / 轮次',
       '市场 / 语言',
       '买家人设',
       '意图',
@@ -310,35 +310,41 @@ describe('visibility monitoring integration', () => {
     monitoringApi.getSchedule.mockResolvedValue(serverSchedule(7, 0))
     const wrapper = mountView()
     await flushPromises()
-    expect(wrapper.find('.vm-round-summary__toggle').exists()).toBe(false)
+    expect(wrapper.get('.vm-round-summary__toggle').text()).toContain('开启监测')
     await wrapper.get('.vm-round-summary__trigger').trigger('click')
     await flushPromises()
     expect(monitoringApi.triggerRound).toHaveBeenCalledOnce()
     wrapper.unmount()
   })
 
-  it('shows only the pause action while monitoring is enabled', async () => {
+  it('keeps immediate collection separate from pausing the schedule', async () => {
     monitoringApi.getSchedule.mockResolvedValue(serverSchedule(7, 1))
     const wrapper = mountView()
     await flushPromises()
 
     expect(wrapper.get('.vm-round-summary__toggle').text()).toContain('暂停监测')
-    expect(wrapper.find('.vm-round-summary__trigger').exists()).toBe(false)
+    expect(wrapper.get('.vm-round-summary__trigger').text()).toBe('立即采集')
     wrapper.unmount()
   })
 
-  it('keeps plan-controlled frequency fixed and persists platform selection to backend APIs', async () => {
+  it('shows the fixed monthly frequency and package platforms in sampling', async () => {
+    geoConfigApi.getActivePlan.mockResolvedValue({ quota: { planCode: 'basic', planName: '入门版' } })
     monitoringApi.getSchedule.mockResolvedValue({ id: 6, scheduleType: 'weekly', executeTime: '05:00', repeatCount: 4, enabled: 1, timezone: 'Asia/Shanghai', nextFireTime: null, lastFireTime: null, lastExecuteStatus: null, lastRoundId: null })
     const wrapper = mountView()
     await flushPromises()
     await wrapper.get('#visibility-step-4').trigger('click')
+    expect(wrapper.get('.sampling-summary__schedule').text()).toContain('每月')
     await wrapper.get('.sampling-summary__header button').trigger('click')
-    await wrapper.get('input[type="checkbox"][value="chatgpt"]').setValue(false)
-    await wrapper.get('button.is-primary').trigger('click')
+    expect(wrapper.get('input[name="frequency"][value="monthly"]').element).toHaveProperty('checked', true)
+    expect(wrapper.get('input[name="frequency"][value="weekly"]').element).toHaveProperty('disabled', true)
+    expect(wrapper.get('.vm-platform-grid').text()).toContain('Gemini已包含')
+    expect(wrapper.get('.vm-platform-grid').text()).toContain('ChatGPT套餐未包含')
+    expect(wrapper.find('.vm-platform-grid input').exists()).toBe(false)
+    await wrapper.get('.vm-settings__foot button').trigger('click')
     await flushPromises()
 
-    expect(geoConfigApi.removePlatform).toHaveBeenCalledWith(2)
-    expect(monitoringApi.saveSchedule).toHaveBeenCalledWith({ scheduleType: 'weekly', executeTime: '05:00', repeatCount: 4 })
+    expect(geoConfigApi.removePlatform).not.toHaveBeenCalled()
+    expect(monitoringApi.saveSchedule).not.toHaveBeenCalled()
     expect(wrapper.find('.vm-settings').attributes('open')).toBeUndefined()
     wrapper.unmount()
   })

@@ -3,6 +3,7 @@ import type { BrandKnowledgeUpdateService, BrandKnowledgeUpdateSnapshot } from '
 import { flushPromises, mount } from '@vue/test-utils'
 import { describe, expect, it, vi } from 'vitest'
 import KnowledgeEditorDialog from '../../../onboarding/knowledge/KnowledgeEditorDialog.vue'
+import QuestionChangeConfirm from '../../questions/QuestionChangeConfirm.vue'
 import BrandKnowledgeChangeConfirm from './BrandKnowledgeChangeConfirm.vue'
 import BrandKnowledgeUpdateFlow from './BrandKnowledgeUpdateFlow.vue'
 import MarketRecommendationListDialog from './MarketRecommendationListDialog.vue'
@@ -19,10 +20,9 @@ const snapshot: BrandKnowledgeUpdateSnapshot = { demo: true, editQuota: { total:
 function createService(overrides: Partial<BrandKnowledgeUpdateService> = {}): BrandKnowledgeUpdateService {
   return {
     getSnapshot: vi.fn().mockResolvedValue(snapshot),
-    previewChange: vi.fn().mockResolvedValue({ activeMarketCount: 2, editCost: 1, remainingEdits: 1, quotaAvailable: true }),
+    previewChange: vi.fn().mockResolvedValue({ affectedMarkets: ['德国 · 德语'], editCost: 1, remainingEdits: 1, quotaAvailable: true }),
     confirmChange: vi.fn().mockResolvedValue(snapshot),
     saveMarketSelection: vi.fn().mockResolvedValue(snapshot),
-    enableAllMarkets: vi.fn().mockResolvedValue(snapshot),
     ...overrides,
   }
 }
@@ -87,6 +87,25 @@ describe('brandKnowledgeUpdateFlow', () => {
     await flushPromises()
     expect(confirmation.props('open')).toBe(true)
     expect(wrapper.text()).toContain('服务暂不可用')
+    wrapper.unmount()
+  })
+
+  it('requires confirmation before saving a running market and preserves its status', async () => {
+    const market = { id: '1', name: '德国 · 德语', language: '德语', enabled: true, processed: false, candidates: [], selectedCandidateIds: [], existingQuestions: [] }
+    const service = createService({ getSnapshot: vi.fn().mockResolvedValue({ ...snapshot, markets: [market] }) })
+    const wrapper = await mountFlow(service)
+    await wrapper.setProps({ open: false, startAtMarketManager: true })
+    await wrapper.setProps({ open: true })
+    await flushPromises()
+
+    wrapper.findComponent(MarketRecommendationListDialog).vm.$emit('save', ['candidate-1'], [])
+    await flushPromises()
+    const confirmation = wrapper.findComponent(QuestionChangeConfirm)
+    expect(confirmation.props()).toMatchObject({ open: true, enabled: true, newBaseline: true })
+    expect(service.saveMarketSelection).not.toHaveBeenCalled()
+    confirmation.vm.$emit('confirm')
+    await flushPromises()
+    expect(service.saveMarketSelection).toHaveBeenCalledWith('1', ['candidate-1'], [])
     wrapper.unmount()
   })
 

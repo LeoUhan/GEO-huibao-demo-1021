@@ -22,17 +22,12 @@ describe('marketRecommendationListDialog', () => {
     const wrapper = mount(MarketRecommendationListDialog, { props: { open: true, snapshot: makeSnapshot(), pendingAction: null, error: null } })
     expect(wrapper.text()).toContain('德国 · 德语')
     expect(wrapper.text()).toContain('已暂停')
-    expect(wrapper.text()).toContain('待处理 · 10 条推荐问题')
-    expect(wrapper.text()).toContain('品牌知识已保存，推荐问题按市场分别生成。加入或移出问题都在对应市场的“监测问题”列表中操作。')
-    expect(wrapper.text()).toContain('未调整的市场保留现有监测问题。所有市场当前已暂停，可通过统一入口一次开启全部市场。')
-    expect(wrapper.text()).not.toContain('演示数据')
-    expect(wrapper.get('.market-row__status').text()).toBe('已暂停')
-    expect(wrapper.find('.ce-modal-footer').exists()).toBe(false)
+    expect(wrapper.text()).toContain('10 条待处理')
+    expect(wrapper.get('.market-manager__market-status').text()).toBe('已暂停')
+    expect(wrapper.text()).not.toContain('开启全部市场')
 
-    await wrapper.get('button[aria-label="处理德国 · 德语的推荐问题"]').trigger('click')
+    await wrapper.get('.market-manager__market').trigger('click')
     expect(wrapper.emitted('processMarket')?.[0]).toEqual(['de-de'])
-    await wrapper.get('button.is-primary').trigger('click')
-    expect(wrapper.emitted('enableAll')).toHaveLength(1)
     wrapper.unmount()
   })
 
@@ -43,21 +38,19 @@ describe('marketRecommendationListDialog', () => {
     wrapper.unmount()
   })
 
-  it('uses service-returned market state for the footer guidance', () => {
+  it('shows running markets with the same save flow', () => {
     const snapshot = makeSnapshot()
     snapshot.markets[0]!.enabled = true
-    const wrapper = mount(MarketRecommendationListDialog, { props: { open: true, snapshot, pendingAction: null, error: null } })
-    expect(wrapper.text()).toContain('未调整的市场保留现有监测问题。所有市场当前已开启。')
-    expect(wrapper.text()).not.toContain('所有市场当前已暂停')
-    expect(wrapper.get('button.is-primary').text()).toBe('全部市场已开启')
-    expect(wrapper.get('button.is-primary').attributes('disabled')).toBeDefined()
+    const wrapper = mount(MarketRecommendationListDialog, { props: { open: true, snapshot } })
+    expect(wrapper.get('.market-manager__market-status').text()).toBe('运行中')
+    expect(wrapper.text()).not.toContain('开启全部市场')
     wrapper.unmount()
   })
 
   it('disables duplicate actions while pending and exposes retry after failure', async () => {
-    const wrapper = mount(MarketRecommendationListDialog, { props: { open: true, snapshot: makeSnapshot(), pendingAction: 'enable-all', error: '网络暂不可用' } })
+    const wrapper = mount(MarketRecommendationListDialog, { props: { open: true, snapshot: makeSnapshot(), pendingAction: 'market:de-de', error: '网络暂不可用' } })
     expect(wrapper.text()).toContain('网络暂不可用')
-    expect(wrapper.find('button.is-primary').attributes('disabled')).toBeDefined()
+    expect(wrapper.get('.market-manager__market').attributes('disabled')).toBeDefined()
     await wrapper.get('button[aria-label="重试市场操作"]').trigger('click')
     expect(wrapper.emitted('retry')).toHaveLength(1)
     wrapper.unmount()

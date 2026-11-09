@@ -7,6 +7,7 @@ import Spinner from '../../ui/ce/spinner/Spinner.vue'
 
 defineProps<{
   schedule: MonitoringSchedule | null
+  planFrequency?: MonitoringSchedule['scheduleType']
   round: RoundDetail | null
   cumulative: CumulativeSamplingSummary | null
   questionCount: number
@@ -17,11 +18,11 @@ defineProps<{
 
 const emit = defineEmits<{ editSettings: [] }>()
 
-function scheduleLabel(schedule: MonitoringSchedule | null) {
+function scheduleLabel(schedule: MonitoringSchedule | null, planFrequency?: MonitoringSchedule['scheduleType']) {
   if (!schedule)
     return '尚未配置'
   const frequency: Record<MonitoringSchedule['scheduleType'], string> = { daily: '每天', weekly: '每周', monthly: '每月' }
-  return `${frequency[schedule.scheduleType]} · 重复采集 ${schedule.repeatCount} 次`
+  return `${frequency[planFrequency ?? schedule.scheduleType]} · 重复采集 ${schedule.repeatCount} 次`
 }
 
 function measurementTier(round: RoundDetail | null) {
@@ -46,10 +47,10 @@ function samplePeriod(cumulative: CumulativeSamplingSummary | null) {
       <div>
         <h2 id="sampling-summary-title">
           采样执行
-        </h2><p>调度与质量指标均以当前市场的服务端计划和最近一轮结果为准。</p>
+        </h2><p>采集频率按当前套餐执行，质量指标来自当前市场最近一轮结果。</p>
       </div>
       <Button variant="outline" :disabled="loading" @click="emit('editSettings')">
-        调整采集频率与平台
+        查看采集计划
       </Button>
     </header>
     <p v-if="error" class="sampling-summary__error" role="alert">
@@ -60,7 +61,7 @@ function samplePeriod(cumulative: CumulativeSamplingSummary | null) {
     </p>
     <template v-else>
       <div class="sampling-summary__schedule">
-        <span>当前服务端计划 <MetricDefinitionButton id="samplingPlan" /></span><strong>{{ scheduleLabel(schedule) }}</strong><small>{{ schedule?.timezone ?? '时区未返回' }} · 已启用：{{ schedule ? (schedule.enabled === 1 ? '是' : '否') : '否' }}</small>
+        <span>当前采集计划 <MetricDefinitionButton id="samplingPlan" /></span><strong>{{ scheduleLabel(schedule, planFrequency) }}</strong><small>{{ schedule?.timezone ?? '时区未返回' }} · 已启用：{{ schedule ? (schedule.enabled === 1 ? '是' : '否') : '否' }}</small>
       </div>
       <div v-if="round" class="sampling-summary__metrics">
         <article><span>最近轮次 <MetricDefinitionButton id="latestRound" /></span><strong>第 {{ round.roundNo }} 轮 · {{ round.monitorDate }}</strong><small>最近一次执行结果</small></article>

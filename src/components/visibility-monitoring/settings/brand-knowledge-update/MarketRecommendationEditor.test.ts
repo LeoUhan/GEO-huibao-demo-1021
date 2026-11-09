@@ -26,28 +26,26 @@ function makeMarket(overrides: Partial<MarketRecommendationState> = {}): MarketR
 
 describe('marketRecommendationEditor', () => {
   it('toggles candidates, shows the selection count and saves only selected ids', async () => {
-    const wrapper = mount(MarketRecommendationEditor, { props: { market: makeMarket(), selectedIds: [], pending: false } })
-    expect(wrapper.text()).toContain('已选择 0 / 5 条 · 共 7 条候选')
+    const wrapper = mount(MarketRecommendationEditor, { props: { market: makeMarket({ enabled: true }), selectedIds: [], pending: false } })
+    expect(wrapper.text()).toContain('已选择 0 / 10 条 · 共 7 条候选')
     await wrapper.get('input[value="candidate-1"]').setValue(true)
     expect(wrapper.emitted('update:selectedIds')?.at(-1)?.[0]).toEqual(['candidate-1'])
     await wrapper.setProps({ selectedIds: ['candidate-1'] })
+    expect(wrapper.get('button.is-primary').text()).toBe('确认本市场选择')
     await wrapper.get('button.is-primary').trigger('click')
     expect(wrapper.emitted('save')?.[0]?.[0]).toEqual(['candidate-1'])
     wrapper.unmount()
   })
 
-  it('enforces a five-question limit and keeps existing questions read-only', async () => {
-    const selectedIds = ['candidate-1', 'candidate-2', 'candidate-3', 'candidate-4', 'candidate-5']
-    const wrapper = mount(MarketRecommendationEditor, { props: { market: makeMarket(), selectedIds, pending: false } })
-    expect(wrapper.text()).toContain('已选择 5 / 5 条 · 共 7 条候选')
-    expect(wrapper.get('input[value="candidate-6"]').attributes('disabled')).toBeDefined()
+  it('allows removal in the same draft as the selected recommendations', async () => {
+    const wrapper = mount(MarketRecommendationEditor, { props: { market: makeMarket(), selectedIds: ['candidate-1'], pending: false } })
     expect(wrapper.text()).toContain('当前监测问题')
     expect(wrapper.text()).toContain(questions[0]!.question)
-    expect(wrapper.get('.recommendation-editor__existing').text()).toContain(questions[0]!.keyword)
-    expect(wrapper.get('.recommendation-editor__existing').text()).toContain(questions[0]!.persona)
-    expect(wrapper.get('.recommendation-editor__existing').text()).toContain('主要关注问题')
-    expect(wrapper.findAll('.recommendation-editor__panel')).toHaveLength(2)
-    expect(wrapper.findAll('.existing-question input')).toHaveLength(0)
+    await wrapper.get('.existing-question input').setValue(true)
+    expect(wrapper.emitted('update:removedIds')?.at(-1)?.[0]).toEqual([questions[0]!.id])
+    await wrapper.setProps({ removedIds: [questions[0]!.id] })
+    await wrapper.get('button.is-primary').trigger('click')
+    expect(wrapper.emitted('save')?.[0]).toEqual([['candidate-1'], [questions[0]!.id]])
     wrapper.unmount()
   })
 

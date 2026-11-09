@@ -295,6 +295,7 @@ export {
   modifyBrand,
   modifyMarketQuestions,
   removePlatform,
+  replaceMonitoringQuestions,
   saveBrandInfo,
   selectPlatform,
   switchMarket,

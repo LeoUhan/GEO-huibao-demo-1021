@@ -8,8 +8,6 @@ const emit = defineEmits<{
   'update:selectedIds': [ids: string[]]
   'update:removedIds': [ids: string[]]
   'save': [ids: string[], removedIds: string[]]
-  'pauseMarket': []
-  'toggleMarket': []
   'returnToMarkets': []
 }>()
 
@@ -18,6 +16,7 @@ const safeSelectedIds = computed(() => [...new Set(props.selectedIds)].filter(id
 const selectedCount = computed(() => safeSelectedIds.value.length)
 const activeTab = defineModel<'all' | 'candidates' | 'current'>('tab', { default: 'all' })
 const safeRemovedIds = computed(() => props.removedIds.filter(id => props.market.existingQuestions.some(question => question.id === id)))
+const canSave = computed(() => selectedCount.value > 0 || safeRemovedIds.value.length > 0)
 const existingQuestionFields = [
   { key: 'keyword', label: '关键词' },
   { key: 'type', label: '类型' },
@@ -64,7 +63,6 @@ function saveSelection() {
       <div class="recommendation-editor__market-name">
         <h2>{{ market.name }}</h2>
         <span class="recommendation-editor__market-status" :class="market.enabled ? 'is-enabled' : 'is-paused'"><i aria-hidden="true" />{{ market.enabled ? '运行中' : '已暂停' }}</span>
-        <Button size="xs" variant="outline" :disabled="pending" @click="emit('toggleMarket')">{{ market.enabled ? '模拟暂停' : '模拟开启' }}</Button>
       </div>
       <p>勾选 AI 推荐问题加入监测；可在当前监测问题中移除旧问题。</p>
     </header>
@@ -135,8 +133,8 @@ function saveSelection() {
         <span>已选择 {{ selectedCount }} / 10 条加入监测</span>
         <div class="recommendation-editor__buttons">
           <Button variant="outline" size="sm" :disabled="pending" @click="emit('save', [], [])">忽略</Button>
-        <Button class="is-primary" variant="primary" size="sm" :disabled="pending" :loading="pending" @click="market.enabled ? emit('pauseMarket') : saveSelection()">
-          {{ market.enabled ? '暂停市场，随后恢复监测' : '确认本市场选择' }}
+        <Button class="is-primary" variant="primary" size="sm" :disabled="pending || !canSave" :loading="pending" @click="saveSelection">
+          确认本市场选择
         </Button>
         </div>
       </footer>
@@ -175,7 +173,7 @@ function saveSelection() {
         当前市场还没有监测问题。
       </p>
     </section>
-    <footer v-if="activeTab === 'current'" class="recommendation-editor__actions"><span>待移除 {{ safeRemovedIds.length }} 条 · 确认后保留 {{ market.existingQuestions.length - safeRemovedIds.length }} 条</span><div class="recommendation-editor__buttons"><Button variant="outline" :disabled="pending" @click="emit('save', [], [])">忽略</Button><Button class="is-primary" variant="primary" :disabled="pending" :loading="pending" @click="market.enabled ? emit('pauseMarket') : saveSelection()">{{ market.enabled ? '暂停市场，随后恢复监测' : '确认本市场选择' }}</Button></div></footer>
+    <footer v-if="activeTab === 'current'" class="recommendation-editor__actions"><span>待移除 {{ safeRemovedIds.length }} 条 · 确认后保留 {{ market.existingQuestions.length - safeRemovedIds.length }} 条</span><div class="recommendation-editor__buttons"><Button v-if="!market.processed" variant="outline" :disabled="pending" @click="emit('save', [], [])">忽略</Button><Button class="is-primary" variant="primary" :disabled="pending || !canSave" :loading="pending" @click="saveSelection">确认本市场选择</Button></div></footer>
   </section>
 </template>
 

@@ -28,7 +28,6 @@ const toastMessage = shallowRef('')
 const toastVariant = shallowRef<'info' | 'success' | 'error'>('info')
 const personaSaving = shallowRef(false)
 const questionSelectionSaving = shallowRef(false)
-const planSaving = shallowRef(false)
 let toastTimer: ReturnType<typeof setTimeout> | undefined
 
 const currentMarket = computed(() => store.knowledgeItems.find(item => item.id === 'market')?.marketLanguage?.market ?? '')
@@ -158,36 +157,6 @@ async function removePersonaImmediately(id: string) {
   }
   finally {
     personaSaving.value = false
-  }
-}
-
-async function saveMonitoringFrequencyImmediately(frequency: import('../components/onboarding/monitoring-plan/monitoring-plan').MonitoringFrequency) {
-  if (planSaving.value)
-    return
-  planSaving.value = true
-  try {
-    await wizard.saveMonitoringFrequencyImmediately(frequency)
-  }
-  catch (cause) {
-    showToast(cause instanceof Error ? cause.message : '更新采集频率失败', 'error')
-  }
-  finally {
-    planSaving.value = false
-  }
-}
-
-async function saveMonitoringPlatformsImmediately(platforms: import('../components/onboarding/monitoring-plan/monitoring-plan').MonitoringPlatform[]) {
-  if (planSaving.value)
-    return
-  planSaving.value = true
-  try {
-    await wizard.saveMonitoringPlatformsImmediately(platforms)
-  }
-  catch (cause) {
-    showToast(cause instanceof Error ? cause.message : '更新 AI 平台失败', 'error')
-  }
-  finally {
-    planSaving.value = false
   }
 }
 
@@ -328,13 +297,9 @@ onBeforeUnmount(() => {
         v-else-if="store.currentStep === 3"
         :current-step="store.currentStep"
         :steps="store.steps"
-        :frequency="store.monitoringFrequency"
-        :plan-name="wizard.planName?.value"
+        :frequency="wizard.planFrequency.value"
         :platforms="store.monitoringPlatforms"
         :platform-options="options('ai_platform')"
-        :saving="planSaving"
-        @frequency-changed="saveMonitoringFrequencyImmediately"
-        @platforms-changed="saveMonitoringPlatformsImmediately"
       />
 
       <section v-else class="knowledge-panel onboarding-next-step" aria-live="polite">

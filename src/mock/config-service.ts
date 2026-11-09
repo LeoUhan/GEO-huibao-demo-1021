@@ -26,10 +26,13 @@ import type {
   WizardSnapshot,
 } from '../api/geo-config'
 import type { MockCompetitor, MockRecommendation } from './state'
-import { readMockState, updateMockState } from './repository'
+import { defaultMonitoringPlatformsForPlan, normalizeMonitoringPlatform } from '../components/onboarding/monitoring-plan/monitoring-plan'
+import { isMarketPaused, marketPersonas, marketQuestions, readMockState, updateMockState } from './repository'
 
 const delay = () => new Promise<void>(resolve => window.setTimeout(resolve, 35))
 const clone = <T>(value: T): T => structuredClone(value)
+const activePlan: ActivePlanRecord = { id: 1, siteId: 1001, planId: 3, quota: { planCode: 'pro', planName: '专业版', questionCountLimit: 100, aiPlatformCountLimit: 10, repeatCountLimit: 10, personaCountLimit: 6, competitorCountLimit: 5, themeCountLimit: 20, marketCountLimit: 5, monthlyReportLimit: 5 }, startDate: '2026-01-01', endDate: '2027-01-01', status: 1 }
+
 function nextId() {
   const state = updateMockState((draft) => { draft.config.nextId += 1 })
   return state.config.nextId
@@ -65,7 +68,24 @@ export async function getMarkets(): Promise<GeoMarket[]> {
   return clone(readMockState().config.markets)
 }
 export async function switchMarket(marketId: number): Promise<MarketSwitchResult> {
-  const state = updateMockState((draft) => { draft.config.activeMarketId = marketId })
+  const state = updateMockState((draft) => {
+    const previous = draft.config.activeMarketId
+    if (previous === marketId)
+      return
+    const questions = marketQuestions(draft, marketId)
+    const personas = structuredClone(marketPersonas(draft, marketId))
+    const isPaused = isMarketPaused(draft, marketId)
+    const questionsByMarket = draft.config.questionsByMarket ??= {}
+    const personasByMarket = draft.config.personasByMarket ??= {}
+    const pausedByMarket = draft.monitoring.pausedByMarket ??= {}
+    questionsByMarket[previous] = draft.config.questions
+    personasByMarket[previous] = draft.config.personas
+    pausedByMarket[previous] = draft.monitoring.isPaused
+    draft.config.activeMarketId = marketId
+    draft.config.questions = questions
+    draft.config.personas = personas
+    draft.monitoring.isPaused = isPaused
+  })
   return { marketId, siteId: state.identity.siteId }
 }
 export async function getMarketEntryStatus(): Promise<MarketEntryStatus> {
@@ -111,9 +131,17 @@ export async function getMarketThemes(): Promise<MarketThemeRecord[]> {
   await delay()
   return clone(readMockState().config.themes)
 }
+export function packageMonitoringPlatforms(records: readonly SelectedPlatformRecord[]): SelectedPlatformRecord[] {
+  const { planCode, planName } = activePlan.quota
+  return defaultMonitoringPlatformsForPlan(planCode, planName).map((platform, index) => {
+    const existing = records.find(record => normalizeMonitoringPlatform(record.platform) === platform)
+    return { id: existing?.id ?? -(index + 1), platform, modelVersion: existing?.modelVersion ?? null, enabled: 1, sort: index + 1 }
+  })
+}
+
 export async function getMarketPlatforms(): Promise<SelectedPlatformRecord[]> {
   await delay()
-  return clone(readMockState().config.platforms)
+  return packageMonitoringPlatforms(readMockState().config.platforms)
 }
 export async function getMarketCompetitors(): Promise<CompetitorRecord[]> {
   await delay()
@@ -172,6 +200,18 @@ export async function updateQuestion(id: number, input: QuestionUpdateInput): Pr
       Object.assign(row, input)
   })
 }
+export async function replaceMonitoringQuestions(questions: Array<QuestionUpdateInput & { id?: number }>): Promise<void> {
+  updateMockState((draft) => {
+    const previous = new Map(draft.config.questions.map(question => [question.id, question]))
+    draft.config.questions = questions.map(({ id, ...fields }) => {
+      const existing = id === undefined ? undefined : previous.get(id)
+      return existing
+        ? { ...existing, ...fields }
+        : { ...fields, id: ++draft.config.nextId, themeId: null, isFirstSelected: 1, sourceType: 1, status: 1 }
+    })
+  })
+}
+
 export async function updateFirstSelected(input: QuestionFirstSelectInput): Promise<void> {
   const selected = new Set(input.questionIds ?? input.candidateIds ?? [])
   updateMockState((draft) => { draft.config.questions.forEach((item) => { item.isFirstSelected = selected.has(item.id) ? 1 : 0 }) })
@@ -202,7 +242,7 @@ export async function getBrandProducts(): Promise<BrandProductRecord[]> {
 }
 export async function getActivePlan(): Promise<ActivePlanRecord> {
   await delay()
-  return { id: 1, siteId: 1001, planId: 3, quota: { planCode: 'pro', planName: '专业版', questionCountLimit: 100, aiPlatformCountLimit: 10, repeatCountLimit: 10, personaCountLimit: 6, competitorCountLimit: 5, themeCountLimit: 20, marketCountLimit: 5, monthlyReportLimit: 5 }, startDate: '2026-01-01', endDate: '2027-01-01', status: 1 }
+  return clone(activePlan)
 }
 export async function getCurrentConfigChange(): Promise<ConfigChangeStatus> {
   await delay()

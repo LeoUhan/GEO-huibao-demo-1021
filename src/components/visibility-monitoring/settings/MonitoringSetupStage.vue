@@ -240,7 +240,7 @@ const questionOptions = computed<Record<'type' | 'persona' | 'purchaseStage' | '
         </section>
 
         <AddMonitoringQuestionDialog v-model:open="addQuestionDialogOpen" :options="questionOptions" @added="addQuestion" />
-        <BulkMonitoringQuestionsDialog v-model:open="bulkEditOpen" :questions="currentQuestions" :market="market" :question-count="currentQuestionCount" :options="questionOptions" @saved="saveQuestions" @pause-market="emit('pauseMonitoring')" />
+        <BulkMonitoringQuestionsDialog v-model:open="bulkEditOpen" :questions="currentQuestions" :market="market" :question-count="currentQuestionCount" :options="questionOptions" @saved="saveQuestions" />
       </template>
     </template>
   </section>

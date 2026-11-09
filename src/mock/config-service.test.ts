@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest'
-import { confirmRecommendation, getAvailableCompetitorRecommendations, getDictionary, updateQuestion } from './config-service'
-import { readMockState, resetMockState } from './repository'
+import { confirmRecommendation, getAvailableCompetitorRecommendations, getDictionary, getMarketPlatforms, updateQuestion } from './config-service'
+import { readMockState, resetMockState, updateMockState } from './repository'
 
 describe('local competitor recommendation workflow', () => {
   beforeEach(() => resetMockState())
@@ -55,5 +55,18 @@ describe('local monitoring question edits', () => {
     expect(after).toHaveLength(before.length)
     expect(after[0]).toMatchObject({ questionContent: 'Wie präzise schneidet ein Wasserstrahlsystem CFRP?', keyword: 'CFRP Präzisionsschnitt' })
     expect(after[1]?.questionContent).toBe(before[1]?.questionContent)
+  })
+})
+
+describe('package monitoring platforms', () => {
+  beforeEach(() => resetMockState())
+
+  it('uses package coverage even if old selections disabled an included platform', async () => {
+    updateMockState((draft) => {
+      draft.config.platforms[0]!.enabled = 0
+    })
+    const platforms = await getMarketPlatforms()
+    expect(platforms.map(platform => platform.platform)).toEqual(['google-ai', 'ai-mode', 'gemini', 'chatgpt'])
+    expect(platforms.every(platform => platform.enabled === 1)).toBe(true)
   })
 })

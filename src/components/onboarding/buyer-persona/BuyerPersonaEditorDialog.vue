@@ -260,8 +260,8 @@ watch([open, () => props.mode], ([isOpen]) => {
     @confirm="save"
   >
     <div class="buyer-persona-save-confirmation">
-      <p>保存后，AI 后续生成监测问题时可能参考更新后的买家人设。</p>
-      <p>现有监测问题、SOA 基线和历史数据均保留，监测照常进行。</p>
+      <p>保存后，新的买家人设将用于后续监测，已启动和已完成的轮次保持原配置。</p>
+      <p>本次保存保留现有监测问题和 SOA 基线。</p>
       <p v-if="saveError" class="buyer-persona-editor__error" role="alert">{{ saveError }}</p>
     </div>
   </Modal>

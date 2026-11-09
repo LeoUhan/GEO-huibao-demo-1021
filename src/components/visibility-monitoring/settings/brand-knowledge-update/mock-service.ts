@@ -1,7 +1,10 @@
 import type { MonitoringQuestion } from '../../../../data/visibility-monitoring-data'
+import type { MockQuestion, MockState } from '../../../../mock/state'
 import type { KnowledgeItem } from '../../../../types'
 import type { BrandKnowledgeChangeImpact, BrandKnowledgeUpdateService, BrandKnowledgeUpdateSnapshot, MarketRecommendationState } from './types'
 import { visibilityMonitoringData } from '../../../../data/visibility-monitoring-data'
+import { brandBaselineChanges } from '../../../../mock/monitoring-baseline'
+import { isMarketPaused, marketPersonas, marketQuestions, readMockState, updateMockState } from '../../../../mock/repository'
 
 const clone = <T>(value: T): T => structuredClone(value)
 
@@ -36,7 +39,7 @@ const frenchQuestions = [
 ]
 
 function buildQuestions(marketId: string, language: string): MonitoringQuestion[] {
-  const texts = language === '德语' ? germanQuestions : language === '法语' ? frenchQuestions : englishQuestions
+  const texts = ['de', 'de-DE'].includes(language) || language === '德语' ? germanQuestions : ['fr', 'fr-FR'].includes(language) || language === '法语' ? frenchQuestions : englishQuestions
   return texts.map((question, index) => {
     const base = visibilityMonitoringData.questions[index % visibilityMonitoringData.questions.length]!
     return {
@@ -47,94 +50,184 @@ function buildQuestions(marketId: string, language: string): MonitoringQuestion[
   })
 }
 
-function createInitialSnapshot(): BrandKnowledgeUpdateSnapshot {
-  const allQuestions = visibilityMonitoringData.questions
-  const markets: MarketRecommendationState[] = [
-    { id: 'de-de', name: '德国 · 德语', language: '德语', enabled: true, processed: false, candidates: [], selectedCandidateIds: [], existingQuestions: clone(allQuestions.slice(0, 3)) },
-    { id: 'us-en', name: '美国 · 英语', language: '英语', enabled: true, processed: false, candidates: [], selectedCandidateIds: [], existingQuestions: clone(allQuestions.slice(3, 6)) },
-    { id: 'fr-fr', name: '法国 · 法语', language: '法语', enabled: false, processed: false, candidates: [], selectedCandidateIds: [], existingQuestions: clone(allQuestions.slice(6, 9)) },
-  ]
-  return {
-    demo: true,
-    editQuota: { total: 3, remaining: 2 },
-    knowledgeItems: [],
-    markets,
+const quota = { total: 3, remaining: 2 }
+
+function brandFields(items: KnowledgeItem[], current: MockState['config']['brand']) {
+  const brand = items.find(item => item.id === 'brand')?.brand
+  return brand ? {
+    ...current,
+    brandName: brand.name,
+    aliasNames: brand.alias,
+    industry: brand.industry,
+    positioning: brand.description,
+    siteUrl: brand.website ?? current.siteUrl,
+    saved: 1,
+  } : current
+}
+
+function saveKnowledge(items: KnowledgeItem[], state: MockState) {
+  const { config } = state
+  config.brand = brandFields(items, config.brand)
+  const products = items.find(item => item.id === 'product')?.products
+  if (products) {
+    config.products = products.map((product) => {
+      const existing = config.products.find(row => String(row.id) === product.id)
+      return {
+        id: existing?.id ?? ++config.nextId,
+        lineName: existing?.lineName ?? product.name,
+        productName: product.name,
+        usageScene: product.useCase,
+        sellingPoints: product.strengths.split(' · ').filter(Boolean),
+        targetCustomers: product.customerGroup.split(' · ').filter(Boolean),
+        sourceType: existing?.sourceType ?? 1,
+        isPrimary: product.isPrimary ? 1 : 0,
+      }
+    })
+  }
+  const competitors = items.find(item => item.id === 'competitor')?.competitors
+  if (competitors) {
+    config.competitors = competitors.map((competitor) => {
+      const existing = config.competitors.find(row => String(row.id) === competitor.id)
+      const recommendation = config.recommendations.find(row => String(-row.recommendationId) === competitor.id)
+      if (recommendation)
+        recommendation.recommendationStatus = 'accepted'
+      return {
+        id: existing?.id ?? ++config.nextId,
+        competitorName: competitor.name,
+        domain: competitor.domain,
+        aliasNames: competitor.alias,
+        competitorDesc: competitor.description,
+        isCoreSov: existing?.isCoreSov ?? 0,
+        sourceType: existing?.sourceType ?? (recommendation ? 3 : 1),
+        status: competitor.confirmed ? 1 : 0,
+      }
+    })
   }
 }
 
-export function createMockBrandKnowledgeUpdateService(seed?: BrandKnowledgeUpdateSnapshot): BrandKnowledgeUpdateService {
-  let state = clone(seed ?? createInitialSnapshot())
+function displayQuestion(question: MockQuestion, personas: MockState['config']['personas']): MonitoringQuestion {
+  return {
+    id: `Q${question.id}`,
+    question: question.questionContent,
+    keyword: question.keyword,
+    type: question.questionType as MonitoringQuestion['type'],
+    persona: personas.find(persona => persona.id === question.personaId)?.personaName ?? '',
+    stage: question.purchaseStage,
+    intent: question.intentType,
+    concern: question.focusType,
+    platformResults: [],
+    competitors: [],
+    officialSiteCited: false,
+    rank: null,
+    trend: 'flat',
+    samplingBatches: [],
+  }
+}
 
-  const getSnapshot = async (): Promise<BrandKnowledgeUpdateSnapshot> => clone(state)
-
-  const previewChange = async (_items: KnowledgeItem[]): Promise<BrandKnowledgeChangeImpact> => ({
-    activeMarketCount: state.markets.filter(market => market.enabled).length,
-    editCost: 1,
-    remainingEdits: Math.max(0, state.editQuota.remaining - 1),
-    quotaAvailable: state.editQuota.remaining > 0,
+function snapshot(state: MockState, knowledgeItems: KnowledgeItem[] = []): BrandKnowledgeUpdateSnapshot {
+  const review = state.config.brandReview
+  const markets: MarketRecommendationState[] = state.config.markets.filter(market => market.status === 1).map((market) => {
+    const stored = review?.markets[market.id]
+    const existingQuestions = marketQuestions(state, market.id).map(question => displayQuestion(question, marketPersonas(state, market.id)))
+    const existingText = new Set(existingQuestions.map(question => question.question.trim()))
+    return {
+      id: String(market.id),
+      name: `${market.marketCountry} · ${market.marketLanguage}`,
+      language: market.marketLanguage,
+      enabled: !isMarketPaused(state, market.id),
+      processed: stored?.processed ?? true,
+      processedAddedCount: stored?.processedAddedCount,
+      processedRemovedCount: stored?.processedRemovedCount,
+      candidates: (stored?.candidates ?? []).filter(candidate => !existingText.has(candidate.question.trim())),
+      selectedCandidateIds: [],
+      existingQuestions,
+    }
   })
+  return { demo: true, editQuota: { ...quota, remaining: review?.remaining ?? quota.remaining }, knowledgeItems, markets }
+}
+
+export function createMockBrandKnowledgeUpdateService(): BrandKnowledgeUpdateService {
+  async function finishGeneration(state: MockState) {
+    if (!state.config.brandReview?.generating)
+      return state
+    await new Promise<void>(resolve => setTimeout(resolve, 350))
+    return updateMockState((draft) => {
+      const review = draft.config.brandReview
+      if (!review?.generating || review.remaining !== state.config.brandReview?.remaining)
+        return
+      for (const market of draft.config.markets.filter(market => market.status === 1)) {
+        review.markets[market.id] = {
+          processed: false,
+          candidates: buildQuestions(`${market.id}-batch-${review.remaining}`, market.marketLanguage),
+        }
+      }
+      review.generating = false
+    })
+  }
+
+  const getSnapshot = async () => snapshot(await finishGeneration(readMockState()))
+
+  const previewChange = async (items: KnowledgeItem[]): Promise<BrandKnowledgeChangeImpact> => {
+    const state = readMockState()
+    const current = snapshot(state)
+    return {
+      affectedMarkets: current.markets.map(market => market.name),
+      editCost: 1,
+      remainingEdits: Math.max(0, current.editQuota.remaining - 1),
+      quotaAvailable: current.editQuota.remaining > 0,
+      ...brandBaselineChanges(state.config.brand, brandFields(items, state.config.brand)),
+    }
+  }
 
   const confirmChange = async (items: KnowledgeItem[]): Promise<BrandKnowledgeUpdateSnapshot> => {
-    if (state.editQuota.remaining < 1)
-      throw new Error('品牌知识修改次数不足，暂时无法确认')
-
-    state = {
-      ...state,
-      editQuota: { ...state.editQuota, remaining: state.editQuota.remaining - 1 },
-      knowledgeItems: clone(items),
-      markets: state.markets.map(market => ({
-        ...market,
-        enabled: false,
-        processed: false,
-        selectedCandidateIds: [],
-        candidates: buildQuestions(market.id, market.language),
-      })),
-    }
-    return getSnapshot()
+    const state = updateMockState((draft) => {
+      const remaining = draft.config.brandReview?.remaining ?? quota.remaining
+      if (remaining < 1)
+        throw new Error('品牌知识修改次数不足，暂时无法确认')
+      saveKnowledge(items, draft)
+      draft.config.brandReview = { remaining: remaining - 1, generating: true, markets: {} }
+    })
+    return snapshot(await finishGeneration(state), items)
   }
 
-  const saveMarketSelection = async (marketId: string, candidateIds: string[], removedQuestionIds: string[] = []): Promise<BrandKnowledgeUpdateSnapshot> => {
-    const market = state.markets.find(item => item.id === marketId)
-    if (!market)
-      throw new Error('未找到该市场')
+  const saveMarketSelection = async (marketId: string, candidateIds: string[], removedQuestionIds: string[] = []) => {
+    const id = Number(marketId)
+    const state = updateMockState((draft) => {
+      const market = snapshot(draft).markets.find(item => item.id === marketId)
+      const review = draft.config.brandReview?.markets[id]
+      if (!market || !review)
+        throw new Error('未找到该市场的推荐批次')
+      const selected = [...new Set(candidateIds)]
+      if (selected.length > 10)
+        throw new Error('每个市场最多选择 10 条推荐问题')
+      const candidates = new Map(market.candidates.map(candidate => [candidate.id, candidate]))
+      if (selected.some(candidateId => !candidates.has(candidateId)))
+        throw new Error('选择中包含无效或已过期的候选问题')
 
-    const uniqueIds = [...new Set(candidateIds)]
-    if (uniqueIds.length > 10)
-      throw new Error('每个市场最多选择 10 条推荐问题')
-    const candidateById = new Map(market.candidates.map(candidate => [candidate.id, candidate]))
-    if (uniqueIds.some(id => !candidateById.has(id)))
-      throw new Error('选择中包含无效或已过期的候选问题')
-
-    const currentIds = new Set(market.existingQuestions.map(question => question.id))
-    const selectedQuestions = uniqueIds.map(id => candidateById.get(id)!).filter(question => !currentIds.has(question.id))
-    const removedIds = new Set(removedQuestionIds.filter(id => currentIds.has(id)))
-    state = {
-      ...state,
-      markets: state.markets.map(item => item.id === marketId
-        ? {
-            ...item,
-            processed: true,
-            selectedCandidateIds: uniqueIds,
-            processedAddedCount: selectedQuestions.length,
-            processedRemovedCount: removedIds.size,
-            existingQuestions: [...item.existingQuestions.filter(question => !removedIds.has(question.id)), ...clone(selectedQuestions)],
-          }
-        : item),
-    }
-    return getSnapshot()
+      const current = marketQuestions(draft, id)
+      const removed = new Set(removedQuestionIds)
+      const next = current.filter(question => !removed.has(`Q${question.id}`))
+      const personas = marketPersonas(draft, id)
+      if (id !== draft.config.activeMarketId) {
+        const personasByMarket = draft.config.personasByMarket ??= {}
+        personasByMarket[id] ??= structuredClone(personas)
+      }
+      for (const candidateId of selected) {
+        const question = candidates.get(candidateId)!
+        const persona = personas.find(persona => persona.personaName === question.persona) ?? personas[0]
+        next.push({ id: ++draft.config.nextId, questionContent: question.question, keyword: question.keyword, questionType: question.type, personaId: persona?.id ?? 0, purchaseStage: question.stage, intentType: question.intent, focusType: question.concern, themeId: null, isFirstSelected: 1, sourceType: 1, status: 1 })
+      }
+      review.processed = true
+      review.processedAddedCount = selected.length
+      review.processedRemovedCount = current.length + selected.length - next.length
+      review.candidates = []
+      if (id === draft.config.activeMarketId)
+        draft.config.questions = next
+      else
+        (draft.config.questionsByMarket ??= {})[id] = next
+    })
+    return snapshot(state)
   }
 
-  const enableAllMarkets = async (): Promise<BrandKnowledgeUpdateSnapshot> => {
-    state = { ...state, markets: state.markets.map(market => ({ ...market, enabled: true })) }
-    return getSnapshot()
-  }
-
-  const setMarketEnabled = async (marketId: string, enabled: boolean): Promise<BrandKnowledgeUpdateSnapshot> => {
-    state = { ...state, markets: state.markets.map(market => market.id === marketId ? { ...market, enabled } : market) }
-    return getSnapshot()
-  }
-
-  return { getSnapshot, previewChange, confirmChange, saveMarketSelection, setMarketEnabled, enableAllMarkets }
+  return { getSnapshot, previewChange, confirmChange, saveMarketSelection }
 }
-
-export type { MonitoringQuestion }

@@ -173,6 +173,9 @@ export interface RoundSummary {
   monitorDate: string
   totalSample: number
   startedAt: string | null
+  questionBaseline?: boolean
+  brandBaseline?: boolean
+  citationBaseline?: boolean
 }
 
 export interface RoundDetail extends RoundSummary {

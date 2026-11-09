@@ -2,13 +2,16 @@
 import type { MonitoringQuestion } from '../../../data/visibility-monitoring-data'
 import type { CustomMonitoringQuestionDraft } from '../../onboarding/monitoring-questions/monitoring-question-validation'
 import type { DropdownSelectOption } from '../../ui/ce'
-import { reactive, watch } from 'vue'
+import { reactive, ref, watch } from 'vue'
 import { validateCustomMonitoringQuestion } from '../../onboarding/monitoring-questions/monitoring-question-validation'
 import { DropdownSelect, Input, Modal } from '../../ui/ce'
+import QuestionChangeConfirm from './QuestionChangeConfirm.vue'
 
 type SelectFieldKey = 'type' | 'persona' | 'purchaseStage' | 'intent' | 'mainConcern'
 
 const props = defineProps<{
+  enabled?: boolean
+  persistQuestion?: (question: MonitoringQuestion) => Promise<void>
   options: Record<SelectFieldKey, readonly DropdownSelectOption[]>
 }>()
 
@@ -17,6 +20,9 @@ const emit = defineEmits<{
 }>()
 
 const open = defineModel<boolean>('open', { default: false })
+const confirmationOpen = ref(false)
+const saving = ref(false)
+const saveError = ref('')
 const draft = reactive<CustomMonitoringQuestionDraft>({
   question: '',
   keyword: '',
@@ -60,13 +66,20 @@ function addQuestion() {
   if (Object.keys(errors).length)
     return
 
-  emit('added', {
+  saveError.value = ''
+  confirmationOpen.value = true
+}
+
+async function confirmSave() {
+  if (saving.value)
+    return
+  const question: MonitoringQuestion = {
     id: `custom-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
     question: draft.question.trim(),
     keyword: draft.keyword.trim(),
     type: draft.type as MonitoringQuestion['type'],
     persona: labelFor(props.options.persona, draft.persona),
-    stage: labelFor(props.options.purchaseStage, draft.purchaseStage),
+    stage: draft.purchaseStage,
     intent: labelFor(props.options.intent, draft.intent),
     concern: labelFor(props.options.mainConcern, draft.mainConcern),
     platformResults: [],
@@ -75,8 +88,21 @@ function addQuestion() {
     rank: null,
     trend: 'flat',
     samplingBatches: [],
-  })
-  open.value = false
+  }
+  saving.value = true
+  saveError.value = ''
+  try {
+    await props.persistQuestion?.(question)
+    emit('added', question)
+    confirmationOpen.value = false
+    open.value = false
+  }
+  catch (cause) {
+    saveError.value = cause instanceof Error ? cause.message : '保存失败，请重试。'
+  }
+  finally {
+    saving.value = false
+  }
 }
 </script>
 
@@ -85,7 +111,7 @@ function addQuestion() {
     v-model:open="open"
     title="添加监测问题"
     width="min(760px, calc(100vw - 32px))"
-    confirm-text="添加问题"
+    confirm-text="保存"
     cancel-text="取消"
     processing-text="添加中…"
     close-label="关闭添加监测问题弹窗"
@@ -141,6 +167,14 @@ function addQuestion() {
       </div>
     </form>
   </Modal>
+  <QuestionChangeConfirm
+    v-model:open="confirmationOpen"
+    :enabled="enabled ?? true"
+    :new-baseline="true"
+    :pending="saving"
+    :error="saveError"
+    @confirm="confirmSave"
+  />
 </template>
 
 <style scoped>

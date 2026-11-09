@@ -54,6 +54,9 @@ function credibility(detail: RoundDetail | null) {
     <p v-if="triggerError" class="vm-round-summary__trigger-error" role="alert">
       手动采集失败：{{ triggerError }}
     </p>
+    <p v-if="round?.questionBaseline || round?.brandBaseline || round?.citationBaseline" class="vm-round-summary__baseline" role="status">
+      {{ round.questionBaseline ? '本轮为新问题集的基线首轮，与此前轮次的环比暂不展示。' : `${[round.brandBaseline && '品牌识别指标', round.citationBaseline && '官网引用指标'].filter(Boolean).join('、')}从本轮建立新基线，与此前轮次的环比暂不展示。` }}
+    </p>
     <dl v-if="round || additionalMetrics.length" class="vm-round-summary__metrics" :class="{ 'has-additional': additionalMetrics.length }" :style="{ '--metric-count': (additionalMetrics.length + (showRoundNumber ? 3 : 2)).toString() }">
       <div><dt>监测时间 / 轮次</dt><dd>{{ displayValue(round?.monitorDate) }} · 第 {{ displayValue(round?.roundNo) }} 轮</dd></div>
       <template v-if="variant === 'overview' && !showRoundNumber">
@@ -97,6 +100,7 @@ function credibility(detail: RoundDetail | null) {
 .vm-round-summary__toggle:hover:not(:disabled) { background: var(--action-subtle-background); }
 .vm-round-summary__toggle:focus-visible { outline: 2px solid var(--action-accent); outline-offset: 3px; }
 .vm-round-summary__toggle:disabled,.vm-round-summary__trigger:disabled { cursor: not-allowed; opacity: 0.6; }
+.vm-round-summary__baseline { margin: 12px 0 0; color: var(--text-secondary); font-size: var(--font-size-caption); }
 .vm-round-summary__metrics { display: grid; grid-template-columns: repeat(var(--metric-count, 3), minmax(0, 1fr)); margin: 14px 0 0; }
 .vm-round-summary__metrics > div { min-width: 0; padding: 2px 14px; border-left: 1px solid var(--border-divider); }
 .vm-round-summary__metrics > div:first-child { padding-left: 0; border-left: 0; }

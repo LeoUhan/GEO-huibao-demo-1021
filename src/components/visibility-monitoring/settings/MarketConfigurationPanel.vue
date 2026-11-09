@@ -22,6 +22,9 @@ const props = defineProps<{
   purchaseStageOptions: readonly DropdownSelectOption[]
   companyScaleOptions: readonly DropdownSelectOption[]
   decisionRoleOptions: readonly DropdownSelectOption[]
+  monitoringEnabled: boolean
+  persistQuestion: (question: MonitoringQuestion) => Promise<void>
+  persistQuestions: (questions: MonitoringQuestion[]) => Promise<void>
   persistPersonas: (personas: BuyerPersona[]) => Promise<BuyerPersona[]>
   knowledgeItems: KnowledgeItem[]
   pendingCompetitorNames: readonly string[]
@@ -30,7 +33,7 @@ const props = defineProps<{
   errors: { brand: string, competitors: string, competitorRecommendations: string, personas: string, questions: string, themes: string }
 }>()
 
-const emit = defineEmits<{ retry: [], editKnowledge: [tab: KnowledgeEditorTab], viewKnowledge: [tab: KnowledgeEditorTab], reviewCompetitors: [], addQuestion: [question: MonitoringQuestion], updateQuestions: [questions: MonitoringQuestion[]], manageRecommendations: [] }>()
+const emit = defineEmits<{ retry: [], editKnowledge: [tab: KnowledgeEditorTab], viewKnowledge: [tab: KnowledgeEditorTab], reviewCompetitors: [], manageRecommendations: [] }>()
 const personaEditorOpen = shallowRef(false)
 const personaEditorMode = ref<'edit' | 'view'>('edit')
 const addQuestionOpen = shallowRef(false)
@@ -104,20 +107,12 @@ function asQuestion(record: MonitoringQuestionRecord): MonitoringQuestion {
 }
 
 const questionOptions = computed(() => ({
-  type: [...new Set(props.questions.map(item => item.questionType))].map(value => ({ value, label: value })),
+  type: [...new Set([...props.questions.map(item => item.questionType), '品牌词', '业务词', '产品词'])].map(value => ({ value, label: value })),
   persona: props.personas.map(item => ({ value: item.personaName, label: item.personaName })),
-  purchaseStage: [...new Set(props.questions.map(item => item.purchaseStage))].map(value => ({ value, label: value })),
-  intent: [...new Set(props.questions.map(item => item.intentType))].map(value => ({ value, label: value })),
-  mainConcern: [...new Set(props.questions.map(item => item.focusType).filter((value): value is string => !!value))].map(value => ({ value, label: value })),
+  purchaseStage: [...new Set([...props.questions.map(item => item.purchaseStage), ...props.purchaseStageOptions.map(option => option.value)])].map(value => ({ value, label: localizedValue(props.purchaseStageOptions, value) })),
+  intent: [...new Set([...props.questions.map(item => item.intentType), '信息', '比较', '决策', '推荐'])].map(value => ({ value, label: value })),
+  mainConcern: [...new Set([...props.questions.map(item => item.focusType).filter((value): value is string => !!value), '技术规格', '方案原理', '采购范围', '报价包含项'])].map(value => ({ value, label: value })),
 }))
-
-function addQuestion(question: MonitoringQuestion) {
-  emit('addQuestion', question)
-}
-
-function updateQuestions(questions: MonitoringQuestion[]) {
-  emit('updateQuestions', questions)
-}
 
 function personaFor(item: unknown, personas: readonly BuyerPersonaRecord[]) {
   return personas.find(persona => persona.id === question(item).personaId)?.personaName ?? '—'
@@ -248,9 +243,11 @@ function personaStages(persona: BuyerPersonaRecord) {
             {{ question(item).focusType || '—' }}
           </template>
         </DataList>
-        <AddMonitoringQuestionDialog v-model:open="addQuestionOpen" :options="questionOptions" @added="addQuestion" />
-        <BulkMonitoringQuestionsDialog v-model:open="editQuestionsOpen" :questions="questions.map(asQuestion)" market="当前市场" :question-count="questions.length" :options="questionOptions" @saved="updateQuestions" />
       </div>
+    </template>
+    <template v-if="stage === 3">
+      <AddMonitoringQuestionDialog v-model:open="addQuestionOpen" :options="questionOptions" :enabled="monitoringEnabled" :persist-question="persistQuestion" />
+      <BulkMonitoringQuestionsDialog v-model:open="editQuestionsOpen" :questions="questions.map(asQuestion)" market="当前市场" :question-count="questions.length" :options="questionOptions" :enabled="monitoringEnabled" :persist-questions="persistQuestions" />
     </template>
     <BuyerPersonaEditorDialog
       v-if="stage === 2"

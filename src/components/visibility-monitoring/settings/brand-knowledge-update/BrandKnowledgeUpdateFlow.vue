@@ -3,9 +3,9 @@ import type { KnowledgeItem } from '../../../../types'
 import type { BrandKnowledgeChangeImpact, BrandKnowledgeUpdateService, BrandKnowledgeUpdateSnapshot, MarketRecommendationState } from './types'
 import { computed, ref, shallowRef, watch } from 'vue'
 import KnowledgeEditorDialog from '../../../onboarding/knowledge/KnowledgeEditorDialog.vue'
+import QuestionChangeConfirm from '../../questions/QuestionChangeConfirm.vue'
 import BrandKnowledgeChangeConfirm from './BrandKnowledgeChangeConfirm.vue'
 import MarketRecommendationListDialog from './MarketRecommendationListDialog.vue'
-import Toast from '../../../ui/ce/toast/Toast.vue'
 
 type FlowStep = 'editor' | 'confirm' | 'markets'
 
@@ -14,10 +14,6 @@ const props = withDefaults(defineProps<{
   items: KnowledgeItem[]
   initialTab: string | undefined
   service: BrandKnowledgeUpdateService
-  persistProducts?: boolean
-  persistCompetitors?: boolean
-  deleteProduct?: (id: string) => Promise<void>
-  deleteCompetitor?: (id: string) => Promise<void>
   startAtMarketManager?: boolean
 }>(), { startAtMarketManager: false })
 const emit = defineEmits<{
@@ -25,8 +21,6 @@ const emit = defineEmits<{
   'knowledgeCommitted': [items: KnowledgeItem[], snapshot: BrandKnowledgeUpdateSnapshot]
   'processMarket': [marketId: string, market: MarketRecommendationState]
   'marketSelectionSaved': [snapshot: BrandKnowledgeUpdateSnapshot]
-  'enableAllMarkets': [snapshot: BrandKnowledgeUpdateSnapshot]
-  'refreshKnowledge': []
   'marketManagerClosed': []
 }>()
 
@@ -41,8 +35,9 @@ const selectedIds = ref<string[]>([])
 const removedIds = ref<string[]>([])
 const activeMarketId = shallowRef('')
 const activeTab = shallowRef<'all' | 'candidates' | 'current'>('candidates')
-const resumeAfterSave = shallowRef(false)
-const toastMessage = shallowRef('')
+const questionConfirmationOpen = shallowRef(false)
+const marketSelection = shallowRef<{ candidateIds: string[], removedIds: string[] } | null>(null)
+const marketFeedback = shallowRef('')
 const selectedIdsByMarket = ref<Record<string, string[]>>({})
 const removedIdsByMarket = ref<Record<string, string[]>>({})
 
@@ -157,6 +152,7 @@ function processMarket(marketId: string) {
     removedIdsByMarket.value[activeMarketId.value] = [...removedIds.value]
   }
   activateMarket(marketId)
+  marketFeedback.value = ''
   error.value = null
   retryOperation.value = null
   emit('processMarket', marketId, market)
@@ -194,6 +190,7 @@ async function saveMarketSelection(marketId: string, candidateIds: string[], rem
     return
   const save = async () => {
     pendingAction.value = `market:${marketId}`
+    marketFeedback.value = ''
     error.value = null
     try {
       const result = await props.service.saveMarketSelection(marketId, [...candidateIds], [...removedQuestionIds])
@@ -205,13 +202,13 @@ async function saveMarketSelection(marketId: string, candidateIds: string[], rem
       removedIds.value = []
       selectedIdsByMarket.value[marketId] = []
       removedIdsByMarket.value[marketId] = []
-      if (resumeAfterSave.value && result.markets.find(item => item.id === marketId)) {
-        const enabled = await setMarketEnabled(marketId, true)
-        snapshot.value = enabled
-        emit('enableAllMarkets', enabled)
-        toastMessage.value = `${activeMarket.value?.name ?? '该市场'}已开启`
-        resumeAfterSave.value = false
-      }
+      questionConfirmationOpen.value = false
+      const changed = candidateIds.length > 0 || removedQuestionIds.length > 0
+      marketFeedback.value = changed
+        ? (result.markets.find(item => item.id === marketId)?.enabled
+            ? '已保存，下一轮监测将使用更新后的问题，当前轮次不受影响。'
+            : '已保存，恢复监测后的第一轮将使用更新后的问题。')
+        : '已忽略本市场的推荐问题，现有监测问题保持不变。'
     }
     catch (cause) {
       error.value = errorMessage(cause)
@@ -223,29 +220,6 @@ async function saveMarketSelection(marketId: string, candidateIds: string[], rem
     }
   }
   await save()
-}
-
-async function enableAllMarkets() {
-  if (pendingAction.value)
-    return
-  const enable = async () => {
-    pendingAction.value = 'enable-all'
-    error.value = null
-    try {
-      const result = await props.service.enableAllMarkets()
-      snapshot.value = result
-      retryOperation.value = null
-      emit('enableAllMarkets', result)
-    }
-    catch (cause) {
-      error.value = errorMessage(cause)
-      retryOperation.value = enable
-    }
-    finally {
-      pendingAction.value = null
-    }
-  }
-  await enable()
 }
 
 async function retry() {
@@ -264,61 +238,24 @@ function closeFlow() {
 
 const activeMarket = computed(() => snapshot.value?.markets.find(item => item.id === activeMarketId.value) ?? null)
 
-async function setMarketEnabled(marketId: string, enabled: boolean) {
-  if (props.service.setMarketEnabled)
-    return props.service.setMarketEnabled(marketId, enabled)
-  const current = snapshot.value
-  if (!current)
-    throw new Error('市场状态尚未加载')
-  return { ...current, markets: current.markets.map(market => market.id === marketId ? { ...market, enabled } : market) }
-}
-
-function saveActiveMarket(candidateIds: string[], removedQuestionIds: string[]) {
-  const market = activeMarket.value
-  if (!market)
-    return
-  if (market.enabled) {
-    void pauseActiveMarket()
-    return
-  }
-  void saveMarketSelection(market.id, candidateIds, removedQuestionIds)
-}
-async function pauseActiveMarket() {
-  const market = activeMarket.value
-  if (!market)
-    return
-  resumeAfterSave.value = true
-  pendingAction.value = `market:${market.id}`
-  error.value = null
-  try {
-    snapshot.value = await setMarketEnabled(market.id, false)
-    toastMessage.value = `${market.name}已暂停`
-  }
-  catch (cause) {
-    resumeAfterSave.value = false
-    error.value = errorMessage(cause)
-  }
-  finally {
-    pendingAction.value = null
-  }
-}
-
-async function toggleActiveMarket() {
+function requestMarketSave(candidateIds: string[], removedIds: string[]) {
   const market = activeMarket.value
   if (!market || pendingAction.value)
     return
-  pendingAction.value = `market:${market.id}`
   error.value = null
-  try {
-    snapshot.value = await setMarketEnabled(market.id, !market.enabled)
-    toastMessage.value = `${market.name}${market.enabled ? '已暂停' : '已开启'}`
+  if (!candidateIds.length && !removedIds.length) {
+    void saveMarketSelection(market.id, [], [])
+    return
   }
-  catch (cause) {
-    error.value = errorMessage(cause)
-  }
-  finally {
-    pendingAction.value = null
-  }
+  marketSelection.value = { candidateIds: [...candidateIds], removedIds: [...removedIds] }
+  questionConfirmationOpen.value = true
+}
+
+function confirmMarketSave() {
+  const market = activeMarket.value
+  const selection = marketSelection.value
+  if (market && selection)
+    void saveMarketSelection(market.id, selection.candidateIds, selection.removedIds)
 }
 
 watch(() => props.open, (isOpen) => {
@@ -335,6 +272,9 @@ watch(() => props.open, (isOpen) => {
   selectedIdsByMarket.value = {}
   removedIdsByMarket.value = {}
   activeTab.value = 'candidates'
+  questionConfirmationOpen.value = false
+  marketSelection.value = null
+  marketFeedback.value = ''
   void loadSnapshot()
 })
 
@@ -348,15 +288,9 @@ defineExpose({ saveMarketSelection, returnToMarketList })
       :items="items"
       :initial-tab="initialTab"
       :close-on-save="false"
-      :persist-products="persistProducts"
-      :persist-competitors="persistCompetitors"
-      :delete-product="deleteProduct"
-      :delete-competitor="deleteCompetitor"
+      read-only-market
+      stage-recommendations
       @saved="handleEditorSaved"
-      @product-saved="emit('refreshKnowledge')"
-      @product-accepted="emit('refreshKnowledge')"
-      @competitor-saved="emit('refreshKnowledge')"
-      @competitor-accepted="emit('refreshKnowledge')"
       @update:open="value => !value && closeFlow()"
     />
     <BrandKnowledgeChangeConfirm
@@ -376,19 +310,25 @@ defineExpose({ saveMarketSelection, returnToMarketList })
       :removed-ids="removedIds"
       :active-tab="activeTab"
       :pending-action="pendingAction"
-      :error="error"
+      :error="questionConfirmationOpen ? null : error"
+      :feedback="marketFeedback"
       @process-market="processMarket"
       @update:selected-ids="updateSelectedIds"
       @update:removed-ids="updateRemovedIds"
       @update:active-tab="activeTab = $event"
-      @save="saveActiveMarket"
-      @pause-market="pauseActiveMarket"
-      @toggle-market="toggleActiveMarket"
-      @enable-all="enableAllMarkets"
+      @save="requestMarketSave"
       @close="closeFlow"
       @retry="retry"
     />
-    <Toast :open="!!toastMessage" variant="success" :title="toastMessage" close-label="关闭状态提示" @close="toastMessage = ''" />
+    <QuestionChangeConfirm
+      v-if="activeMarket"
+      v-model:open="questionConfirmationOpen"
+      :enabled="activeMarket.enabled"
+      :new-baseline="true"
+      :pending="Boolean(pendingAction)"
+      :error="error ?? undefined"
+      @confirm="confirmMarketSave"
+    />
   </div>
 </template>
 

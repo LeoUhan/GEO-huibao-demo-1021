@@ -18,6 +18,11 @@ const recommendationSeed = [
   { id: 204, recommendationId: 204, competitorName: 'Webflow', domain: 'https://www.webflow.com/platform', aliasNames: 'Webflow Inc.', competitorDesc: '可视化网站设计与内容管理平台。', isCoreSov: 0, sourceType: 2, status: 1, occurrenceCount: 4, questionIds: ['Q06'], platformNames: ['ChatGPT'], recommendationStatus: 'pending' as const },
 ]
 
+export const demoAdditionalMarkets = [
+  { id: 2, marketType: 2, status: 1, marketCountry: '美国', marketLanguage: '英语', subSiteName: 'APW Waterjet' },
+  { id: 3, marketType: 2, status: 1, marketCountry: '法国', marketLanguage: '法语', subSiteName: 'APW Waterjet' },
+]
+
 export function createSeedState(): MockState {
   return structuredClone({
     schemaVersion: 1,
@@ -26,7 +31,7 @@ export function createSeedState(): MockState {
     config: {
       activeMarketId: 1,
       wizard: { entryStatus: 'FIRST_TIME', id: 1, currentStep: 1, maxReachedStep: 1 },
-      markets: [{ id: 1, marketType: 1, status: 1, marketCountry: '德国', marketLanguage: '德语', subSiteName: 'APW Waterjet' }],
+      markets: [{ id: 1, marketType: 1, status: 1, marketCountry: '德国', marketLanguage: '德语', subSiteName: 'APW Waterjet' }, ...demoAdditionalMarkets],
       brand: { brandName: 'APW Waterjet', industry: '工业水刀切割系统与解决方案', siteUrl: 'https://www.apwwaterjet.com', aliasNames: 'APW, APW Waterjet', positioning: '工业水刀切割系统与解决方案品牌', saved: 1 },
       products: [
         { id: 301, lineName: '五轴水刀切割系统', productName: 'APW 五轴水刀切割系统', usageScene: 'CFRP、航空复合材料及复杂曲面切割', sellingPoints: ['无热影响区', '五轴切割', '锥度补偿'], targetCustomers: ['航空制造商', '复合材料加工商'], sourceType: 1, isPrimary: 1 },
@@ -49,6 +54,7 @@ export function createSeedState(): MockState {
       questions: visibilityMonitoringData.questions,
       settings: { ...visibilityMonitoringData.settings },
       isPaused: false,
+      pausedByMarket: { 3: true },
       rounds: [
         { id: 'round-2026-10-16', date: '2026-10-16', status: 'completed' as const, responseCount: 1200 },
         { id: 'round-2026-10-09', date: '2026-10-09', status: 'completed' as const, responseCount: 1172 },

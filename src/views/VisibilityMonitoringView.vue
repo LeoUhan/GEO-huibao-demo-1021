@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import type { DropdownSelectOption } from '../components/ui/ce/dropdown-select/types'
 import type { KnowledgeEditorTab } from '../components/visibility-monitoring/settings/CurrentBrandKnowledge.vue'
-import type { MonitoringQuestion, SamplingFrequency, VisibilityTab } from '../data/visibility-monitoring-data'
+import type { MonitoringQuestion, VisibilityTab } from '../data/visibility-monitoring-data'
 import type { BuyerPersona, KnowledgeItem } from '../types'
 import { computed, onMounted, ref, shallowRef } from 'vue'
-import { addPersona, addQuestion, deleteBrandProduct, deleteCompetitor, deletePersona, getActivePlan, getDictionary, getMarkets, saveBrandInfo, updatePersona, updateQuestion } from '../api/geo-config'
+import { addPersona, addQuestion, deletePersona, getActivePlan, getDictionary, getMarkets, replaceMonitoringQuestions, updatePersona } from '../api/geo-config'
 import { triggerRound } from '../api/monitoring'
 import KnowledgeViewDialog from '../components/onboarding/knowledge/KnowledgeViewDialog.vue'
 import { defaultMonitoringPlatformsForPlan, frequencyForPlan } from '../components/onboarding/monitoring-plan/monitoring-plan'
@@ -21,7 +21,6 @@ import MonitoringProcessNav from '../components/visibility-monitoring/settings/M
 import MonitoringSettingsDialog from '../components/visibility-monitoring/settings/MonitoringSettingsDialog.vue'
 import GeoPageIntro from '../components/workbench/shared/GeoPageIntro.vue'
 import { useMarketConfiguration } from '../composables/use-market-configuration'
-import { useMonitoringPlatforms } from '../composables/use-monitoring-platforms'
 import { useMonitoringRound } from '../composables/use-monitoring-round'
 import { useMonitoringSchedule } from '../composables/use-monitoring-schedule'
 import { marketLanguageLabels, toMonitoringOverviewMetrics } from '../data/monitoring-overview-summary'
@@ -32,7 +31,6 @@ import { startDataProcessing } from '../workflows/data-processing'
 const activeTab = shallowRef<VisibilityTab>('brand')
 const activeStep = shallowRef(5)
 const monitoringSchedule = useMonitoringSchedule()
-const monitoringPlatforms = useMonitoringPlatforms()
 const monitoringRound = useMonitoringRound()
 const marketConfiguration = useMarketConfiguration()
 const geoContext = useGeoContextStore()
@@ -69,11 +67,9 @@ const overviewStats = computed(() => toMonitoringOverviewMetrics({
   totalSample: monitoringRound.detail.value?.totalSample,
 }))
 const settingsOpen = shallowRef(false)
-const frequencyChoice = shallowRef<SamplingFrequency>('weekly')
-const executionTime = shallowRef<string>('05:00')
 const activePlanName = shallowRef('')
 const activePlanCode = shallowRef('')
-const settingsError = shallowRef('')
+const planFrequency = computed(() => frequencyForPlan(activePlanCode.value, activePlanName.value, monitoringSchedule.schedule.value?.scheduleType))
 const enableConfirmationOpen = shallowRef(false)
 const setupTabs = [
   { id: 1, label: '品牌知识' },
@@ -155,19 +151,17 @@ const pendingCompetitorNames = computed(() => marketConfiguration.competitorReco
 }))
 onMounted(() => {
   void loadMarketLabel()
+  void brandKnowledgeUpdateService.getSnapshot().then(snapshot => {
+    brandRecommendationPending.value = snapshot.markets.some(market => !market.processed)
+  })
   void loadPersonaDictionaries()
   void Promise.allSettled([getActivePlan(), monitoringSchedule.load()]).then(([planResult]) => {
     if (planResult.status === 'fulfilled') {
       activePlanName.value = planResult.value.quota.planName
       activePlanCode.value = planResult.value.quota.planCode
     }
-    const schedule = monitoringSchedule.schedule.value
-    if (schedule)
-      executionTime.value = schedule.executeTime
-    frequencyChoice.value = frequencyForPlan(activePlanCode.value, activePlanName.value, schedule?.scheduleType ?? 'weekly')
   })
   void monitoringRound.load()
-  void monitoringPlatforms.load()
   void marketConfiguration.load().finally(() => marketConfigurationLoaded.value = true)
 })
 async function loadMarketLabel() {
@@ -197,20 +191,19 @@ async function loadPersonaDictionaries() {
 async function addCurrentMonitoringQuestion(question: MonitoringQuestion) {
   const persona = marketConfiguration.personas.value.find(item => item.personaName === question.persona)
   if (!persona)
-    return
+    throw new Error('请选择有效的买家人设。')
   await addQuestion({ questionContent: question.question, keyword: question.keyword, questionType: question.type, personaId: persona.id, purchaseStage: question.stage, intentType: question.intent, focusType: question.concern })
   await marketConfiguration.load()
 }
 async function updateCurrentMonitoringQuestions(questions: MonitoringQuestion[]) {
-  const saved = await Promise.allSettled(questions.map((question) => {
-    const id = Number(question.id.match(/\d+/)?.[0])
+  const existingQuestions = new Map(marketConfiguration.questions.value.map(question => [`Q${String(question.id).padStart(2, '0')}`, question]))
+  await replaceMonitoringQuestions(questions.map((question) => {
+    const existing = existingQuestions.get(question.id)
     const persona = marketConfiguration.personas.value.find(item => item.personaName === question.persona)
-    if (!Number.isFinite(id) || !persona)
-      return Promise.reject(new Error('问题编号或买家人设无效'))
-    return updateQuestion(id, { questionContent: question.question, keyword: question.keyword, questionType: question.type, personaId: persona.id, purchaseStage: question.stage, intentType: question.intent, focusType: question.concern })
+    if (!persona && !existing)
+      throw new Error('请选择有效的买家人设。')
+    return { id: existing?.id, questionContent: question.question.trim(), keyword: question.keyword, questionType: question.type, personaId: persona?.id ?? existing!.personaId, purchaseStage: question.stage, intentType: question.intent, focusType: question.concern }
   }))
-  if (saved.some(result => result.status === 'rejected'))
-    return
   await marketConfiguration.load()
 }
 function openKnowledgeEditor(tab: KnowledgeEditorTab) {
@@ -226,33 +219,9 @@ function openKnowledgeViewer(tab: KnowledgeEditorTab) {
   brandKnowledgeTab.value = tab
   brandKnowledgeViewerOpen.value = true
 }
-async function saveBrandKnowledge(items: KnowledgeItem[]) {
-  const brand = items.find(item => item.id === 'brand')?.brand
-  if (!brand)
-    throw new Error('品牌资料缺失')
-  await saveBrandInfo({ brandName: brand.name, industry: brand.industry, aliasNames: brand.alias, positioning: brand.description })
-  await marketConfiguration.load()
-}
-async function commitBrandKnowledgeChange(items: KnowledgeItem[], snapshot: { markets: Array<{ processed: boolean }> }) {
-  await saveBrandKnowledge(items)
-  brandRecommendationPending.value = snapshot.markets.some(market => !market.processed)
-  if (monitoringSchedule.enabled.value)
-    await monitoringSchedule.toggle()
-}
 function updateBrandRecommendationPending(snapshot: { markets: Array<{ processed: boolean }> }) {
   brandRecommendationPending.value = snapshot.markets.some(market => !market.processed)
-}
-async function resumeMonitoringForEnabledMarkets() {
-  if (!monitoringSchedule.enabled.value && monitoringSchedule.schedule.value)
-    await monitoringSchedule.toggle()
-}
-async function removeBrandProduct(id: string) {
-  await deleteBrandProduct(Number(id))
-  await marketConfiguration.load()
-}
-async function removeMarketCompetitor(id: string) {
-  await deleteCompetitor(Number(id))
-  await marketConfiguration.load()
+  void marketConfiguration.load()
 }
 async function persistMarketPersonas(personas: BuyerPersona[]) {
   const current = new Map(marketConfiguration.personas.value.map(persona => [String(persona.id), persona]))
@@ -309,33 +278,14 @@ async function persistMarketPersonas(personas: BuyerPersona[]) {
   await marketConfiguration.load()
   return personas
 }
-function refreshBrandKnowledge() {
-  void marketConfiguration.load()
-}
 function refreshCompetitorRecommendations() {
   void marketConfiguration.load()
 }
 function switchTab(tab: VisibilityTab) {
   activeTab.value = tab
 }
-const settingsPlatformSelection = computed(() => monitoringPlatforms.selected.value.length
-  ? monitoringPlatforms.selected.value
-  : defaultMonitoringPlatformsForPlan(activePlanCode.value, activePlanName.value))
+const planPlatforms = computed(() => defaultMonitoringPlatformsForPlan(activePlanCode.value, activePlanName.value))
 
-async function saveSettings(settings: { frequency: SamplingFrequency, platforms: string[] }) {
-  settingsError.value = ''
-  const platformsSaved = await monitoringPlatforms.save(settings.platforms)
-  if (!platformsSaved) {
-    settingsError.value = monitoringPlatforms.error.value || 'AI 平台配置保存失败'
-    return
-  }
-  const scheduleSaved = await monitoringSchedule.save({ scheduleType: frequencyChoice.value, executeTime: executionTime.value })
-  if (!scheduleSaved) {
-    settingsError.value = monitoringSchedule.error.value || '监测计划保存失败'
-    return
-  }
-  settingsOpen.value = false
-}
 function toggleMonitoring() {
   if (monitoringEnabled.value) {
     void monitoringSchedule.toggle()
@@ -373,7 +323,7 @@ async function launchManualRound() {
   <div class="geo-page visibility-page">
     <GeoPageIntro variant="visibility" title="可见性监测" help-label="可见性监测说明" description="直接透视品牌在各大生成式 AI 引擎中的曝光度、真实问答证据与主域名信源引用。" />
 
-    <MonitoringOverview :round="monitoringRound.round.value" :detail="monitoringRound.detail.value" :additional-metrics="overviewStats" variant="overview" :show-round-number="true" :monitoring-enabled="monitoringEnabled" :exclusive-actions="true" :status-text="monitoringStatusText" :toggle-disabled="monitoringSchedule.loading.value || !!monitoringSchedule.error.value || !monitoringSchedule.schedule.value" :toggle-pending="monitoringSchedule.pending.value" :trigger-disabled="monitoringSchedule.loading.value || !!monitoringSchedule.error.value || !monitoringSchedule.schedule.value" :trigger-pending="roundTriggerPending" :trigger-error="roundTriggerError" @toggle-monitoring="toggleMonitoring" @trigger-round="launchManualRound" />
+    <MonitoringOverview :round="monitoringRound.round.value" :detail="monitoringRound.detail.value" :additional-metrics="overviewStats" variant="overview" :show-round-number="true" :monitoring-enabled="monitoringEnabled" :status-text="monitoringStatusText" :toggle-disabled="monitoringSchedule.loading.value || !!monitoringSchedule.error.value || !monitoringSchedule.schedule.value" :toggle-pending="monitoringSchedule.pending.value" :trigger-disabled="monitoringSchedule.loading.value || !!monitoringSchedule.error.value || !monitoringSchedule.schedule.value" :trigger-pending="roundTriggerPending" :trigger-error="roundTriggerError" @toggle-monitoring="toggleMonitoring" @trigger-round="launchManualRound" />
     <div v-if="monitoringSchedule.error.value" class="visibility-api-error" role="alert">
       <span>监测计划状态加载失败：{{ monitoringSchedule.error.value }}</span>
       <button type="button" @click="monitoringSchedule.load()">
@@ -401,6 +351,9 @@ async function launchManualRound() {
         :company-scale-options="companyScaleOptions"
         :decision-role-options="decisionRoleOptions"
         :persist-personas="persistMarketPersonas"
+        :monitoring-enabled="monitoringEnabled"
+        :persist-question="addCurrentMonitoringQuestion"
+        :persist-questions="updateCurrentMonitoringQuestions"
         :loading="marketConfiguration.loading.value"
         :recommendations-pending="brandRecommendationPending"
         :errors="marketConfiguration.errors.value"
@@ -408,20 +361,18 @@ async function launchManualRound() {
         @edit-knowledge="openKnowledgeEditor"
         @view-knowledge="openKnowledgeViewer"
         @review-competitors="competitorReviewOpen = true"
-        @add-question="addCurrentMonitoringQuestion"
-        @update-questions="updateCurrentMonitoringQuestions"
         @manage-recommendations="openBrandRecommendationManager"
       />
     </div>
 
     <section v-else-if="activeStep === 4" id="visibility-stage-4" class="visibility-stage-four" role="tabpanel" aria-labelledby="visibility-step-4">
-      <SamplingTrustSection :schedule="monitoringSchedule.schedule.value" :round="monitoringRound.detail.value" :cumulative="monitoringRound.cumulativeSampling.value" :question-count="marketConfiguration.questions.value.length" :platform-count="monitoringPlatforms.selected.value.length" :loading="monitoringSchedule.loading.value || monitoringRound.loading.value" :error="monitoringSchedule.error.value || monitoringRound.error.value" @edit-settings="settingsOpen = true" />
+      <SamplingTrustSection :schedule="monitoringSchedule.schedule.value" :plan-frequency="planFrequency" :round="monitoringRound.detail.value" :cumulative="monitoringRound.cumulativeSampling.value" :question-count="marketConfiguration.questions.value.length" :platform-count="planPlatforms.length" :loading="monitoringSchedule.loading.value || monitoringRound.loading.value" :error="monitoringSchedule.error.value || monitoringRound.error.value" @edit-settings="settingsOpen = true" />
     </section>
 
     <section v-else id="visibility-stage-5" class="visibility-results" role="tabpanel" aria-labelledby="visibility-step-5">
       <nav class="visibility-tabs" aria-label="监测结果分类" role="tablist">
         <button v-for="tab in tabs" :id="`visibility-tab-${tab.id}`" :key="tab.id" type="button" role="tab" :aria-selected="activeTab === tab.id" :aria-controls="`visibility-panel-${tab.id}`" :class="{ 'is-active': activeTab === tab.id }" @click="switchTab(tab.id)">
-          {{ tab.label }}<span v-if="tab.id === 'questions'">{{ monitoringRound.round.value ? referenceMonitoringResults.questions.length : 0 }}</span>
+          {{ tab.label }}<span v-if="tab.id === 'questions'">{{ monitoringRound.round.value ? (monitoringRound.round.value.questionBaseline === undefined ? referenceMonitoringResults.questions.length : monitoringRound.questionHits.value.length) : 0 }}</span>
         </button>
       </nav>
 
@@ -441,24 +392,20 @@ async function launchManualRound() {
         v-else-if="monitoringRound.round.value"
         :key="geoContext.marketId ?? 'default'"
         :active-tab="activeTab"
+        :question-hits="monitoringRound.round.value.questionBaseline === undefined ? undefined : monitoringRound.questionHits.value"
+        :hide-question-comparison="monitoringRound.round.value.questionBaseline || monitoringRound.round.value.brandBaseline"
       />
     </section>
 
-    <MonitoringSettingsDialog :open="settingsOpen" :frequency="frequencyChoice" :selected-platforms="settingsPlatformSelection" :plan-name="activePlanName" :saving="monitoringPlatforms.saving.value || monitoringSchedule.saving.value" :error="settingsError || monitoringPlatforms.error.value" @close="settingsOpen = false" @save="saveSettings" />
+    <MonitoringSettingsDialog :open="settingsOpen" :frequency="planFrequency" :selected-platforms="planPlatforms" @close="settingsOpen = false" />
     <BrandKnowledgeUpdateFlow
       v-model:open="brandKnowledgeUpdateOpen"
       :items="brandKnowledgeItems"
       :initial-tab="brandKnowledgeTab"
-      persist-products
-      persist-competitors
-      :delete-product="removeBrandProduct"
-      :delete-competitor="removeMarketCompetitor"
       :service="brandKnowledgeUpdateService"
       :start-at-market-manager="brandKnowledgeUpdateStartAtManager"
-      @knowledge-committed="commitBrandKnowledgeChange"
+      @knowledge-committed="(_items, snapshot) => updateBrandRecommendationPending(snapshot)"
       @market-selection-saved="updateBrandRecommendationPending"
-      @enable-all-markets="resumeMonitoringForEnabledMarkets"
-      @refresh-knowledge="refreshBrandKnowledge"
       @market-manager-closed="activeStep = 3"
     />
     <KnowledgeViewDialog v-model:open="brandKnowledgeViewerOpen" :items="brandKnowledgeItems" :initial-tab="brandKnowledgeTab" />

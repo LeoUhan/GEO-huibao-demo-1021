@@ -20,6 +20,7 @@ const props = defineProps<{
   items: KnowledgeItem[]
   initialTab: string | undefined
   closeOnSave?: boolean
+  stageRecommendations?: boolean
   footerMode?: 'all-tabs' | 'brand-only'
   readOnlyMarket?: boolean
   persistProducts?: boolean
@@ -267,7 +268,7 @@ async function acceptRecommendation(id: number) {
   acceptingRecommendationId.value = id
   recommendationError.value = ''
   try {
-    const productId = candidate.isMock ? -Date.now() : await confirmRecommendation(id)
+    const productId = candidate.isMock || props.stageRecommendations ? -Date.now() : await confirmRecommendation(id)
     const product: BrandProductRecord = {
       id: productId,
       lineName: candidate.lineName,
@@ -304,8 +305,8 @@ async function acceptCompetitorRecommendation(id: number) {
   acceptingCompetitorRecommendationId.value = id
   competitorRecommendationError.value = ''
   try {
-    const competitorId = await confirmRecommendation(id)
-    const records = await getMarketCompetitors()
+    const competitorId = props.stageRecommendations ? -id : await confirmRecommendation(id)
+    const records = props.stageRecommendations ? [] : await getMarketCompetitors()
     const record = records.find(item => item.id === competitorId) ?? {
       id: competitorId,
       competitorName: candidate.competitorName,

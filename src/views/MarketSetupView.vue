@@ -1,14 +1,14 @@
 <script setup lang="ts">
-import type { BuyerPersonaRecord, GeoDictionaryItem, MarketThemeRecord, MonitoringQuestionRecord, SelectedPlatformRecord } from '../api/geo-config'
+import type { BuyerPersonaRecord, GeoDictionaryItem, MarketThemeRecord, MonitoringQuestionRecord } from '../api/geo-config'
 import type { MonitoringQuestion } from '../components/onboarding/monitoring-questions/monitoring-question-data'
 import type { DropdownSelectOption } from '../components/ui/ce/dropdown-select/types'
 import type { BuyerPersona } from '../types'
 import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { addPersona, addQuestion, bindMarket, completeBrandStep, completePersonaStep, completeQuestionStep, completeWizardStep, createWizard, deletePersona, getActivePlan, getBrandInfo, getDictionary, getMarketPersonas, getMarketPlatforms, getMarketQuestions, getMarketThemes, removePlatform, saveBrandInfo, selectPlatform, switchMarket, updateFirstSelected, updatePersona, updateQuestion } from '../api/geo-config'
+import { addPersona, addQuestion, bindMarket, completeBrandStep, completePersonaStep, completeQuestionStep, completeWizardStep, createWizard, deletePersona, getActivePlan, getBrandInfo, getDictionary, getMarketPersonas, getMarketQuestions, getMarketThemes, saveBrandInfo, switchMarket, updateFirstSelected, updatePersona, updateQuestion } from '../api/geo-config'
 import { getSchedule, saveSchedule } from '../api/monitoring'
 import BuyerPersonaStep from '../components/onboarding/buyer-persona/BuyerPersonaStep.vue'
-import { defaultMonitoringPlatformsForPlan, monitoringPlatformOptions, normalizeMonitoringPlatform } from '../components/onboarding/monitoring-plan/monitoring-plan'
+import { defaultMonitoringPlatformsForPlan, frequencyForPlan } from '../components/onboarding/monitoring-plan/monitoring-plan'
 import MonitoringPlanStep from '../components/onboarding/monitoring-plan/MonitoringPlanStep.vue'
 import { inferMonitoringKeyword } from '../components/onboarding/monitoring-questions/monitoring-question-data'
 import MonitoringQuestionStep from '../components/onboarding/monitoring-questions/MonitoringQuestionStep.vue'
@@ -29,16 +29,13 @@ const workflowError = ref('')
 const saving = ref(false)
 const personaSaving = ref(false)
 const questionSelectionSaving = ref(false)
-const planSaving = ref(false)
 const selectedMarketId = ref<number | null>(null)
 const backendPersonas = ref<BuyerPersonaRecord[]>([])
 const backendQuestions = ref<MonitoringQuestionRecord[]>([])
 const backendThemes = ref<MarketThemeRecord[]>([])
-const backendPlatforms = ref<SelectedPlatformRecord[]>([])
 const dictionaries = ref<Record<string, GeoDictionaryItem[]>>({})
 const serverSchedule = ref<Awaited<ReturnType<typeof getSchedule>>>(null)
 const questionLimit = ref<number | undefined>()
-const activePlanName = ref('')
 const draft = computed(() => marketContext.setupDraft)
 const currentMarket = computed(() => draft.value?.market ?? '')
 const currentLanguage = computed(() => draft.value?.language ?? '')
@@ -93,11 +90,10 @@ function updateMarketLanguage(value: string) {
 
 async function loadBoundMarketConfiguration() {
   const dictionaryTypes = ['persona_type', 'purchase_stage', 'company_scale', 'decision_role', 'intent_type', 'question_type', 'focus_type', 'ai_platform', 'monitor_frequency']
-  const [personas, questions, themes, platforms, schedule, activePlan, ...dicts] = await Promise.all([
+  const [personas, questions, themes, schedule, activePlan, ...dicts] = await Promise.all([
     getMarketPersonas(),
     getMarketQuestions(),
     getMarketThemes(),
-    getMarketPlatforms(),
     getSchedule(),
     getActivePlan(),
     ...dictionaryTypes.map(type => getDictionary(type)),
@@ -105,10 +101,8 @@ async function loadBoundMarketConfiguration() {
   backendPersonas.value = personas
   backendQuestions.value = questions
   backendThemes.value = themes
-  backendPlatforms.value = platforms
   serverSchedule.value = schedule
   questionLimit.value = activePlan.quota.questionCountLimit
-  activePlanName.value = activePlan.quota.planName
   dictionaries.value = Object.fromEntries(dictionaryTypes.map((type, index) => [type, dicts[index] as GeoDictionaryItem[]]))
   const personasForEditor: BuyerPersona[] = personas.map(persona => ({
     id: String(persona.id),
@@ -126,13 +120,8 @@ async function loadBoundMarketConfiguration() {
   }))
   marketContext.updateSetupPersonas(personasForEditor)
   marketContext.updateSetupQuestionSelection(questions.filter(question => question.isFirstSelected === 1).map(question => String(question.id)))
-  const savedPlatforms = platforms.filter(platform => platform.enabled === 1).map(platform => platform.platform)
-  const selectablePlatformIds = new Set(monitoringPlatformOptions.filter(platform => !platform.disabled).map(platform => platform.value))
-  marketContext.updateSetupPlatforms(savedPlatforms.length
-    ? savedPlatforms.map(normalizeMonitoringPlatform).filter(platform => selectablePlatformIds.has(platform)) as never
-    : defaultMonitoringPlatformsForPlan(activePlan.quota.planCode, activePlan.quota.planName))
-  if (schedule)
-    marketContext.updateSetupFrequency(schedule.scheduleType)
+  marketContext.updateSetupPlatforms(defaultMonitoringPlatformsForPlan(activePlan.quota.planCode, activePlan.quota.planName))
+  marketContext.updateSetupFrequency(frequencyForPlan(activePlan.quota.planCode, activePlan.quota.planName, schedule?.scheduleType))
 }
 
 async function savePersonasImmediately(nextPersonas: BuyerPersona[]) {
@@ -281,54 +270,12 @@ async function persistQuestions() {
   await completeQuestionStep()
 }
 
-async function saveMonitoringFrequencyImmediately(frequency: import('../components/onboarding/monitoring-plan/monitoring-plan').MonitoringFrequency) {
-  if (!draft.value)
-    return
-  planSaving.value = true
-  try {
-    await saveSchedule({
-      scheduleType: frequency,
-      executeTime: serverSchedule.value?.executeTime ?? '05:00',
-      repeatCount: serverSchedule.value?.repeatCount ?? 1,
-    })
-    marketContext.updateSetupFrequency(frequency)
-    if (serverSchedule.value)
-      serverSchedule.value = { ...serverSchedule.value, scheduleType: frequency }
-  }
-  finally {
-    planSaving.value = false
-  }
-}
-
-async function saveMonitoringPlatformsImmediately(nextPlatforms: import('../components/onboarding/monitoring-plan/monitoring-plan').MonitoringPlatform[]) {
-  if (!draft.value)
-    return
-  const selected = new Set(nextPlatforms)
-  const current = new Set(draft.value.platforms)
-  const added = nextPlatforms.find(platform => !current.has(platform))
-  const removed = [...current].find(platform => !selected.has(platform))
-  planSaving.value = true
-  try {
-    if (added) {
-      const id = await selectPlatform({ platform: added })
-      backendPlatforms.value = [...backendPlatforms.value.filter(item => item.platform !== added), { id, platform: added, modelVersion: null, enabled: 1, sort: backendPlatforms.value.length + 1 }]
-    }
-    else if (removed) {
-      const record = backendPlatforms.value.find(item => item.platform === removed && item.enabled === 1)
-      if (record)
-        await removePlatform(record.id)
-      backendPlatforms.value = backendPlatforms.value.map(item => item.platform === removed ? { ...item, enabled: 0 } : item)
-    }
-    marketContext.updateSetupPlatforms(nextPlatforms)
-  }
-  finally {
-    planSaving.value = false
-  }
-}
-
 async function persistPlan() {
-  if (!draft.value!.platforms.length)
-    throw new Error('请至少选择一个 AI 平台后再继续。')
+  await saveSchedule({
+    scheduleType: draft.value!.frequency,
+    executeTime: serverSchedule.value?.executeTime ?? '05:00',
+    repeatCount: serverSchedule.value?.repeatCount ?? 1,
+  })
   await completeWizardStep(4)
 }
 
@@ -420,26 +367,6 @@ async function persistCustomQuestion(question: MonitoringQuestion) {
   catch (cause) {
     workflowError.value = cause instanceof Error ? cause.message : '添加自定义问题失败'
     throw cause
-  }
-}
-
-async function handleFrequencyChange(frequency: import('../components/onboarding/monitoring-plan/monitoring-plan').MonitoringFrequency) {
-  workflowError.value = ''
-  try {
-    await saveMonitoringFrequencyImmediately(frequency)
-  }
-  catch (cause) {
-    workflowError.value = cause instanceof Error ? cause.message : '更新采集频率失败'
-  }
-}
-
-async function handlePlatformsChange(platforms: import('../components/onboarding/monitoring-plan/monitoring-plan').MonitoringPlatform[]) {
-  workflowError.value = ''
-  try {
-    await saveMonitoringPlatformsImmediately(platforms)
-  }
-  catch (cause) {
-    workflowError.value = cause instanceof Error ? cause.message : '更新 AI 平台失败'
   }
 }
 
@@ -604,11 +531,7 @@ function cancel() {
         :frequency="draft.frequency"
         :platforms="draft.platforms"
         market-setup
-        :plan-name="activePlanName"
         :market="currentMarket"
-        :saving="planSaving"
-        @frequency-changed="handleFrequencyChange"
-        @platforms-changed="handlePlatformsChange"
       />
     </div>
 

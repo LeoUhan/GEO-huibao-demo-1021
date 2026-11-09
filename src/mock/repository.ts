@@ -1,6 +1,6 @@
-import type { MockState } from './state'
+import type { MockRoundConfiguration, MockState } from './state'
 import { initialReports } from '../data/report-center-data'
-import { createSeedState } from './seed'
+import { createSeedState, demoAdditionalMarkets } from './seed'
 
 export const MOCK_STORAGE_KEY = 'geo-agent-web-mock:v1'
 
@@ -39,7 +39,8 @@ export function readMockState(storage = getBrowserStorage()): MockState {
         const migratedReportPrototypes = ensureReportPrototypeFixtures(state)
         const migratedCompetitors = replaceLegacyCompetitors(state)
         const migratedPlatforms = replaceLegacyPlatformFixture(state)
-        if (migratedReportPrototypes || migratedCompetitors || migratedPlatforms)
+        const migratedMarkets = restoreDemoMarkets(state)
+        if (migratedReportPrototypes || migratedCompetitors || migratedPlatforms || migratedMarkets)
           save(storage, state)
         return cloneState(state)
       }
@@ -61,6 +62,14 @@ function ensureReportPrototypeFixtures(state: MockState): boolean {
   if (!adhocPrototypeReport)
     return false
   state.reports.items.push(structuredClone(adhocPrototypeReport))
+  return true
+}
+
+function restoreDemoMarkets(state: MockState): boolean {
+  if (state.identity.siteId !== 'demo-site-apw' || state.config.markets.length !== 1 || state.config.markets[0]?.id !== 1)
+    return false
+  state.config.markets.push(...structuredClone(demoAdditionalMarkets))
+  state.monitoring.pausedByMarket ??= { 3: true }
   return true
 }
 
@@ -92,8 +101,42 @@ function replaceLegacyCompetitors(state: MockState): boolean {
   return true
 }
 
+export function monitoringConfiguration(config: MockState['config']): MockRoundConfiguration {
+  const { brand, products, competitors, personas, questions, platforms } = config
+  return structuredClone({ brand, products, competitors, personas, questions, platforms })
+}
+
+export function marketQuestions(state: MockState, marketId: number) {
+  return marketId === state.config.activeMarketId
+    ? state.config.questions
+    : state.config.questionsByMarket?.[marketId] ?? []
+}
+
+export function marketPersonas(state: MockState, marketId: number) {
+  return marketId === state.config.activeMarketId
+    ? state.config.personas
+    : state.config.personasByMarket?.[marketId] ?? state.config.personas
+}
+
+export function isMarketPaused(state: MockState, marketId: number) {
+  return marketId === state.config.activeMarketId
+    ? state.monitoring.isPaused
+    : state.monitoring.pausedByMarket?.[marketId] ?? false
+}
+
 export function updateMockState(mutator: (draft: MockState) => void, storage = getBrowserStorage()): MockState {
   const draft = readMockState(storage)
+  // Freeze rounds created before snapshots were introduced before editing their configuration.
+  for (const round of draft.monitoring.rounds) {
+    round.marketId ??= draft.config.activeMarketId
+    round.configuration ??= monitoringConfiguration(draft.config)
+  }
+  for (const { id } of draft.config.markets) {
+    if (isMarketPaused(draft, id)) {
+      const pausedConfigurations = draft.monitoring.pausedConfigurations ??= {}
+      pausedConfigurations[id] ??= monitoringConfiguration({ ...draft.config, questions: marketQuestions(draft, id), personas: marketPersonas(draft, id) })
+    }
+  }
   mutator(draft)
   draft.revision += 1
   save(storage, draft)

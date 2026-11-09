@@ -16,7 +16,7 @@ const emit = defineEmits<{ back: [], confirm: [], retryPreview: [] }>()
     confirm-text=""
     cancel-text=""
     close-label="返回编辑"
-    :processing-text="impact ? '正在确认并更新市场状态…' : '正在获取本次修改影响范围…'"
+    :processing-text="impact ? '正在保存品牌知识并生成推荐…' : '正在获取本次修改影响范围…'"
     :show-cancel="false"
     :loading="pending"
     :confirm-disabled="!impact?.quotaAvailable"
@@ -29,7 +29,7 @@ const emit = defineEmits<{ back: [], confirm: [], retryPreview: [] }>()
       <dl v-if="impact" class="change-confirm__summary">
         <div>
           <dt>影响范围</dt>
-          <dd>全部已启用市场（{{ impact.activeMarketCount }} 个），确认后统一暂停</dd>
+          <dd>{{ impact.affectedMarkets.join('、') || '暂无相关市场' }}</dd>
         </div>
         <div>
           <dt>本次修改</dt>
@@ -37,13 +37,16 @@ const emit = defineEmits<{ back: [], confirm: [], retryPreview: [] }>()
         </div>
         <div>
           <dt>后续处理</dt>
-          <dd>到各市场的监测问题列表中选择加入推荐问题，或移出旧问题；未调整的市场保留现有问题。完成后可统一开启全部市场。</dd>
+          <dd>保存后将为相关市场生成 AI 推荐问题。请逐市场确认，未确认的候选不会自动加入监测。</dd>
         </div>
-        <div>
-          <dt>数据对比</dt>
-          <dd>新旧口径不做环比。</dd>
+        <div v-if="impact.brandBaseline || impact.citationBaseline">
+          <dt>基线</dt>
+          <dd>{{ [impact.brandBaseline && '品牌识别指标', impact.citationBaseline && '官网引用指标'].filter(Boolean).join('、') }}从下一轮建立新基线，与此前轮次的环比暂不展示。</dd>
         </div>
       </dl>
+      <p v-if="impact" class="change-confirm__intro">
+        已启动的监测轮次继续使用原配置，新品牌知识从后续轮次开始使用。各市场保持原运行状态。
+      </p>
       <p v-else class="change-confirm__loading" role="status">
         正在获取本次修改影响范围…
       </p>
@@ -62,7 +65,7 @@ const emit = defineEmits<{ back: [], confirm: [], retryPreview: [] }>()
         返回编辑
       </Button>
       <Button class="is-primary" variant="primary" size="md" :disabled="!impact?.quotaAvailable || pending" :loading="pending" @click="emit('confirm')">
-        确认修改并暂停市场
+        确认修改并生成推荐
       </Button>
     </template>
   </Modal>

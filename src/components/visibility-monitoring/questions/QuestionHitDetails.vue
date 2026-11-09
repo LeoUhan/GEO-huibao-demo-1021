@@ -2,7 +2,7 @@
 import type { MonitoringPlatformId, MonitoringQuestion } from '../../../data/visibility-monitoring-data'
 import MetricDefinitionButton from '../../overview/MetricDefinitionButton.vue'
 
-const props = defineProps<{ questions: readonly MonitoringQuestion[], platforms: readonly { id: MonitoringPlatformId, label: string }[] }>()
+const props = defineProps<{ hideComparison?: boolean, questions: readonly MonitoringQuestion[], platforms: readonly { id: MonitoringPlatformId, label: string }[] }>()
 const emit = defineEmits<{ selectQuestion: [questionId: string] }>()
 function platformLabel(id: MonitoringPlatformId) {
   return props.platforms.find(platform => platform.id === id)?.label ?? id
@@ -47,7 +47,7 @@ function platformLabel(id: MonitoringPlatformId) {
             </td>
             <td><span class="vm-status" :class="question.competitors.length ? 'is-yes' : 'is-no'">{{ question.competitors.length ? `是 · ${question.competitors.join('、')}` : '否' }}</span></td>
             <td><span class="vm-status" :class="question.officialSiteCited ? 'is-yes' : 'is-no'">{{ question.officialSiteCited ? '已引用官网' : '未引用官网' }}</span></td>
-            <td><span>{{ question.rank ? `第 ${question.rank} 位` : '未进入排名' }}</span></td><td><small :class="`trend-${question.trend}`">{{ question.trend === 'up' ? '↑ 上升' : question.trend === 'down' ? '↓ 下降' : '→ 持平' }}</small></td>
+            <td><span>{{ question.rank ? `第 ${question.rank} 位` : '未进入排名' }}</span></td><td><span v-if="hideComparison">—</span><small v-else :class="`trend-${question.trend}`">{{ question.trend === 'up' ? '↑ 上升' : question.trend === 'down' ? '↓ 下降' : '→ 持平' }}</small></td>
             <td>
               <button class="vm-link geo-table-detail-button" type="button" @click="emit('selectQuestion', question.id)">
                 查看详情

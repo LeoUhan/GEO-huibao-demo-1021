@@ -77,7 +77,10 @@ export interface MockState {
     brand: { brandName: string, industry: string, siteUrl: string, aliasNames: string, positioning: string, saved: number }
     products: MockBrandProduct[]
     personas: MockPersona[]
+    personasByMarket?: Record<number, MockPersona[]>
     questions: MockQuestion[]
+    questionsByMarket?: Record<number, MockQuestion[]>
+    brandReview?: { remaining: number, generating?: boolean, markets: Record<number, MockMarketReview> }
     platforms: Array<{ id: number, platform: string, modelVersion: string | null, enabled: number, sort: number }>
     competitors: MockCompetitor[]
     themes: Array<{ id: number, themeName: string, searchVolume: number, cpcCost: number, competition: number, resultCount: number, keywordIntent: string, status: number }>
@@ -89,9 +92,33 @@ export interface MockState {
     questions: MonitoringQuestion[]
     settings: { frequency: 'daily' | 'weekly' | 'monthly', weekday: string, time: string, platforms: string[] }
     isPaused: boolean
-    rounds: Array<{ id: string, date: string, status: 'completed' | 'running', responseCount: number }>
+    pausedByMarket?: Record<number, boolean>
+    pausedConfigurations?: Record<number, MockRoundConfiguration>
+    rounds: MockRound[]
   }
   tasks: GeoTask[]
   diagnosis: { findings: unknown[], strategies: unknown[] }
   reports: { quota: number, items: ReportRecord[] }
+}
+
+export interface MockMarketReview {
+  processed: boolean
+  processedAddedCount?: number
+  processedRemovedCount?: number
+  candidates: MonitoringQuestion[]
+}
+
+export type MockRoundConfiguration = Pick<MockState['config'], 'brand' | 'products' | 'competitors' | 'personas' | 'questions' | 'platforms'>
+
+export interface MockRound {
+  id: string
+  apiId?: number
+  date: string
+  status: 'completed' | 'running'
+  responseCount: number
+  marketId?: number
+  configuration?: MockRoundConfiguration
+  questionBaseline?: boolean
+  brandBaseline?: boolean
+  citationBaseline?: boolean
 }

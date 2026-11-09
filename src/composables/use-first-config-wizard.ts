@@ -1,12 +1,11 @@
-import type { BrandInfoRecord, BrandProductRecord, BuyerPersonaRecord, CompetitorRecord, GeoDictionaryItem, MonitoringQuestionRecord, SelectedPlatformRecord } from '../api/geo-config'
-import type { MonitoringPlatform } from '../components/onboarding/monitoring-plan/monitoring-plan'
+import type { BrandInfoRecord, BrandProductRecord, BuyerPersonaRecord, CompetitorRecord, GeoDictionaryItem, MonitoringQuestionRecord } from '../api/geo-config'
 import type { MonitoringQuestion } from '../components/onboarding/monitoring-questions/monitoring-question-data'
 import type { BuyerPersona, CompetitorKnowledgeDraft, KnowledgeItem, ProductKnowledgeDraft } from '../types'
 import { computed, shallowRef } from 'vue'
-import { addBrandProduct, addCompetitor, addPersona, addQuestion, bindMarket, completeBrandStep, completePersonaStep, completeQuestionStep, completeWizardStep, createWizard, deleteBrandProduct, deleteCompetitor, deletePersona, generateQuestionCandidates, getActivePlan, getBrandInfo, getBrandProducts, getDictionary, getMarketCompetitors, getMarketEntryStatus, getMarketPersonas, getMarketPlatforms, getMarketQuestions, getMarkets, getMarketThemes, removePlatform, saveBrandInfo, selectPlatform, switchMarket, updateBrandProduct, updateCompetitor, updateFirstSelected, updatePersona, updateQuestion } from '../api/geo-config'
+import { addBrandProduct, addCompetitor, addPersona, addQuestion, bindMarket, completeBrandStep, completePersonaStep, completeQuestionStep, completeWizardStep, createWizard, deleteBrandProduct, deleteCompetitor, deletePersona, generateQuestionCandidates, getActivePlan, getBrandInfo, getBrandProducts, getDictionary, getMarketCompetitors, getMarketEntryStatus, getMarketPersonas, getMarketQuestions, getMarkets, getMarketThemes, saveBrandInfo, switchMarket, updateBrandProduct, updateCompetitor, updateFirstSelected, updatePersona, updateQuestion } from '../api/geo-config'
 import { getSchedule, saveSchedule } from '../api/monitoring'
 import { buildCompetitorSummary } from '../components/onboarding/knowledge/competitor-summary'
-import { defaultMonitoringPlatformsForPlan, frequencyForPlan, monitoringPlatformOptions, normalizeMonitoringPlatform } from '../components/onboarding/monitoring-plan/monitoring-plan'
+import { defaultMonitoringPlatformsForPlan, frequencyForPlan } from '../components/onboarding/monitoring-plan/monitoring-plan'
 import { inferMonitoringKeyword } from '../components/onboarding/monitoring-questions/monitoring-question-data'
 import { visibilityMonitoringData } from '../data/visibility-monitoring-data'
 import { useGeoContextStore } from '../stores/geo-context'
@@ -64,7 +63,6 @@ export function useFirstConfigWizard() {
   const competitors = shallowRef<CompetitorRecord[]>([])
   const personas = shallowRef<BuyerPersonaRecord[]>([])
   const questions = shallowRef<MonitoringQuestionRecord[]>([])
-  const platforms = shallowRef<SelectedPlatformRecord[]>([])
   const dictionaries = shallowRef<Record<string, GeoDictionaryItem[]>>({})
   const schedule = shallowRef<Awaited<ReturnType<typeof getSchedule>>>(null)
   const themes = shallowRef<Awaited<ReturnType<typeof getMarketThemes>>>([])
@@ -160,11 +158,7 @@ export function useFirstConfigWizard() {
       commonQuestions: persona.commonQuestions ?? '',
     })))
     onboarding.updateMonitoringQuestionSelection(questions.value.filter(question => question.isFirstSelected === 1).map(question => String(question.id)))
-    const savedPlatforms = platforms.value.filter(platform => platform.enabled === 1).map(platform => normalizeMonitoringPlatform(platform.platform))
-    const selectablePlatforms = new Set(monitoringPlatformOptions.filter(platform => !platform.disabled).map(platform => platform.value))
-    onboarding.updateMonitoringPlatforms(savedPlatforms.length
-      ? savedPlatforms.filter(platform => selectablePlatforms.has(platform))
-      : defaultMonitoringPlatformsForPlan(planCode.value, planName.value))
+    onboarding.updateMonitoringPlatforms(defaultMonitoringPlatformsForPlan(planCode.value, planName.value))
     onboarding.updateMonitoringFrequency(planFrequency.value)
   }
 
@@ -222,8 +216,10 @@ export function useFirstConfigWizard() {
       themes.value = marketThemes
       questionLimit.value = plan?.quota.questionCountLimit ?? null
       competitorCountLimit.value = plan?.quota.competitorCountLimit ?? null
-      planName.value = plan?.quota.planName ?? ''
-      planCode.value = plan?.quota.planCode ?? ''
+      if (plan) {
+        planName.value = plan.quota.planName
+        planCode.value = plan.quota.planCode
+      }
       planFrequency.value = frequencyForPlan(planCode.value, planName.value, onboarding.monitoringFrequency)
       onboarding.updateMonitoringFrequency(planFrequency.value)
       if (!questionRecords.length) {
@@ -232,12 +228,10 @@ export function useFirstConfigWizard() {
       }
     }
     else if (step === 3) {
-      const [platformRecords, currentSchedule] = await Promise.all([
-        getMarketPlatforms(),
+      const [currentSchedule] = await Promise.all([
         getSchedule(),
         loadDictionaries(planDictionaryTypes),
       ])
-      platforms.value = platformRecords
       schedule.value = currentSchedule
       planFrequency.value = frequencyForPlan(planCode.value, planName.value, currentSchedule?.scheduleType ?? onboarding.monitoringFrequency)
       onboarding.updateMonitoringFrequency(planFrequency.value)
@@ -559,16 +553,15 @@ export function useFirstConfigWizard() {
   }
 
   async function savePlan() {
-    if (!onboarding.monitoringPlatforms.length)
-      throw new Error('请至少选择一个 AI 平台后再继续。')
-    await saveMonitoringFrequencyImmediately(planFrequency.value)
+    await savePlanFrequency()
     await completeWizardStep(4)
     const status = await geoContext.refreshEntryStatus()
     if (status.entryStatus !== 'CONFIGURED')
       throw new Error('监测配置已保存，但服务端尚未将向导标记为完成。')
   }
 
-  async function saveMonitoringFrequencyImmediately(frequency: import('../components/onboarding/monitoring-plan/monitoring-plan').MonitoringFrequency) {
+  async function savePlanFrequency() {
+    const frequency = planFrequency.value
     const previous = schedule.value
     const id = await saveSchedule({ scheduleType: frequency, executeTime: previous?.executeTime ?? '05:00', repeatCount: previous?.repeatCount ?? 1 })
     schedule.value = {
@@ -584,24 +577,6 @@ export function useFirstConfigWizard() {
       lastRoundId: previous?.lastRoundId ?? null,
     }
     onboarding.updateMonitoringFrequency(frequency)
-  }
-
-  async function saveMonitoringPlatformsImmediately(nextPlatforms: MonitoringPlatform[]) {
-    const next = new Set(nextPlatforms)
-    const current = new Set(onboarding.monitoringPlatforms)
-    const added = nextPlatforms.find(platform => !current.has(platform))
-    const removed = [...current].find(platform => !next.has(platform))
-    if (added) {
-      const platformId = await selectPlatform({ platform: added })
-      platforms.value = [...platforms.value.filter(item => item.platform !== added), { id: platformId, platform: added, modelVersion: null, enabled: 1, sort: platforms.value.length + 1 }]
-    }
-    else if (removed) {
-      const record = platforms.value.find(item => item.platform === removed && item.enabled === 1)
-      if (record)
-        await removePlatform(record.id)
-      platforms.value = platforms.value.map(item => item.platform === removed ? { ...item, enabled: 0 } : item)
-    }
-    onboarding.updateMonitoringPlatforms(nextPlatforms)
   }
 
   async function saveCurrentStep(step: number) {
@@ -648,12 +623,10 @@ export function useFirstConfigWizard() {
       questions.value = await getMarketQuestions()
     }
     else {
-      const [platformRecords, currentSchedule] = await Promise.all([getMarketPlatforms(), getSchedule()])
-      platforms.value = platformRecords
-      schedule.value = currentSchedule
+      schedule.value = await getSchedule()
     }
     installKnowledgeItems()
   }
 
-  return { loading, saving, error, loaded, questionLimit, competitorCountLimit, planName, planFrequency, dictionaries, dictionaryOptions, questionCandidates, load, loadStep, saveCurrentStep, saveKnowledgeItems, savePersonasImmediately, saveQuestionSelection, addCustomQuestionImmediately, updateMonitoringQuestionImmediately, saveMonitoringFrequencyImmediately, saveMonitoringPlatformsImmediately, registerAcceptedProduct, registerAcceptedCompetitor, syncSavedProduct, deleteProduct, syncSavedCompetitor, deleteCompetitor: deleteCompetitorDraft }
+  return { loading, saving, error, loaded, questionLimit, competitorCountLimit, planName, planFrequency, dictionaries, dictionaryOptions, questionCandidates, load, loadStep, saveCurrentStep, saveKnowledgeItems, savePersonasImmediately, saveQuestionSelection, addCustomQuestionImmediately, updateMonitoringQuestionImmediately, registerAcceptedProduct, registerAcceptedCompetitor, syncSavedProduct, deleteProduct, syncSavedCompetitor, deleteCompetitor: deleteCompetitorDraft }
 }

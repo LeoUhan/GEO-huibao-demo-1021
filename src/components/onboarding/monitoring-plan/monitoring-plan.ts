@@ -4,10 +4,20 @@ export type MonitoringPlatform = 'chatgpt' | 'google-ai' | 'ai-mode' | 'gemini' 
 
 export const monitoringFrequencyOptions = [
   { value: 'weekly', label: '每周' },
+  { value: 'monthly', label: '每月' },
 ] as const
 
-export function frequencyForPlan(_planCode?: string | null, _planName?: string | null, _fallback: MonitoringFrequency = 'weekly'): MonitoringFrequency {
-  return 'weekly'
+export function frequencyForPlan(planCode?: string | null, planName?: string | null, fallback: MonitoringFrequency = 'weekly'): 'weekly' | 'monthly' {
+  const code = planCode?.trim().toLowerCase()
+  if (code === 'basic' || code === 'starter')
+    return 'monthly'
+  if (code === 'pro' || code === 'professional')
+    return 'weekly'
+  if (planName?.includes('入门'))
+    return 'monthly'
+  if (planName?.includes('专业'))
+    return 'weekly'
+  return fallback === 'monthly' ? 'monthly' : 'weekly'
 }
 
 export const monitoringPlatformOptions: { value: MonitoringPlatform, label: string, mark: string, markTone: string, disabled?: boolean, hint?: string }[] = [

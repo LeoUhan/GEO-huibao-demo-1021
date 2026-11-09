@@ -14,6 +14,7 @@ const props = withDefaults(defineProps<{
   activeTab?: 'all' | 'candidates' | 'current'
   pendingAction?: string | null
   error?: string | null
+  feedback?: string
 }>(), {
   snapshot: null,
   activeMarket: null,
@@ -26,15 +27,12 @@ const props = withDefaults(defineProps<{
 
 const emit = defineEmits<{
   processMarket: [marketId: string]
-  enableAll: []
   close: []
   retry: []
   'update:selectedIds': [ids: string[]]
   'update:removedIds': [ids: string[]]
   'update:activeTab': [tab: 'all' | 'candidates' | 'current']
   save: [candidateIds: string[], removedIds: string[]]
-  pauseMarket: []
-  toggleMarket: []
 }>()
 
 const enabledCount = () => (props.snapshot?.markets ?? []).filter(market => market.enabled).length
@@ -52,9 +50,9 @@ function pendingCount(market: MarketRecommendationState): number {
     confirm-text=""
     cancel-text=""
     close-label="关闭市场问题处理"
-    processing-text="正在更新市场状态…"
+    processing-text="正在保存…"
     :show-cancel="false"
-    :loading="pendingAction === 'enable-all'"
+    :close-disabled="Boolean(pendingAction)"
     @close="emit('close')"
   >
     <div class="market-manager">
@@ -90,6 +88,7 @@ function pendingCount(market: MarketRecommendationState): number {
           <span>{{ error }}</span>
           <Button size="xs" variant="outline" aria-label="重试市场操作" @click="emit('retry')">重试</Button>
         </div>
+        <p v-else-if="feedback" class="market-manager__feedback" role="status">{{ feedback }}</p>
         <template v-if="activeMarket">
           <MarketRecommendationEditor
             :market="activeMarket"
@@ -103,8 +102,6 @@ function pendingCount(market: MarketRecommendationState): number {
             @update:selected-ids="emit('update:selectedIds', $event)"
             @update:removed-ids="emit('update:removedIds', $event)"
             @save="(candidateIds, removedQuestionIds) => emit('save', candidateIds, removedQuestionIds)"
-            @pause-market="emit('pauseMarket')"
-            @toggle-market="emit('toggleMarket')"
           />
         </template>
         <p v-else-if="snapshot" class="market-manager__placeholder">选择一个市场处理监测问题</p>
@@ -114,11 +111,8 @@ function pendingCount(market: MarketRecommendationState): number {
 
     <template #footer>
       <div class="market-manager__footer">
-        <Button variant="outline" @click="emit('close')">关闭</Button>
-        <span>未确认的问题修改不会应用；可以按现有配置开启市场</span>
-        <Button class="is-primary" variant="primary" :disabled="Boolean(pendingAction)" :loading="pendingAction === 'enable-all'" @click="emit('enableAll')">
-          按现有配置开启全部市场
-        </Button>
+        <Button variant="outline" :disabled="Boolean(pendingAction)" @click="emit('close')">关闭</Button>
+        <span>未确认的问题修改不会应用。</span>
       </div>
     </template>
   </Modal>
@@ -166,6 +160,7 @@ function pendingCount(market: MarketRecommendationState): number {
 .market-manager__content :deep(.recommendation-editor__buttons) { margin-left: auto; }
 .market-manager__content :deep(.recommendation-editor__empty) { align-self: center; justify-self: center; }
 .market-manager__error { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 10px; border-radius: 8px; color: var(--text-danger, #b42318); background: var(--background-danger-subtle, #fff1f0); font-size: 12px; }
+.market-manager__feedback { margin: 0; padding: 8px 10px; border-radius: 8px; color: var(--status-success-foreground); background: var(--status-success-background); }
 .market-manager__loading, .market-manager__placeholder, .market-manager__empty { display: flex; align-items: center; justify-content: center; margin: 0; padding: 24px; color: var(--text-muted); font-size: 13px; }
 .market-manager__loading { --spinner-color: var(--action-accent); }
 .market-manager__footer { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 12px; width: 100%; padding: 12px 20px; background: var(--background-subtle); }

@@ -505,34 +505,36 @@ describe('useFirstConfigWizard', () => {
     expect(wizard.questionCandidates.value[0]?.keyword).toBe('Updated keyword')
   })
 
-  it('persists monitoring frequency immediately and updates local state after success', async () => {
+  it('saves the monthly package frequency when completing onboarding', async () => {
     const { useFirstConfigWizard } = await import('./use-first-config-wizard')
     const { useOnboardingStore } = await import('../stores/onboarding')
     const wizard = useFirstConfigWizard()
     const onboarding = useOnboardingStore()
     api.getMarketEntryStatus.mockResolvedValue({ entryStatus: 'CONTINUE_WIZARD', marketId: 12, wizardId: 88, wizardStatus: 1, currentStep: 4, maxReachedStep: 3, stepStatus: null })
+    api.getActivePlan.mockResolvedValue({ quota: { planCode: 'basic', planName: '入门版' } })
     api.saveSchedule.mockResolvedValue(72)
 
     await wizard.load()
     await wizard.loadStep(3)
-    await wizard.saveMonitoringFrequencyImmediately('daily')
+    api.getMarketEntryStatus.mockResolvedValue({ entryStatus: 'CONFIGURED', marketId: 12 })
+    await wizard.saveCurrentStep(3)
 
-    expect(api.saveSchedule).toHaveBeenCalledWith(expect.objectContaining({ scheduleType: 'daily' }))
-    expect(onboarding.monitoringFrequency).toBe('daily')
+    expect(api.saveSchedule).toHaveBeenCalledWith(expect.objectContaining({ scheduleType: 'monthly' }))
+    expect(onboarding.monitoringFrequency).toBe('monthly')
   })
 
-  it('persists an AI platform toggle immediately', async () => {
+  it('shows the included platforms even when older saved selections differ', async () => {
     const { useFirstConfigWizard } = await import('./use-first-config-wizard')
     const { useOnboardingStore } = await import('../stores/onboarding')
-    const wizard = useFirstConfigWizard()
-    const onboarding = useOnboardingStore()
-    api.selectPlatform.mockResolvedValue(83)
+    api.getActivePlan.mockResolvedValue({ quota: { planCode: 'pro', planName: '专业版' } })
+    api.getMarketPlatforms.mockResolvedValue([{ id: 2, platform: 'gemini', enabled: 1 }])
 
+    const wizard = useFirstConfigWizard()
     await wizard.load()
     await wizard.loadStep(3)
-    await wizard.saveMonitoringPlatformsImmediately(['chatgpt'])
 
-    expect(api.selectPlatform).toHaveBeenCalledWith({ platform: 'chatgpt' })
-    expect(onboarding.monitoringPlatforms).toEqual(['chatgpt'])
+    expect(useOnboardingStore().monitoringPlatforms).toEqual(['google-ai', 'ai-mode', 'gemini', 'chatgpt'])
+    expect(api.selectPlatform).not.toHaveBeenCalled()
+    expect(api.removePlatform).not.toHaveBeenCalled()
   })
 })
