@@ -1,6 +1,3 @@
-Warning: truncated output (original token count: 21168)
-Total output lines: 2425
-
 {
   "source": "https://github.com/LeoUhan/geo-final-922/blob/main/index.html",
   "version": "v132",
@@ -937,7 +934,103 @@ Total output lines: 2425
               "rank": "第 2 位",
               "sentiment": "正面正向",
               "status": "客观列举",
-              "fullText": "第 1 次采集 (09-15)：围绕航空制造水刀设备选型的行业回答主要比较切割精度、热影响、设备维护和总拥有…1168 tokens truncated…        22,
+              "fullText": "第 1 次采集 (09-15)：围绕航空制造水刀设备选型的行业回答主要比较切割精度、热影响、设备维护和总拥有成本；APW Waterjet 与 Flow、Bystronic 等方案被放在同一比较语境中。",
+              "htmlSnapshot": "<!DOCTYPE html><html><head><title>Perplexity AI q7</title></head><body><p>第 1 次采集 (09-15): 航空制造水刀设备选型; APW Waterjet appears in the comparison.</p>\n\n\n</body></html>"
+            },
+            {
+              "name": "Google AI Overviews",
+              "rank": "第 2 位",
+              "sentiment": "正面正向",
+              "status": "客观列举",
+              "fullText": "第 1 次采集 (09-15)：围绕航空制造水刀设备选型的行业回答主要比较切割精度、热影响、设备维护和总拥有成本；APW Waterjet 与 Flow、Bystronic 等方案被放在同一比较语境中。",
+              "htmlSnapshot": "<!DOCTYPE html><html><head><title>Google AI Overviews q7</title></head><body><p>第 1 次采集 (09-15): 航空制造水刀设备选型; APW Waterjet appears in the comparison.</p>\n\n\n</body></html>"
+            }
+          ],
+          "citationsTable": [
+            {
+              "source": "apw.com/solutions/q7",
+              "isMe": true,
+              "mentioned": true,
+              "content": "航空制造水刀设备选型官方方案页中的技术参数与应用说明",
+              "engine": "ChatGPT"
+            },
+            {
+              "source": "compositesworld.com",
+              "isMe": false,
+              "mentioned": false,
+              "content": "行业媒体对材料加工方案的对比说明",
+              "engine": "Perplexity"
+            }
+          ]
+        },
+        "r2": {
+          "timestamp": "第 2 次采集 (09-17)",
+          "engines": [
+            {
+              "name": "ChatGPT-4o (Search)",
+              "rank": "第 1 位",
+              "sentiment": "正面正向",
+              "status": "客观列举",
+              "fullText": "第 2 次采集 (09-17)：围绕航空制造水刀设备选型的行业回答主要比较切割精度、热影响、设备维护和总拥有成本；APW Waterjet 与 Flow、Bystronic 等方案被放在同一比较语境中。",
+              "htmlSnapshot": "<!DOCTYPE html><html><head><title>ChatGPT-4o (Search) q7</title></head><body><p>第 2 次采集 (09-17): 航空制造水刀设备选型; APW Waterjet appears in the comparison.</p>\n\n\n</body></html>"
+            },
+            {
+              "name": "Perplexity AI",
+              "rank": "第 2 位",
+              "sentiment": "正面正向",
+              "status": "客观列举",
+              "fullText": "第 2 次采集 (09-17)：围绕航空制造水刀设备选型的行业回答主要比较切割精度、热影响、设备维护和总拥有成本；APW Waterjet 与 Flow、Bystronic 等方案被放在同一比较语境中。",
+              "htmlSnapshot": "<!DOCTYPE html><html><head><title>Perplexity AI q7</title></head><body><p>第 2 次采集 (09-17): 航空制造水刀设备选型; APW Waterjet appears in the comparison.</p>\n\n\n</body></html>"
+            },
+            {
+              "name": "Google AI Overviews",
+              "rank": "第 2 位",
+              "sentiment": "正面正向",
+              "status": "客观列举",
+              "fullText": "第 2 次采集 (09-17)：围绕航空制造水刀设备选型的行业回答主要比较切割精度、热影响、设备维护和总拥有成本；APW Waterjet 与 Flow、Bystronic 等方案被放在同一比较语境中。",
+              "htmlSnapshot": "<!DOCTYPE html><html><head><title>Google AI Overviews q7</title></head><body><p>第 2 次采集 (09-17): 航空制造水刀设备选型; APW Waterjet appears in the comparison.</p>\n\n\n</body></html>"
+            }
+          ],
+          "citationsTable": [
+            {
+              "source": "apw.com/solutions/q7",
+              "isMe": true,
+              "mentioned": true,
+              "content": "航空制造水刀设备选型官方方案页中的技术参数与应用说明",
+              "engine": "ChatGPT"
+            },
+            {
+              "source": "compositesworld.com",
+              "isMe": false,
+              "mentioned": false,
+              "content": "行业媒体对材料加工方案的对比说明",
+              "engine": "Perplexity"
+            }
+          ]
+        }
+      },
+      "trendWeeks": [
+        "08/07",
+        "08/14",
+        "08/21",
+        "08/28",
+        "09/04",
+        "09/11",
+        "09/18"
+      ],
+      "platformTrends": {
+        "ChatGPT": [
+          28,
+          32,
+          36,
+          40,
+          44,
+          48,
+          52
+        ],
+        "Perplexity": [
+          18,
+          22,
           25,
           30,
           34,
