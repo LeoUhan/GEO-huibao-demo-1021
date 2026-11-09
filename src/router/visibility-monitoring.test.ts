@@ -41,6 +41,17 @@ describe('visibility monitoring route', () => {
     expect(router.resolve('/reports/weekly-2026-09-15').matched).toHaveLength(1)
   })
 
+  it('opens a report and returns to its scoped report center through the static site entry', async () => {
+    useGeoContextStore().entryStatus = { entryStatus: 'CONFIGURED', marketId: 5, wizardId: null, wizardStatus: null, currentStep: null, maxReachedStep: null, stepStatus: null }
+    const router = createAppRouter()
+
+    await router.push('/?reportId=220260930&siteId=demo-site-apw&marketId=5')
+    expect(router.currentRoute.value.fullPath).toBe('/reports/220260930?siteId=demo-site-apw&marketId=5')
+
+    await router.push('/?view=report-center&siteId=demo-site-apw&marketId=5')
+    expect(router.currentRoute.value.fullPath).toBe('/report-center?siteId=demo-site-apw&marketId=5')
+  })
+
   it('registers overview in the shared workbench and keeps diagnosis as the root page', async () => {
     useGeoContextStore().entryStatus = { entryStatus: 'CONFIGURED', marketId: 5, wizardId: null, wizardStatus: null, currentStep: null, maxReachedStep: null, stepStatus: null }
     const router = createAppRouter()

@@ -120,12 +120,6 @@ function domainName(domainId: string) {
         </p>
       </section>
 
-      <section v-if="page" class="vm-source-section">
-        <p class="vm-page-summary">
-          {{ page.summary }}
-        </p>
-      </section>
-
       <section class="vm-source-section">
         <div class="vm-source-heading">
           <div><h3>关联问题</h3><p>这些监测问题引用了当前信源</p></div>
@@ -183,8 +177,7 @@ function domainName(domainId: string) {
 .vm-source-table-scroll td small { display: block; margin-top: 4px; color: var(--text-muted); line-height: 1.5; }
 .vm-source-link { padding: 0; border: 0; color: var(--action-accent); background: transparent; font: inherit; font-size: var(--font-size-body); font-weight: 600; cursor: pointer; white-space: nowrap; }
 .vm-source-link:focus-visible { outline: 2px solid var(--action-accent); outline-offset: 3px; }
-.vm-source-empty, .vm-page-summary { margin: 0; padding: 13px; border-radius: var(--radius-control); color: var(--text-secondary); background: var(--background-subtle); font-size: var(--font-size-body); line-height: var(--line-height-body); overflow-wrap: anywhere; }
-.vm-page-summary { white-space: pre-wrap; }
+.vm-source-empty { margin: 0; padding: 13px; border-radius: var(--radius-control); color: var(--text-secondary); background: var(--background-subtle); font-size: var(--font-size-body); line-height: var(--line-height-body); overflow-wrap: anywhere; }
 @media (max-width: 780px) { .vm-source-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 560px) { .vm-source-section { padding: 14px; } .vm-source-metrics { grid-template-columns: 1fr 1fr; } }
 </style>

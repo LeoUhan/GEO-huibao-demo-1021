@@ -7,6 +7,13 @@ const emit = defineEmits<{ selectQuestion: [questionId: string] }>()
 function platformLabel(id: MonitoringPlatformId) {
   return props.platforms.find(platform => platform.id === id)?.label ?? id
 }
+function trendLabel(question: MonitoringQuestion) {
+  const delta = question.mentionVsPrevPp
+  if (props.hideComparison || delta == null || !Number.isFinite(delta))
+    return '—'
+  const direction = delta > 0 ? '↑ 上升' : delta < 0 ? '↓ 下降' : '→ 持平'
+  return `${direction} ${delta > 0 ? '+' : ''}${delta} pp`
+}
 </script>
 
 <template>
@@ -47,7 +54,8 @@ function platformLabel(id: MonitoringPlatformId) {
             </td>
             <td><span class="vm-status" :class="question.competitors.length ? 'is-yes' : 'is-no'">{{ question.competitors.length ? `是 · ${question.competitors.join('、')}` : '否' }}</span></td>
             <td><span class="vm-status" :class="question.officialSiteCited ? 'is-yes' : 'is-no'">{{ question.officialSiteCited ? '已引用官网' : '未引用官网' }}</span></td>
-            <td><span>{{ question.rank ? `第 ${question.rank} 位` : '未进入排名' }}</span></td><td><span v-if="hideComparison">—</span><small v-else :class="`trend-${question.trend}`">{{ question.trend === 'up' ? '↑ 上升' : question.trend === 'down' ? '↓ 下降' : '→ 持平' }}</small></td>
+            <td><span>{{ question.rank ? `第 ${question.rank} 位` : '未进入排名' }}</span></td>
+            <td><small class="vm-question-trend" :class="!hideComparison && question.mentionVsPrevPp != null ? `trend-${question.trend}` : undefined">{{ trendLabel(question) }}</small></td>
             <td>
               <button class="vm-link geo-table-detail-button" type="button" @click="emit('selectQuestion', question.id)">
                 查看详情
@@ -83,6 +91,7 @@ small { display: block; margin-top: 5px; color: var(--text-muted); font-weight: 
 .vm-status { display: inline-flex; max-width: 180px; padding: 3px 8px; border-radius: 999px; white-space: normal; }
 .is-yes { color: var(--status-success-foreground); background: var(--status-success-background); }
 .is-no { color: var(--status-error-foreground); background: var(--status-error-background); }
+.vm-question-trend { white-space: nowrap; font-variant-numeric: tabular-nums; }
 .trend-up { color: var(--status-success-foreground); }
 .trend-down { color: var(--status-warning-foreground); }
 .vm-link { padding: 0; color: var(--action-accent); background: none; border: 0; font: inherit; cursor: pointer; white-space: nowrap; }

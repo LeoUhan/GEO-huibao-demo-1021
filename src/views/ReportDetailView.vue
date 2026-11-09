@@ -6,32 +6,63 @@ import ReportDetailDocument from '../components/report-center/ReportDetailDocume
 import { getReportDetailData } from '../data/report-detail-data'
 import { findMockReportById } from '../mock/report-service'
 
+const prototypeLoaders = {
+  weekly: () => import('../data/report-prototypes/weekly.html?raw'),
+  monthly: () => import('../data/report-prototypes/monthly.html?raw'),
+  quarterly: () => import('../data/report-prototypes/quarterly.html?raw'),
+  adhoc: () => import('../data/report-prototypes/adhoc.html?raw'),
+} satisfies Record<ReportType, () => Promise<{ default: string }>>
+
 const route = useRoute()
 const report = shallowRef<ReturnType<typeof getReportDetailData>>(null)
 const prototypeType = shallowRef<ReportType | null>(null)
+const prototypeHtml = shallowRef('')
 const loading = shallowRef(false)
 const error = shallowRef('')
-const prototypeUrl = computed(() => prototypeType.value ? `${import.meta.env.BASE_URL}report-prototypes/${prototypeType.value}.html` : '')
-const backQuery = new URLSearchParams()
-if (typeof route.query.siteId === 'string')
-  backQuery.set('siteId', route.query.siteId)
-if (typeof route.query.marketId === 'string')
-  backQuery.set('marketId', route.query.marketId)
-const backQueryString = backQuery.toString()
-const backHref = `/report-center${backQueryString ? `?${backQueryString}` : ''}`
+const backHref = computed(() => {
+  const query = new URLSearchParams({ view: 'report-center' })
+  if (typeof route.query.siteId === 'string')
+    query.set('siteId', route.query.siteId)
+  if (typeof route.query.marketId === 'string')
+    query.set('marketId', route.query.marketId)
+  return `${import.meta.env.BASE_URL}?${query}`
+})
+// A bare fragment in srcdoc resolves against the parent page's URL.
+const prototypeDocument = computed(() => prototypeHtml.value
+  .replace('href="../report-center"', () => `href="${backHref.value.replaceAll('&', '&amp;')}"`)
+  .replaceAll('href="#', 'href="about:srcdoc#'))
 
-watch(() => String(route.params.reportId ?? ''), async (reportId) => {
+watch(() => String(route.params.reportId ?? ''), async (reportId, _, onCleanup) => {
+  let current = true
+  onCleanup(() => { current = false })
   error.value = ''
   report.value = null
   prototypeType.value = null
+  prototypeHtml.value = ''
+  loading.value = false
+
   const record = findMockReportById(reportId)
   if (!record) {
     report.value = getReportDetailData(reportId)
     return
   }
-  prototypeType.value = record.type
-  const profile = getReportDetailData(record.type)
-  report.value = profile ? { ...profile, title: record.title, date: record.date, cycle: record.period, status: record.status, focus: record.summary, scopeSummary: record.scopeSummary } : null
+
+  loading.value = true
+  try {
+    const { default: html } = await prototypeLoaders[record.type]()
+    if (current) {
+      prototypeHtml.value = html
+      prototypeType.value = record.type
+    }
+  }
+  catch {
+    if (current)
+      error.value = '请刷新页面后再试。'
+  }
+  finally {
+    if (current)
+      loading.value = false
+  }
 }, { immediate: true })
 </script>
 
@@ -39,7 +70,7 @@ watch(() => String(route.params.reportId ?? ''), async (reportId) => {
   <main v-if="prototypeType" class="report-prototype-view">
     <iframe
       class="report-prototype-view__frame"
-      :src="prototypeUrl"
+      :srcdoc="prototypeDocument"
       :title="`${({ weekly: '周报', monthly: '月报', quarterly: '季报', adhoc: '次报' })[prototypeType]}内容`"
       sandbox="allow-scripts allow-downloads allow-modals allow-popups allow-popups-to-escape-sandbox allow-top-navigation-by-user-activation"
       referrerpolicy="no-referrer"

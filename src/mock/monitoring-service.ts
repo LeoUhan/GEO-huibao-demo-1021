@@ -82,9 +82,22 @@ export async function getPlatformMetrics(id: number): Promise<PlatformMetric[]> 
   return configurationFor(id).platforms.filter(item => item.enabled).map(item => ({ platform: item.platform, modelVersion: item.modelVersion, sampleCount: 200, validAnswerCount: 195, mentionedAnswerCount: 82, mentionRate: 42, mentionVsPrevPp: round?.questionBaseline || round?.brandBaseline ? null : 2.4, citedAnswerCount: 36, citationRate: 18 })) }
 export async function getPersonaMetrics(id: number, dimType = 1): Promise<PersonaMetric[]> { return configurationFor(id).personas.map(persona => ({ personaId: persona.id, personaName: persona.personaName, dimType, dimValue: persona.purchaseStages[0] ?? null, dimName: '采购阶段', validAnswerCount: 190, mentionedAnswerCount: 78, mentionRate: 41, metricLevel: 1 })) }
 export async function getQuestionHits(id: number): Promise<QuestionHit[]> {
-  const config = configurationFor(id)
-  const round = summaries().find(item => item.id === id)
-  return config.questions.map((question, index) => ({ questionId: question.id, questionContent: question.questionContent, personaId: question.personaId, personaName: config.personas.find(persona => persona.id === question.personaId)?.personaName ?? '买家人设', themeId: null, themeName: question.keyword, platformHits: config.platforms.filter(platform => platform.enabled).map(platform => platform.platform).join(', '), isCompetitorMentioned: 1, competitorNames: 'Flow X, OMAX', isOfficialCited: index % 2, brandRank: 2, rankTotal: 4, trend: round?.questionBaseline || round?.brandBaseline ? null : index % 3 - 1, detailJson: null })) }
+  const state = readMockState()
+  const config = configurationFor(id, state)
+  const rounds = marketRounds(state)
+  const roundIndex = rounds.findIndex(round => idForRound(round) === id)
+  const round = rounds[roundIndex]
+  const previous = round && rounds[roundIndex + 1]
+  const previousQuestions = previous && !round.questionBaseline && !round.brandBaseline
+    ? new Map(configurationFor(idForRound(previous), state).questions.map(question => [question.id, question.questionContent]))
+    : new Map<number, string>()
+  const demoDeltas = [-2.4, 0, 4.2]
+
+  return config.questions.map((question, index) => {
+    const mentionVsPrevPp = previousQuestions.get(question.id) === question.questionContent ? demoDeltas[index % demoDeltas.length]! : null
+    return { questionId: question.id, questionContent: question.questionContent, personaId: question.personaId, personaName: config.personas.find(persona => persona.id === question.personaId)?.personaName ?? '买家人设', themeId: null, themeName: question.keyword, platformHits: config.platforms.filter(platform => platform.enabled).map(platform => platform.platform).join(', '), isCompetitorMentioned: 1, competitorNames: 'Flow X, OMAX', isOfficialCited: index % 2, brandRank: 2, rankTotal: 4, trend: mentionVsPrevPp === null ? null : Math.sign(mentionVsPrevPp), mentionVsPrevPp, detailJson: null }
+  })
+}
 export async function getSourceDomains(_id: number, pageNum = 1, pageSize = 10): Promise<PageResult<SourceDomainMetric>> { return page(visibilityMonitoringData.sources.map(item => ({ domain: item.domain, hitQuestionCount: item.questionCount, citationCount: item.citationCount, platforms: item.platforms.join(', '), isOurMentioned: item.ownBrandMentioned ? 1 : 0, isCompetitorCited: item.competitors.length ? 1 : 0, competitorNames: item.competitors.join(', ') })), pageNum, pageSize) }
 export async function getSourcePages(_id: number, pageNum = 1, pageSize = 10): Promise<PageResult<SourcePageMetric>> { return page(visibilityMonitoringData.citedPages.map(item => ({ domain: visibilityMonitoringData.sources.find(domain => domain.id === item.domainId)?.domain ?? '', pageUrl: `https://${visibilityMonitoringData.sources.find(domain => domain.id === item.domainId)?.domain ?? 'example.com'}/${item.id}`, pageTitle: item.title, excerptText: item.summary, ownerBrandType: item.ownBrandMentioned ? 1 : 2, ownerBrandId: 1, citationCount: item.citations, hitQuestionCount: item.questionIds.length, platforms: item.platforms.join(', '), responseIds: item.questionIds.join(',') })), pageNum, pageSize) }
 export async function getSchedule(): Promise<MonitoringSchedule | null> {

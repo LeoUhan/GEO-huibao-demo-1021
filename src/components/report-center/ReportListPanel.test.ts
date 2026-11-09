@@ -26,7 +26,7 @@ describe('reportListPanel', () => {
     expect(reportLink.element.tagName).toBe('A')
     expect(reportLink.attributes('target')).toBe('_blank')
     expect(reportLink.attributes('rel')).toContain('noopener')
-    expect(reportLink.attributes('href')).toBe('/reports/monthly-2026-09')
+    expect(reportLink.attributes('href')).toBe('/?reportId=monthly-2026-09')
     wrapper.unmount()
   })
 

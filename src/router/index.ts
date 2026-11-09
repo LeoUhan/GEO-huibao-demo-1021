@@ -19,7 +19,17 @@ export function createAppRouter() {
         path: '/',
         component: GeoWorkbenchLayout,
         children: [
-          { path: '', redirect: { name: 'diagnosis' } },
+          {
+            path: '',
+            redirect: (to) => {
+              const { reportId, view, ...query } = to.query
+              if (typeof reportId === 'string' && reportId)
+                return { name: 'report-detail', params: { reportId }, query }
+              if (view === 'report-center')
+                return { name: 'report-center', query }
+              return { name: 'diagnosis' }
+            },
+          },
           {
             path: 'overview',
             name: 'overview',

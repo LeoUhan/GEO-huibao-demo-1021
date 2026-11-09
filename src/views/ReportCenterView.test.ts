@@ -28,7 +28,7 @@ describe('standalone report center', () => {
     expect(wrapper.text()).toContain('周度趋势报告')
     const reportLink = wrapper.find('[data-open-report]')
     expect(reportLink.exists()).toBe(true)
-    expect(reportLink.attributes('href')).toContain('/reports/')
+    expect(reportLink.attributes('href')).toMatch(/^\/\?reportId=\d+/)
     expect(reportLink.attributes('href')).toContain('marketId=1')
     wrapper.unmount()
   })

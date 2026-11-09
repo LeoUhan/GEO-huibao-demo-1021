@@ -41,9 +41,11 @@ describe('local monitoring workflow', () => {
     const nextHits = await getQuestionHits(nextId)
     expect(nextHits.map(item => item.questionContent)).toEqual(expect.arrayContaining(['修改后的监测问题', '新增的监测问题']))
     expect(nextHits.some(item => item.questionId === second!.id)).toBe(false)
-    expect(nextHits.every(item => item.trend === null)).toBe(true)
+    expect(nextHits.every(item => item.trend === null && item.mentionVsPrevPp === null)).toBe(true)
     expect(await getQuestionHits(oldRound.id)).toEqual(before)
-    expect((await getRoundDetail(await triggerRound())).questionBaseline).toBe(false)
+    const comparableId = await triggerRound()
+    expect((await getRoundDetail(comparableId)).questionBaseline).toBe(false)
+    expect((await getQuestionHits(comparableId)).map(item => item.mentionVsPrevPp).slice(0, 3)).toEqual([-2.4, 0, 4.2])
   })
 
   it('creates a baseline only for the brand metrics affected by the change', async () => {

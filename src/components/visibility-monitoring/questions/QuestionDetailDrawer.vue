@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { CitedPage, MonitoringPlatformId, MonitoringQuestion, SourceDomain } from '../../../data/visibility-monitoring-data'
-import { computed, shallowRef, watch } from 'vue'
+import { computed, nextTick, shallowRef, watch } from 'vue'
 import { visibilityMonitoringData } from '../../../data/visibility-monitoring-data'
 import MonitoringEChart from '../analysis/MonitoringEChart.vue'
 import { createTrendOption } from '../analysis/chart-options'
@@ -23,15 +23,21 @@ const emit = defineEmits<{
 }>()
 
 const selectedBatchId = shallowRef<string | null>(null)
+const batchStrip = shallowRef<HTMLElement | null>(null)
 const expandedPlatform = shallowRef<MonitoringPlatformId | null>(null)
 const pages = computed(() => props.pages ?? visibilityMonitoringData.citedPages)
 const sources = computed(() => props.sources ?? visibilityMonitoringData.sources)
-const platformResults = computed(() => (props.question?.batchResults?.[selectedBatchId.value ?? ''] ?? props.question?.platformResults ?? []).filter(result => result.platform !== 'perplexity'))
+const batches = computed(() => props.question?.samplingBatches ?? [])
+const selectedBatchIndex = computed(() => batches.value.findIndex(batch => batch.id === selectedBatchId.value))
+const platformResults = computed(() => {
+  const question = props.question
+  const results = question?.batchResults && selectedBatchId.value
+    ? question.batchResults[selectedBatchId.value]
+    : question?.platformResults
+  return (results ?? []).filter(result => result.platform !== 'perplexity')
+})
 const trendOption = computed(() => createTrendOption({ weeks: props.question?.trendWeeks ?? [], series: (props.question?.platformTrends ?? []).filter(series => series.id !== 'perplexity') }))
 const summary = computed(() => props.question ? getQuestionSummary(props.question) : null)
-const selectedBatch = computed(() => props.question?.samplingBatches.find(batch => batch.id === selectedBatchId.value)
-  ?? props.question?.samplingBatches[0]
-  ?? null)
 const totalResponses = computed(() => props.question?.samplingSummary?.total ?? props.question?.samplingBatches.reduce((total, batch) => total + batch.totalResponses, 0) ?? 0)
 const validResponses = computed(() => props.question?.samplingSummary?.valid ?? props.question?.samplingBatches.reduce((total, batch) => total + batch.validResponses, 0) ?? 0)
 const samplingRange = computed(() => {
@@ -69,22 +75,44 @@ const citedPages = computed(() => {
   })
 })
 
-function downloadSnapshot(html: string, platform: string) {
-  const url = URL.createObjectURL(new Blob([html], { type: 'text/html;charset=utf-8' }))
-  const link = document.createElement('a')
-  link.href = url
-  link.download = `${props.question?.id}-${selectedBatchId.value}-${platform}.html`
-  link.click()
-  setTimeout(() => URL.revokeObjectURL(url), 1000)
+async function selectBatch(index: number) {
+  const batch = batches.value[index]
+  if (!batch || batch.id === selectedBatchId.value)
+    return
+
+  selectedBatchId.value = batch.id
+  expandedPlatform.value = platformResults.value[0]?.platform ?? null
+  await nextTick()
+  const strip = batchStrip.value
+  const active = strip?.querySelector<HTMLElement>('[aria-pressed="true"]')
+  if (strip && active) {
+    const view = strip.getBoundingClientRect()
+    const item = active.getBoundingClientRect()
+    strip.scrollLeft += Math.min(0, item.left - view.left) + Math.max(0, item.right - view.right)
+  }
+}
+
+function openSnapshot(html: string) {
+  const frame = document.createElement('iframe')
+  frame.setAttribute('sandbox', '')
+  frame.title = '回答 HTML 快照'
+  frame.srcdoc = html
+  frame.style.cssText = 'display:block;width:100vw;height:100vh;border:0'
+  const preview = `<!doctype html><html lang="zh-CN"><meta charset="utf-8"><title>回答 HTML 快照</title><body style="margin:0">${frame.outerHTML}</body></html>`
+  const url = URL.createObjectURL(new Blob([preview], { type: 'text/html;charset=utf-8' }))
+  window.open(url, '_blank', 'noopener,noreferrer')
+  setTimeout(() => URL.revokeObjectURL(url), 60_000)
 }
 
 function platformName(id: MonitoringPlatformId) {
   return props.platforms.find(platform => platform.id === id)?.label ?? id
 }
 
-watch(() => props.question?.id, () => {
-  selectedBatchId.value = props.question?.samplingBatches[0]?.id ?? null
-  expandedPlatform.value = null
+watch([() => props.question?.id, () => props.open, batches], () => {
+  selectedBatchId.value = batches.value[0]?.id ?? null
+  expandedPlatform.value = platformResults.value[0]?.platform ?? null
+  if (batchStrip.value)
+    batchStrip.value.scrollLeft = 0
 }, { immediate: true })
 </script>
 
@@ -93,7 +121,7 @@ watch(() => props.question?.id, () => {
     :open="open"
     :title="question?.question ?? '选中问题详情'"
     eyebrow="选中问题详情"
-    :description="question ? `买家人设：${question.persona}  |  当前总位次：${question.rank ? `第 ${question.rank} 位` : '未进入排名'}` : undefined"
+    :description="question ? `买家人设：${question.persona}  |  当前总位次：${question.rank ? `第 ${question.rank} 位${question.rankTotal ? ` / 共 ${question.rankTotal} 个` : ''}` : '未进入排名'}` : undefined"
     :size="1080"
     close-label="关闭问题详情"
     class="vm-question-drawer"
@@ -187,63 +215,82 @@ watch(() => props.question?.id, () => {
         </p>
       </section>
 
-      <section class="vm-drawer-section">
+      <section class="vm-drawer-section vm-answers-section">
         <div class="vm-drawer-section__heading">
-          <div><h3>回答明细</h3><p>{{ question.batchResults ? '按采集批次查看平台原始回答' : '以下为当前监测快照中的平台原始回答' }}</p></div>
+          <h3>回答明细</h3>
+          <p>{{ question.batchResults ? '采集批次只影响此处的原始回答' : '当前监测快照中的平台原始回答' }}</p>
         </div>
-        <nav class="vm-batch-tabs" aria-label="采样批次">
-          <span class="vm-batch-tabs__label">采样批次</span>
-          <button
-            v-for="(batch, index) in question.samplingBatches"
-            :key="batch.id"
-            type="button"
-            :data-batch-id="batch.id"
-            :aria-pressed="(selectedBatch?.id ?? null) === batch.id"
-            :class="{ 'is-active': (selectedBatch?.id ?? null) === batch.id }"
-            @click="selectedBatchId = batch.id"
-          >
-            <strong>第 {{ index + 1 }} 次采集</strong><span>{{ batch.date }}</span>
-          </button>
-        </nav>
-        <div class="vm-answer-list">
-          <details v-for="result in platformResults" :key="result.platform" class="vm-answer" :open="expandedPlatform === result.platform">
+        <div v-if="question.batchResults && batches.length" class="vm-batches">
+          <span class="vm-batches__label">采集批次</span>
+          <nav ref="batchStrip" class="vm-batch-tabs" aria-label="采集批次">
+            <button
+              v-for="(batch, index) in batches"
+              :key="batch.id"
+              type="button"
+              :data-batch-id="batch.id"
+              :aria-pressed="selectedBatchId === batch.id"
+              @click="selectBatch(index)"
+            >
+              <strong>第 {{ index + 1 }} 次采集</strong><span>{{ batch.date }}</span>
+            </button>
+          </nav>
+          <div v-if="batches.length > 3" class="vm-batch-controls">
+            <button type="button" aria-label="上一次采集" :disabled="selectedBatchIndex <= 0" @click="selectBatch(selectedBatchIndex - 1)">
+              <AppIcon name="chevronLeft" :size="16" />
+            </button>
+            <select aria-label="跳转到指定采集批次" :value="selectedBatchIndex" @change="selectBatch(Number(($event.target as HTMLSelectElement).value))">
+              <option v-for="(batch, index) in batches" :key="batch.id" :value="index">
+                {{ index + 1 }} / {{ batches.length }}
+              </option>
+            </select>
+            <button type="button" aria-label="下一次采集" :disabled="selectedBatchIndex >= batches.length - 1" @click="selectBatch(selectedBatchIndex + 1)">
+              <AppIcon name="chevronRight" :size="16" />
+            </button>
+          </div>
+        </div>
+        <div v-if="platformResults.length" class="vm-answer-list">
+          <details v-for="result in platformResults" :key="`${selectedBatchId}-${result.platform}`" class="vm-answer" :open="expandedPlatform === result.platform">
             <summary @click.prevent="expandedPlatform = expandedPlatform === result.platform ? null : result.platform">
-              <span class="vm-platform-mark" :class="`is-${result.platform}`">{{ platformName(result.platform).slice(0, 1) }}</span>
+              <span class="vm-platform-mark" :class="`is-${result.platform}`">{{ result.platform === 'chatgpt' ? '◎' : platformName(result.platform).slice(0, 1) }}</span>
               <strong>{{ platformName(result.platform) }}</strong>
               <span class="vm-answer-status" :class="result.ownBrandMentioned ? 'is-mentioned' : 'is-not-mentioned'">{{ result.ownBrandMentioned ? '已提及' : '未提及' }}</span>
               <span class="vm-answer-preview">{{ result.answer }}</span>
               <AppIcon class="vm-answer-chevron" name="chevronDown" :size="16" aria-hidden="true" />
             </summary>
             <div class="vm-answer__body">
-              <div class="vm-answer-tags">
-                <span>{{ result.sentiment === 'positive' ? '情感：正向' : result.sentiment === 'negative' ? '情感：负向' : '情感：中性' }}</span><span v-if="result.rank">第 {{ result.rank }} 位</span><span>{{ result.ownBrandMentioned ? '提及我方品牌' : '未提及我方品牌' }}</span>
+              <div class="vm-answer-toolbar">
+                <div class="vm-answer-tags">
+                  <span>{{ result.sentiment === 'positive' ? '情感：正面正向' : result.sentiment === 'negative' ? '情感：负向' : '情感：中性' }}</span>
+                  <span v-if="result.rank" class="vm-answer-tag--positive">第 {{ result.rank }} 位</span>
+                </div>
+                <button v-if="result.htmlSnapshot" type="button" class="vm-snapshot-button" @click="openSnapshot(result.htmlSnapshot)">
+                  查看 HTML 快照 <AppIcon name="openExternal" :size="14" />
+                </button>
               </div>
               <p class="vm-answer__label">
                 平台返回原文
               </p>
-              <blockquote>{{ result.answer }}</blockquote>
-              <div v-if="result.citations?.length" class="vm-answer__citations">
-                <a v-for="citation in result.citations" :key="citation.url" :href="citation.url" target="_blank" rel="noopener noreferrer">{{ citation.excerpt }}</a>
-              </div>
-              <button v-if="result.htmlSnapshot" type="button" class="vm-link" @click="downloadSnapshot(result.htmlSnapshot, result.platform)">下载回答快照</button>
+              <blockquote tabindex="0" aria-label="平台返回原文">{{ result.answer }}</blockquote>
               <div v-if="result.citedPages.length" class="vm-answer__citations">
                 <span>引用页面</span><button v-for="pageId in result.citedPages" :key="pageId" type="button" class="vm-link" :data-cited-page="pageId" @click="emit('selectSource', pageId)">
                   {{ pages.find(page => page.id === pageId)?.title ?? pageId }} <AppIcon name="openExternal" :size="14" aria-hidden="true" />
                 </button>
               </div>
-              <p v-else class="vm-inline-empty">
-                该回答暂无引用页面记录
-              </p>
             </div>
           </details>
         </div>
+        <p v-else class="vm-inline-empty">
+          暂无平台回答
+        </p>
       </section>
     </div>
   </Drawer>
 </template>
 
 <style scoped>
-.vm-question-drawer { --ce-drawer-size: min(1080px, 94vw); }
+:global(.vm-question-drawer .ce-drawer-header) { background: var(--background-subtle); }
+:global(.vm-question-drawer .ce-drawer-eyebrow) { color: var(--action-accent); }
+:global(.vm-question-drawer .ce-drawer-heading h2:focus) { outline: none; }
 .vm-question-body { display: grid; gap: 18px; min-width: 0; }
 .vm-drawer-section { min-width: 0; padding: 18px; border: 1px solid var(--border-default); border-radius: 13px; background: var(--background-primary); }
 .vm-drawer-section__heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
@@ -273,34 +320,56 @@ watch(() => props.question?.id, () => {
 .vm-trend-empty__icon { display: grid; width: 36px; height: 36px; flex: 0 0 auto; place-items: center; border-radius: 9px; color: var(--action-accent); background: var(--background-primary); font-size: 22px; }
 .vm-trend-empty strong { color: var(--text-primary); font-size: 14px; }
 .vm-trend-empty p { margin: 4px 0 0; color: var(--text-secondary); font-size: var(--font-size-body); line-height: var(--line-height-body); }
-.vm-batch-tabs { display: grid; grid-template-columns: auto repeat(3, minmax(0, 1fr)); overflow: hidden; border: 1px solid var(--border-default); border-radius: 10px; background: var(--background-subtle); }
-.vm-batch-tabs__label { display: grid; min-width: 96px; place-items: center; padding: 10px; color: var(--text-secondary); font-weight: 600; }
-.vm-batch-tabs button { display: grid; min-width: 0; justify-items: center; gap: 4px; padding: 9px 10px; border: 0; border-left: 1px solid var(--border-default); color: var(--text-secondary); background: transparent; font: inherit; cursor: pointer; }
-.vm-batch-tabs button strong { font-size: 14px; }
-.vm-batch-tabs button span { color: var(--text-muted); font-size: 12px; }
-.vm-batch-tabs button.is-active { color: var(--action-accent); background: var(--background-primary); box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--action-accent) 42%, transparent); }
-.vm-selected-batch { margin: 10px 0 0; color: var(--text-muted); font-size: 12px; }
-.vm-answer-list { display: grid; gap: 9px; margin-top: 12px; }
-.vm-answer { overflow: hidden; border: 1px solid var(--border-default); border-radius: 10px; background: var(--background-primary); }
+.vm-answers-section .vm-drawer-section__heading { align-items: baseline; }
+.vm-answers-section .vm-drawer-section__heading h3 { font-size: 16px; }
+.vm-answers-section .vm-drawer-section__heading p { margin: 0; }
+.vm-batches { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+.vm-batches__label { flex: none; color: var(--text-secondary); font-weight: 600; }
+.vm-batch-tabs { display: flex; flex: 1; min-width: 0; overflow-x: auto; border: 1px solid var(--border-default); border-radius: 12px; background: var(--background-subtle); scrollbar-width: thin; }
+.vm-batch-tabs button { display: grid; flex: 1 0 max(132px, 33.333%); justify-items: center; gap: 4px; padding: 12px 10px; border: 0; color: var(--text-secondary); background: transparent; font: inherit; white-space: nowrap; cursor: pointer; }
+.vm-batch-tabs button + button { border-left: 1px solid var(--border-default); }
+.vm-batch-tabs button span { color: var(--text-muted); font-size: var(--font-size-caption); }
+.vm-batch-tabs button[aria-pressed='true'] { color: var(--action-accent); background: var(--background-primary); box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--action-accent) 48%, transparent); }
+.vm-batch-tabs button[aria-pressed='true'] span { color: inherit; }
+.vm-batch-tabs button:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: -3px; }
+.vm-batch-controls { display: flex; flex: none; align-items: center; gap: 4px; }
+.vm-batch-controls :is(button, select), .vm-snapshot-button { min-height: 32px; border: 1px solid var(--border-control); border-radius: 8px; color: var(--text-secondary); background: var(--background-primary); font: inherit; cursor: pointer; }
+.vm-batch-controls button { display: grid; width: 30px; padding: 0; place-items: center; }
+.vm-batch-controls button:disabled { color: var(--text-muted); opacity: .55; cursor: default; }
+.vm-batch-controls select { padding: 0 4px; font-size: 12px; font-variant-numeric: tabular-nums; }
+
+.vm-answer-list { display: grid; gap: 11px; }
+.vm-answer { min-width: 0; overflow: hidden; border: 1px solid var(--border-default); border-radius: 13px; background: var(--background-primary); }
 .vm-answer[open] { border-color: color-mix(in srgb, var(--action-accent) 50%, var(--border-default)); }
-.vm-answer summary { display: grid; grid-template-columns: 38px minmax(90px, 145px) auto minmax(0, 1fr) 20px; align-items: center; gap: 10px; min-height: 64px; padding: 10px 13px; list-style: none; cursor: pointer; }
+.vm-answer summary { display: grid; grid-template-columns: 34px minmax(82px, 1fr) minmax(74px, .8fr) minmax(0, 3.2fr) 18px; align-items: center; gap: 12px; min-height: 64px; padding: 12px 18px; list-style: none; cursor: pointer; }
 .vm-answer summary::-webkit-details-marker { display: none; }
-.vm-platform-mark { display: grid; width: 36px; height: 36px; place-items: center; border-radius: 10px; color: var(--action-accent); background: color-mix(in srgb, var(--action-accent) 10%, white); font-weight: 700; }
-.vm-platform-mark.is-perplexity { color: #287ed5; background: #e8f3ff; }
+.vm-answer summary:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: -3px; border-radius: 12px; }
+.vm-platform-mark { display: grid; width: 34px; height: 34px; place-items: center; border-radius: 10px; color: var(--action-accent); background: color-mix(in srgb, var(--action-accent) 10%, white); font-weight: 700; }
+.vm-platform-mark.is-chatgpt { color: var(--status-success-foreground); background: var(--status-success-background); }
 .vm-platform-mark.is-google-ai { color: var(--status-warning-foreground); background: var(--status-warning-background); }
 .vm-answer summary > strong { color: var(--text-primary); }
-.vm-answer-status { padding: 5px 9px; border-radius: 999px; font-size: 12px; font-weight: 600; white-space: nowrap; }
-.vm-answer-status.is-mentioned { color: var(--status-success-foreground); background: var(--status-success-background); }
+.vm-answer-status { padding: 4px 9px; border-radius: 999px; text-align: center; font-size: 12px; font-weight: 600; white-space: nowrap; }
+.vm-answer-status.is-mentioned, .vm-answer-tags .vm-answer-tag--positive { color: var(--status-success-foreground); background: var(--status-success-background); }
 .vm-answer-status.is-not-mentioned { color: var(--text-muted); background: var(--background-subtle); }
 .vm-answer-preview { overflow: hidden; color: var(--text-secondary); text-overflow: ellipsis; white-space: nowrap; }
 .vm-answer-chevron { color: var(--text-muted); transition: transform 120ms ease; }
 .vm-answer[open] .vm-answer-chevron { transform: rotate(180deg); }
-.vm-answer__body { display: grid; gap: 10px; padding: 14px 16px 16px 61px; border-top: 1px solid var(--border-default); }
+.vm-answer__body { display: grid; gap: 9px; padding: 14px 18px 18px; border-top: 1px solid var(--border-default); }
+.vm-answer-toolbar { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 4px; }
 .vm-answer-tags, .vm-answer__citations { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; }
-.vm-answer-tags span { padding: 5px 9px; border-radius: 999px; color: var(--action-accent); background: color-mix(in srgb, var(--action-accent) 9%, white); font-size: 12px; }
+.vm-answer-tags span { padding: 5px 9px; border-radius: 999px; color: var(--action-accent); background: color-mix(in srgb, var(--action-accent) 9%, white); font-size: 12px; font-weight: 600; }
+.vm-snapshot-button { display: inline-flex; align-items: center; gap: 5px; padding: 4px 10px; font-size: 12px; font-weight: 600; }
 .vm-answer__label, .vm-answer__citations > span { margin: 0; color: var(--text-muted); font-size: 12px; }
-.vm-answer__body blockquote { max-height: 240px; overflow: auto; margin: 0; padding: 14px 16px; border: 1px solid var(--border-default); border-radius: 9px; color: var(--text-primary); background: var(--background-subtle); line-height: 1.7; white-space: pre-wrap; }
-.vm-answer__citations { padding-top: 2px; }
-@media (max-width: 820px) { .vm-answer summary { grid-template-columns: 38px minmax(0, 1fr) 20px; } .vm-answer summary > strong { grid-column: 2; grid-row: 1; } .vm-answer-status { grid-column: 2; grid-row: 2; justify-self: start; } .vm-answer-preview { grid-column: 1 / 3; grid-row: 3; } .vm-answer-chevron { grid-column: 3; grid-row: 1 / 3; } .vm-answer__body { padding-left: 14px; } }
-@media (max-width: 560px) { .vm-drawer-section { padding: 14px; } .vm-detail-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); } .vm-batch-tabs { grid-template-columns: 1fr; } .vm-batch-tabs__label { display: none; } .vm-batch-tabs button { border-top: 1px solid var(--border-default); border-left: 0; } .vm-batch-tabs button:first-of-type { border-top: 0; } }
+.vm-answer__body blockquote { max-height: 222px; overflow: auto; margin: 0; padding: 14px 16px; border: 1px solid var(--border-default); border-radius: 9px; color: var(--text-primary); background: var(--background-subtle); font-family: ui-monospace, SFMono-Regular, Consolas, monospace; line-height: 1.75; overflow-wrap: anywhere; white-space: pre-wrap; }
+.vm-answer__citations { padding-top: 2px; font-size: 12px; }
+@media (max-width: 600px) {
+  .vm-drawer-section { padding: 14px; }
+  .vm-detail-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .vm-batches { flex-wrap: wrap; justify-content: space-between; }
+  .vm-batch-tabs { flex-basis: 100%; order: 1; }
+  .vm-answer summary { grid-template-columns: 34px minmax(0, 1fr) auto 18px; gap: 8px; padding-inline: 12px; }
+  .vm-answer-preview { grid-column: 2 / -1; grid-row: 2; }
+  .vm-answer-chevron { grid-column: 4; grid-row: 1; }
+  .vm-answer__body { padding-inline: 12px; }
+}
 </style>

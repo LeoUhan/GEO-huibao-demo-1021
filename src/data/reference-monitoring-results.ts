@@ -30,7 +30,6 @@ function roundResults(query: Query, round: Query['rounds']['r1'] | Query['rounds
     platform: platformId(engine.name), ownBrandMentioned: rank(engine.rank) !== null,
     competitorsMentioned: competitorsFor(query.id), officialSiteCited: round.citationsTable.some(citation => citation.isMe && engine.name.startsWith(citation.engine)),
     htmlSnapshot: engine.htmlSnapshot,
-    citations: round.citationsTable.filter(citation => engine.name.startsWith(citation.engine)).map(citation => ({ url: `https://${citation.source}`, excerpt: citation.content })),
     rank: rank(engine.rank), sentiment: engine.sentiment.includes('正面') ? 'positive' : 'neutral', answer: engine.fullText,
     citedPages: [...new Set(round.citationsTable.filter(citation => engine.name.startsWith(citation.engine)).flatMap(citation => {
       const match = pages.find(page => page.href?.replace(/^https?:\/\//, '') === citation.source)
@@ -41,7 +40,8 @@ function roundResults(query: Query, round: Query['rounds']['r1'] | Query['rounds
 const questions: MonitoringQuestion[] = raw.queryMatrixData.map(query => ({
   id: query.id, question: query.text, persona: query.persona, keyword: '', type: '业务词', stage: '', intent: '', concern: '',
   platformResults: roundResults(query, query.rounds.r1), competitors: competitorsFor(query.id), officialSiteCited: query.citation,
-  rank: rank(query.position), trend: query.trend.includes('上升') ? 'up' : query.trend.includes('下降') ? 'down' : 'flat',
+  rank: rank(query.position), rankTotal: query.positionTotal, trend: query.trend.includes('上升') ? 'up' : query.trend.includes('下降') ? 'down' : 'flat',
+  mentionVsPrevPp: query.mentionVsPrevPp,
   samplingBatches: Object.keys(query.rounds).map((id, index) => ({ id, date: `2026-09-${index === 0 ? '15' : '17'}`, validResponses: 0, totalResponses: 0, confidenceInterval: 0 })),
   samplingSummary: raw.questionSamplingProfiles[query.id as keyof typeof raw.questionSamplingProfiles],
   batchResults: { r1: roundResults(query, query.rounds.r1), r2: roundResults(query, query.rounds.r2) },

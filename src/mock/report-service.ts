@@ -9,7 +9,7 @@ export function mockReportId(report: ReportRecord): number {
   return Number(`${reportTypeCode[report.type]}${dateDigits}`)
 }
 export function findMockReportById(id: string | number): ReportRecord | undefined {
-  return readMockState().reports.items.find(item => mockReportId(item) === Number(id))
+  return readMockState().reports.items.find(item => item.id === id || mockReportId(item) === Number(id))
 }
 function toListItem(report: ReportRecord): ReportListItem {
   const date = `${report.date}T00:00:00`

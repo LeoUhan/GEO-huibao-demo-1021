@@ -37,14 +37,13 @@ const emptyLabel = computed(() => ({ all: '暂无已生成报告', weekly: '暂�
 const reportLabels: Record<ReportType, string> = { weekly: '周报', monthly: '月报', quarterly: '季报', adhoc: '次报' }
 const pageCount = computed(() => Math.max(1, Math.ceil(props.total / props.pageSize)))
 function reportHref(reportId: string) {
-  const query = new URLSearchParams()
+  const query = new URLSearchParams({ reportId })
   if (props.siteId !== null && props.siteId !== undefined)
     query.set('siteId', String(props.siteId))
   if (props.marketId !== null && props.marketId !== undefined)
     query.set('marketId', String(props.marketId))
-  const queryString = query.toString()
-  const suffix = queryString ? `?${queryString}` : ''
-  return `/reports/${encodeURIComponent(reportId)}${suffix}`
+  // Open the static site entry so new tabs work without a server-side route rewrite.
+  return `${import.meta.env.BASE_URL}?${query}`
 }
 </script>
 

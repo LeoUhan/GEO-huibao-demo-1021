@@ -25,7 +25,9 @@ const questions = computed<readonly MonitoringQuestion[]>(() => props.questionHi
     competitors: hit.competitorNames?.split(',').map(name => name.trim()).filter(Boolean) ?? [],
     officialSiteCited: hit.isOfficialCited === 1,
     rank: hit.brandRank,
+    rankTotal: hit.rankTotal,
     trend: (hit.trend ?? 0) > 0 ? 'up' : (hit.trend ?? 0) < 0 ? 'down' : 'flat',
+    mentionVsPrevPp: hit.mentionVsPrevPp,
     samplingBatches: reference?.samplingBatches ?? [],
   }
 }) ?? data.questions)

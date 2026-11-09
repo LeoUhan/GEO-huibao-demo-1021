@@ -1,5 +1,5 @@
 import { flushPromises, mount } from '@vue/test-utils'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createMemoryHistory, createRouter } from 'vue-router'
 import { findMockReportById, mockReportId } from '../mock/report-service'
 import { resetMockState } from '../mock/repository'
@@ -14,10 +14,13 @@ describe('standalone report detail', () => {
     await router.push(`/reports/${mockReportId(first)}?siteId=demo-site-apw&marketId=1`)
     await router.isReady()
     const wrapper = mount(ReportDetailView, { global: { plugins: [router] } })
+    await vi.dynamicImportSettled()
     await flushPromises()
 
-    expect(wrapper.get('iframe').attributes('src')).toContain(`report-prototypes/${first.type}.html`)
-    expect(wrapper.get('iframe').attributes('title')).toContain('内容')
+    const frame = wrapper.get('iframe')
+    expect(frame.attributes('src')).toBeUndefined()
+    expect(frame.attributes('srcdoc')).toContain('href="/?view=report-center&amp;siteId=demo-site-apw&amp;marketId=1"')
+    expect(frame.attributes('title')).toContain('内容')
     wrapper.unmount()
   })
 
@@ -27,9 +30,14 @@ describe('standalone report detail', () => {
     await router.push(`/reports/${mockReportId(record)}`)
     await router.isReady()
     const wrapper = mount(ReportDetailView, { global: { plugins: [router] } })
+    await vi.dynamicImportSettled()
     await flushPromises()
 
-    expect(wrapper.get('iframe').attributes('src')).toContain(`report-prototypes/${type}.html`)
+    const frame = wrapper.get('iframe')
+    const label = { weekly: '周报', adhoc: '次报', quarterly: '季报', monthly: '月报' }[type]
+    expect(frame.attributes('title')).toBe(`${label}内容`)
+    expect(frame.attributes('srcdoc')).toContain('href="about:srcdoc#details"')
+    expect(frame.attributes('srcdoc')).toContain('一、管理层结论')
     wrapper.unmount()
   })
 })

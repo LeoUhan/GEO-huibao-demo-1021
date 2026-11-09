@@ -25,7 +25,6 @@ export interface PlatformResult {
   rank: number | null
   sentiment: 'positive' | 'neutral' | 'negative'
   htmlSnapshot?: string
-  citations?: Array<{ url: string, excerpt: string }>
   answer: string
   citedPages: string[]
 }
@@ -51,7 +50,9 @@ export interface MonitoringQuestion {
   competitors: string[]
   officialSiteCited: boolean
   rank: number | null
+  rankTotal?: number | null
   trend: QuestionTrend
+  mentionVsPrevPp?: number | null
   samplingSummary?: { batches: number, valid: number, total: number, interval: string }
   batchResults?: Record<string, PlatformResult[]>
   trendWeeks?: string[]

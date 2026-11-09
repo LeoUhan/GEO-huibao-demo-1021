@@ -162,6 +162,7 @@ export interface QuestionHit {
   brandRank: number | null
   rankTotal: number | null
   trend: number | null
+  mentionVsPrevPp?: number | null
   detailJson: string | null
 }
 
