@@ -279,7 +279,7 @@
       .page-title small { display: block; margin-top: 3px; color: var(--ink-4); font-size: 10px; font-weight: 500; }
       .platform-text { color: var(--ink-3); font-size: 10px; line-height: 1.6; }
 
-      .credibility-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); border: 1px solid var(--line); border-radius: 9px; overflow: hidden; }
+      .credibility-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); border: 1px solid var(--line); border-radius: 9px; overflow: hidden; }
       .credibility-cell { min-width: 0; padding: 12px; background: var(--surface); }
       .credibility-cell + .credibility-cell { border-left: 1px solid var(--line); }
       .credibility-cell span { display: block; color: var(--ink-3); font-size: 10px; }
@@ -554,13 +554,13 @@
     <script>
       (() => {
         const type = 'weekly';
-        const config = { label: '周报', title: '本周 GEO 表现与优化简报', date: '2026-09-15', cycle: '2026-09-08–09-14', cadence: '每周按固定计划采集', compare: '较上周 09/01–09/07', compareShort: '上周', eyebrow: 'GEO 可见性监测 · 管理层周报', summaryLabel: '管理层结论', focus: '本周整体露出回升，但采购决策问题仍有缺口。', range: '统计周期：2026-09-08–09-14', filename: '20260915_weekly-report.html' };
+        const config = { label: '周报', title: '本周 GEO 表现与优化简报', date: '2026-09-15', cycle: '2026-09-08–09-14', cadence: '每周 · 重复采集 1 次', compare: '较上周 09/01–09/07', compareShort: '上周', eyebrow: 'GEO 可见性监测 · 管理层周报', summaryLabel: '管理层结论', focus: '本周整体露出回升，但采购决策问题仍有缺口。', range: '统计周期：2026-09-08–09-14', filename: '20260915_weekly-report.html' };
 
         const metrics = [
-          { name: '品牌提及率（SOA）', value: '42%', compare: '38%', delta: '+4pp', ci: 'Wilson 95% 置信区间：±2.8pp', color: '#2563EB' },
-          { name: '品牌推荐率', value: '28%', compare: '24%', delta: '+4pp', ci: '二项分母待补齐', color: '#059669' },
-          { name: '官网引用率', value: '17%', compare: '15%', delta: '+2pp', ci: '二项分母待补齐', color: '#0891B2' },
-          { name: '声量份额（SOV）', value: '27%', compare: '23%', delta: '+4pp', ci: '二项分母待补齐', color: '#7C3AED' }
+          { name: '品牌提及率（SOA）', value: '42%', compare: '38%', delta: '+4pp', note: '按本期有效回答统计', color: '#2563EB' },
+          { name: '品牌推荐率', value: '28%', compare: '24%', delta: '+4pp', note: '二项分母待补齐', color: '#059669' },
+          { name: '官网引用率', value: '17%', compare: '15%', delta: '+2pp', note: '二项分母待补齐', color: '#0891B2' },
+          { name: '声量份额（SOV）', value: '27%', compare: '23%', delta: '+4pp', note: '二项分母待补齐', color: '#7C3AED' }
         ];
 
         const platforms = [
@@ -622,7 +622,7 @@
         }
 
         function metricStrip() {
-          return `<div class="metric-strip">${metrics.map((metric) => `<article class="metric-cell"><div class="metric-cell-head"><span class="metric-name">${metric.name}</span><span class="metric-delta">${metric.delta}</span></div><div class="metric-value">${metric.value}</div><div class="metric-compare"><span>${config.compare}：<strong>${metric.compare}</strong></span><span>较首次：<strong>${metric.delta}</strong></span></div><p class="metric-note">${metric.ci}</p></article>`).join('')}</div>`;
+          return `<div class="metric-strip">${metrics.map((metric) => `<article class="metric-cell"><div class="metric-cell-head"><span class="metric-name">${metric.name}</span><span class="metric-delta">${metric.delta}</span></div><div class="metric-value">${metric.value}</div><div class="metric-compare"><span>${config.compare}：<strong>${metric.compare}</strong></span><span>较首次：<strong>${metric.delta}</strong></span></div><p class="metric-note">${metric.note}</p></article>`).join('')}</div>`;
         }
 
         function auxMetrics() {
@@ -666,16 +666,13 @@
           const x = (index) => pad.left + (index * (width - pad.left - pad.right)) / (labels.length - 1);
           const y = (value) => pad.top + ((max - value) * (height - pad.top - pad.bottom)) / (max - min);
           const points = (values) => values.map((value, index) => `${x(index).toFixed(1)},${y(value).toFixed(1)}`).join(' ');
-          const soa = chartSeries[0].values;
-          const bandTop = soa.map((value, index) => `${x(index).toFixed(1)},${y(value + 2.8).toFixed(1)}`).join(' ');
-          const bandBottom = soa.slice().reverse().map((value, reverseIndex) => { const index = soa.length - 1 - reverseIndex; return `${x(index).toFixed(1)},${y(value - 2.8).toFixed(1)}`; }).join(' ');
           const grid = [0, 20, 40, 60].map((value) => `<line x1="${pad.left}" y1="${y(value)}" x2="${width - pad.right}" y2="${y(value)}" class="chart-grid-line"/><text x="4" y="${y(value) + 3}" class="chart-axis-label">${value}%</text>`).join('');
           const lines = chartSeries.map((series) => `<polyline data-series="${series.key}" points="${points(series.values)}" class="chart-line" stroke="${series.color}"/>`).join('');
           const dots = chartSeries.map((series) => series.values.map((value, index) => `<circle data-series="${series.key}" data-label="${labels[index]}" data-value="${series.label} ${value}%" cx="${x(index)}" cy="${y(value)}" r="3.5" fill="${series.color}" class="chart-point"/>`).join('')).join('');
           const labelOffsets = { soa: 0, recommend: -7, cite: 0, sov: 7 };
           const endLabels = chartSeries.map((series) => `<text data-series="${series.key}" x="${width - pad.right + 7}" y="${y(series.values[series.values.length - 1]) + 3 + (labelOffsets[series.key] || 0)}" fill="${series.color}" class="chart-end-label">${series.values[series.values.length - 1]}%</text>`).join('');
           const legend = chartSeries.map((series) => `<button class="legend-button" type="button" data-chart-series="${series.key}"><i style="background:${series.color}"></i>${series.label}</button>`).join('');
-          return `<div class="chart-shell"><div class="chart-toolbar"><div><strong>核心指标表现</strong></div></div><div class="chart-legend">${legend}<span class="legend-button"><i style="background:#93C5FD"></i>SOA 95% 置信区间</span></div><div class="chart-stage"><svg viewBox="0 0 ${width} ${height}" role="img" aria-label="四项主指标趋势图">${grid}<polygon points="${bandTop} ${bandBottom}" class="chart-band"/>${lines}${dots}${endLabels}</svg><div class="chart-tooltip" id="chart-tooltip"></div></div><div class="chart-x-axis">${labels.map((label) => `<span>${label}</span>`).join('')}</div></div>`;
+          return `<div class="chart-shell"><div class="chart-toolbar"><div><strong>核心指标表现</strong></div></div><div class="chart-legend">${legend}</div><div class="chart-stage"><svg viewBox="0 0 ${width} ${height}" role="img" aria-label="四项主指标趋势图">${grid}${lines}${dots}${endLabels}</svg><div class="chart-tooltip" id="chart-tooltip"></div></div><div class="chart-x-axis">${labels.map((label) => `<span>${label}</span>`).join('')}</div></div>`;
         }
 
         function dimensionMarkup() {
@@ -714,7 +711,7 @@
         }
 
         function renderCredibility() {
-          const credibility = `<div class="credibility-grid"><div class="credibility-cell"><span>采集频率</span><strong>${config.cadence}</strong></div><div class="credibility-cell"><span>累计采样数</span><strong>1,200</strong><small>1,169 条有效回答 · 当前口径累计</small></div><div class="credibility-cell"><span>整体 95% 置信区间</span><strong>±2.8pp</strong><small>整体品牌提及率（SOA）</small></div></div>`;
+          const credibility = `<div class="credibility-grid"><div class="credibility-cell"><span>采集频率</span><strong>${config.cadence}</strong><small>Europe/Berlin · 已启用：是</small></div><div class="credibility-cell"><span>累计采样数</span><strong>1,200</strong><small>1,169 条有效回答 · 当前口径累计</small></div><div class="credibility-cell"><span>可信度</span><strong>可信度中</strong></div><div class="credibility-cell"><span>测量等级</span><strong>趋势级</strong></div></div>`;
           document.getElementById('credibility-content').innerHTML = credibility;
         }
 

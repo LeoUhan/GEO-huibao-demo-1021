@@ -280,7 +280,7 @@
       .page-title small { display: block; margin-top: 3px; color: var(--ink-4); font-size: 10px; font-weight: 500; }
       .platform-text { color: var(--ink-3); font-size: 10px; line-height: 1.6; }
 
-      .credibility-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); border: 1px solid var(--line); border-radius: 9px; overflow: hidden; }
+      .credibility-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); border: 1px solid var(--line); border-radius: 9px; overflow: hidden; }
       .credibility-cell { min-width: 0; padding: 12px; background: var(--surface); }
       .credibility-cell + .credibility-cell { border-left: 1px solid var(--line); }
       .credibility-cell span { display: block; color: var(--ink-3); font-size: 10px; }
@@ -554,13 +554,13 @@
     <script>
       (() => {
         const type = 'quarterly';
-        const config = { label: '季报', title: '2026 年第三季度 GEO 竞争格局复盘', date: '2026-10-01', cycle: '2026 Q3（2026-07-01–09-30）', cadence: '每季度汇总', compare: '较上季度 2026 Q2', compareShort: '上季度', eyebrow: 'GEO 可见性监测 · 季度策略复盘', summaryLabel: '管理层结论', focus: '本季度 APW 综合排名第 2；结合竞争位置和持续差距，明确优化建议。', range: '统计周期：2026 Q3（2026-07-01–09-30）', filename: 'geo-quarterly-report.html', analysisTitle: '二、本期关键发现', analysisSubtitle: '从季度视角归纳竞争位置、跨平台差异、人设覆盖和信源结构。', summarySubtitle: '季度竞争复盘：关注持续变化、结构性差距和下一季度的决策重点。', metricCompare: '较上季度', chartLabels: ['上季度','本季度'], chartTitle: '核心指标表现', chartTag: '季度变化' };
+        const config = { label: '季报', title: '2026 年第三季度 GEO 竞争格局复盘', date: '2026-10-01', cycle: '2026 Q3（2026-07-01–09-30）', cadence: '每周 · 重复采集 1 次', compare: '较上季度 2026 Q2', compareShort: '上季度', eyebrow: 'GEO 可见性监测 · 季度策略复盘', summaryLabel: '管理层结论', focus: '本季度 APW 综合排名第 2；结合竞争位置和持续差距，明确优化建议。', range: '统计周期：2026 Q3（2026-07-01–09-30）', filename: 'geo-quarterly-report.html', analysisTitle: '二、本期关键发现', analysisSubtitle: '从季度视角归纳竞争位置、跨平台差异、人设覆盖和信源结构。', summarySubtitle: '季度竞争复盘：关注持续变化、结构性差距和下一季度的决策重点。', metricCompare: '较上季度', chartLabels: ['上季度','本季度'], chartTitle: '核心指标表现', chartTag: '季度变化' };
 
 const metrics = [
-          { name: '品牌提及率（SOA）', value: '46%', compare: '43%', delta: '+3pp', ci: '演示口径：95% 置信区间约 ±0.7pp', color: '#2563EB' },
-          { name: '品牌推荐率', value: '33%', compare: '30%', delta: '+3pp', ci: '推荐有效回答口径', color: '#059669' },
-          { name: '官网引用率', value: '20%', compare: '19%', delta: '+1pp', ci: '有效回答口径', color: '#0891B2' },
-          { name: '声量份额（SOV）', value: '31%', compare: '29%', delta: '+2pp', ci: '竞品提及总量口径', color: '#7C3AED' }
+          { name: '品牌提及率（SOA）', value: '46%', compare: '43%', delta: '+3pp', note: '按本期有效回答统计', color: '#2563EB' },
+          { name: '品牌推荐率', value: '33%', compare: '30%', delta: '+3pp', note: '推荐有效回答口径', color: '#059669' },
+          { name: '官网引用率', value: '20%', compare: '19%', delta: '+1pp', note: '有效回答口径', color: '#0891B2' },
+          { name: '声量份额（SOV）', value: '31%', compare: '29%', delta: '+2pp', note: '竞品提及总量口径', color: '#7C3AED' }
         ];
 
 const platforms = [
@@ -624,7 +624,7 @@ const chartSeries = [
         }
 
         function metricStrip() {
-          return `<div class="metric-strip">${metrics.map((metric) => `<article class="metric-cell"><div class="metric-cell-head"><span class="metric-name">${metric.name}</span><span class="metric-delta">${type === 'single' ? '本次' : metric.delta}</span></div><div class="metric-value">${metric.value}</div><div class="metric-compare">${type === 'single' ? `<span>统计范围：本次监测周期</span>` : `<span>${config.compare}：<strong>${metric.compare}</strong></span><span>${config.metricCompare}：<strong>${metric.delta}</strong></span>`}</div><p class="metric-note">${metric.ci}</p></article>`).join('')}</div>`;
+          return `<div class="metric-strip">${metrics.map((metric) => `<article class="metric-cell"><div class="metric-cell-head"><span class="metric-name">${metric.name}</span><span class="metric-delta">${type === 'single' ? '本次' : metric.delta}</span></div><div class="metric-value">${metric.value}</div><div class="metric-compare">${type === 'single' ? `<span>统计范围：本次监测周期</span>` : `<span>${config.compare}：<strong>${metric.compare}</strong></span><span>${config.metricCompare}：<strong>${metric.delta}</strong></span>`}</div><p class="metric-note">${metric.note}</p></article>`).join('')}</div>`;
         }
 
         function auxMetrics() {
@@ -669,16 +669,13 @@ const chartSeries = [
           const x = (index) => pad.left + (index * (width - pad.left - pad.right)) / (labels.length - 1);
           const y = (value) => pad.top + ((max - value) * (height - pad.top - pad.bottom)) / (max - min);
           const points = (values) => values.map((value, index) => `${x(index).toFixed(1)},${y(value).toFixed(1)}`).join(' ');
-          const soa = chartSeries[0].values;
-          const bandTop = soa.map((value, index) => `${x(index).toFixed(1)},${y(value + 2.8).toFixed(1)}`).join(' ');
-          const bandBottom = soa.slice().reverse().map((value, reverseIndex) => { const index = soa.length - 1 - reverseIndex; return `${x(index).toFixed(1)},${y(value - 2.8).toFixed(1)}`; }).join(' ');
           const grid = [0, 20, 40, 60].map((value) => `<line x1="${pad.left}" y1="${y(value)}" x2="${width - pad.right}" y2="${y(value)}" class="chart-grid-line"/><text x="4" y="${y(value) + 3}" class="chart-axis-label">${value}%</text>`).join('');
           const lines = chartSeries.map((series) => `<polyline data-series="${series.key}" points="${points(series.values)}" class="chart-line" stroke="${series.color}"/>`).join('');
           const dots = chartSeries.map((series) => series.values.map((value, index) => `<circle data-series="${series.key}" data-label="${labels[index]}" data-value="${series.label} ${value}%" cx="${x(index)}" cy="${y(value)}" r="3.5" fill="${series.color}" class="chart-point"/>`).join('')).join('');
           const labelOffsets = { soa: 0, recommend: -7, cite: 0, sov: 7 };
           const endLabels = chartSeries.map((series) => `<text data-series="${series.key}" x="${width - pad.right + 7}" y="${y(series.values[series.values.length - 1]) + 3 + (labelOffsets[series.key] || 0)}" fill="${series.color}" class="chart-end-label">${series.values[series.values.length - 1]}%</text>`).join('');
           const legend = chartSeries.map((series) => `<button class="legend-button" type="button" data-chart-series="${series.key}"><i style="background:${series.color}"></i>${series.label}</button>`).join('');
-          return `<div class="chart-shell"><div class="chart-toolbar"><div><strong>核心指标表现</strong></div></div><div class="chart-legend">${legend}<span class="legend-button"><i style="background:#93C5FD"></i>SOA 95% 置信区间</span></div><div class="chart-stage"><svg viewBox="0 0 ${width} ${height}" role="img" aria-label="四项主指标趋势图">${grid}<polygon points="${bandTop} ${bandBottom}" class="chart-band"/>${lines}${dots}${endLabels}</svg><div class="chart-tooltip" id="chart-tooltip"></div></div><div class="chart-x-axis">${labels.map((label) => `<span>${label}</span>`).join('')}</div></div>`;
+          return `<div class="chart-shell"><div class="chart-toolbar"><div><strong>核心指标表现</strong></div></div><div class="chart-legend">${legend}</div><div class="chart-stage"><svg viewBox="0 0 ${width} ${height}" role="img" aria-label="四项主指标趋势图">${grid}${lines}${dots}${endLabels}</svg><div class="chart-tooltip" id="chart-tooltip"></div></div><div class="chart-x-axis">${labels.map((label) => `<span>${label}</span>`).join('')}</div></div>`;
         }
 
         function dimensionMarkup() {
@@ -719,7 +716,7 @@ const chartSeries = [
         }
 
         function renderCredibility() {
-          const credibility = `<div class="credibility-grid"><div class="credibility-cell"><span>采集频率</span><strong>${config.cadence}</strong></div><div class="credibility-cell"><span>累计采样数</span><strong>16,080</strong><small>15,660 条有效回答 · 本期累计</small></div><div class="credibility-cell"><span>整体 95% 置信区间</span><strong>±0.7pp</strong><small>整体品牌提及率（SOA）</small></div></div>`;
+          const credibility = `<div class="credibility-grid"><div class="credibility-cell"><span>采集频率</span><strong>${config.cadence}</strong><small>Europe/Berlin · 已启用：是</small></div><div class="credibility-cell"><span>累计采样数</span><strong>16,080</strong><small>15,660 条有效回答 · 本期累计</small></div><div class="credibility-cell"><span>可信度</span><strong>可信度高</strong></div><div class="credibility-cell"><span>测量等级</span><strong>趋势级</strong></div></div>`;
           document.getElementById('credibility-content').innerHTML = credibility;
         }
 

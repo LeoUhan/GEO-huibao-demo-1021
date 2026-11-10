@@ -50,7 +50,7 @@ export const initialReports: ReportRecord[] = [
     summary: '本月 GEO 表现、关键趋势、主要变化与阶段成果，适合月度业务复盘。',
     tags: ['结果总览', '阶段趋势', '关键变化', '可信度说明'],
     sections: [
-      { title: '结果总览', summary: '展示当前月度累计结果与置信区间。' },
+      { title: '结果总览', summary: '展示当前月度累计结果、可信度与测量等级。' },
       { title: '阶段趋势', summary: '回顾周度变化与主要波动区间。' },
       { title: '关键变化', summary: '提炼本月重要增量及需跟进的问题。' },
       { title: '可信度说明', summary: '说明采样范围、有效回答和统计口径。' },
