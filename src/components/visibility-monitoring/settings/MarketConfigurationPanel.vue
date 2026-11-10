@@ -42,6 +42,7 @@ const personaDrafts = computed<BuyerPersona[]>(() => props.personas.map(persona 
   id: String(persona.id),
   type: persona.personaType,
   purchaseStage: persona.purchaseStages?.[0] ?? '',
+  purchaseStages: [...(persona.purchaseStages ?? [])],
   actualRole: persona.actualPosition ?? '',
   industry: persona.industry ?? '',
   companySize: persona.companyScale ?? '',

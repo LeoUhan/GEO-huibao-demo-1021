@@ -28,7 +28,7 @@ const emit = defineEmits<{
 const editorOpen = shallowRef(false)
 const editorMode = shallowRef<'add' | 'edit'>('add')
 const personaTypeName = (value: string) => (props.typeOptions ?? buyerPersonaTypeOptions).find(option => option.value === value)?.label ?? value
-const purchaseStageName = (value: string) => (props.stageOptions ?? purchaseStageOptions).find(option => option.value === value)?.label ?? value
+const purchaseStageName = (persona: BuyerPersona) => (persona.purchaseStages?.length ? persona.purchaseStages : [persona.purchaseStage]).map(value => (props.stageOptions ?? purchaseStageOptions).find(option => option.value === value)?.label ?? value).join('、')
 const countLabel = computed(() => `已添加 ${props.personas.length} / ${maxBuyerPersonas}`)
 const optionalPersonaFields = ['actualRole', 'industry', 'companySize', 'decisionRole', 'purchaseTrigger', 'purchaseBudget', 'purchaseCycle', 'discoveryChannel'] as const
 const optionalInfoCount = (persona: BuyerPersona) => optionalPersonaFields.filter(field => Boolean(persona[field]?.trim())).length
@@ -103,7 +103,7 @@ function handlePersonasSaved(personas: BuyerPersona[]) {
             </div>
           </div>
           <div class="buyer-persona-card__summary">
-            <p>采购阶段：{{ purchaseStageName(persona.purchaseStage) }}</p>
+            <p>采购阶段：{{ purchaseStageName(persona) }}</p>
             <p>{{ optionalInfoCount(persona) ? `已补充 ${optionalInfoCount(persona)} 项选填信息` : '未填写选填信息' }}</p>
           </div>
         </article>

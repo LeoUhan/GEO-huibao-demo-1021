@@ -108,6 +108,7 @@ async function loadBoundMarketConfiguration() {
     id: String(persona.id),
     type: persona.personaType,
     purchaseStage: persona.purchaseStages?.[0] ?? '',
+    purchaseStages: [...(persona.purchaseStages ?? [])],
     actualRole: persona.actualPosition ?? '',
     industry: persona.industry ?? '',
     companySize: persona.companyScale ?? '',
@@ -148,7 +149,7 @@ async function savePersonasImmediately(nextPersonas: BuyerPersona[]) {
         purchaseBudget: persona.purchaseBudget || undefined,
         purchaseCycle: persona.purchaseCycle || undefined,
         infoChannels: persona.discoveryChannel || undefined,
-        purchaseStages: persona.purchaseStage ? [persona.purchaseStage] : [],
+        purchaseStages: persona.purchaseStages ?? (persona.purchaseStage ? [persona.purchaseStage] : []),
       }
       const existing = current.get(persona.id)
       if (existing && (
@@ -199,6 +200,7 @@ async function savePersonasImmediately(nextPersonas: BuyerPersona[]) {
     id: String(persona.id),
     type: persona.personaType,
     purchaseStage: persona.purchaseStages?.[0] ?? '',
+    purchaseStages: [...(persona.purchaseStages ?? [])],
     actualRole: persona.actualPosition ?? '',
     industry: persona.industry ?? '',
     companySize: persona.companyScale ?? '',

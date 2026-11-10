@@ -2,6 +2,7 @@ export interface BuyerPersonaDraft {
   id: string
   type: string
   purchaseStage: string
+  purchaseStages?: string[]
   commonQuestions?: string
   actualRole: string
   industry: string
@@ -32,7 +33,7 @@ export function validateBuyerPersonas(personas: readonly BuyerPersonaDraft[]): B
       seenTypes.add(persona.type)
     }
 
-    if (!persona.purchaseStage.trim())
+    if (!(persona.purchaseStages?.length || persona.purchaseStage.trim()))
       errors[`${persona.id}.purchaseStage`] = '请选择采购阶段'
   }
   return errors

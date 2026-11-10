@@ -147,6 +147,7 @@ export function useFirstConfigWizard() {
       id: String(persona.id),
       type: persona.personaType,
       purchaseStage: persona.purchaseStages?.[0] ?? '',
+      purchaseStages: [...(persona.purchaseStages ?? [])],
       actualRole: persona.actualPosition ?? '',
       industry: persona.industry ?? '',
       companySize: persona.companyScale ?? '',
@@ -404,7 +405,7 @@ export function useFirstConfigWizard() {
           purchaseCycle: persona.purchaseCycle || undefined,
           infoChannels: persona.discoveryChannel || undefined,
           commonQuestions: persona.commonQuestions || undefined,
-          purchaseStages: persona.purchaseStage ? [persona.purchaseStage] : [],
+          purchaseStages: persona.purchaseStages ?? (persona.purchaseStage ? [persona.purchaseStage] : []),
         }
         const existing = current.get(persona.id)
         if (existing && (
@@ -451,6 +452,7 @@ export function useFirstConfigWizard() {
         id: String(persona.id),
         type: persona.personaType,
         purchaseStage: persona.purchaseStages?.[0] ?? '',
+        purchaseStages: [...(persona.purchaseStages ?? [])],
         actualRole: persona.actualPosition ?? '',
         industry: persona.industry ?? '',
         companySize: persona.companyScale ?? '',
@@ -472,6 +474,7 @@ export function useFirstConfigWizard() {
         id: String(persona.id),
         type: persona.personaType,
         purchaseStage: persona.purchaseStages?.[0] ?? '',
+        purchaseStages: [...(persona.purchaseStages ?? [])],
         actualRole: persona.actualPosition ?? '',
         industry: persona.industry ?? '',
         companySize: persona.companyScale ?? '',

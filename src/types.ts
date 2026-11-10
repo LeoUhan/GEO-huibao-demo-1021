@@ -24,6 +24,7 @@ export interface BuyerPersona {
   id: string
   type: string
   purchaseStage: string
+  purchaseStages?: string[]
   commonQuestions?: string
   actualRole: string
   industry: string

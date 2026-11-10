@@ -28,19 +28,39 @@ const errors = ref<Record<string, string>>({})
 const saving = ref(false)
 const saveError = ref('')
 const confirmationOpen = ref(false)
+const openStageId = ref<string | null>(null)
 const availableTypeOptions = computed(() => props.typeOptions ?? buyerPersonaTypeOptions)
 const availableStageOptions = computed(() => props.stageOptions ?? purchaseStageOptions)
 const isReadOnly = computed(() => props.mode === 'view')
 const remainingTypes = computed(() => availableTypeOptions.value.filter(option => !drafts.value.some(item => item.type === option.value)))
-const purchaseStageChoices = [
-  { value: '', label: '请选择采购阶段', disabled: true },
-  ...availableStageOptions.value,
-]
+function selectedStages(persona: BuyerPersonaDraft) {
+  return persona.purchaseStages ?? (persona.purchaseStage ? [persona.purchaseStage] : [])
+}
+
+function stageSummary(persona: BuyerPersonaDraft) {
+  const stages = selectedStages(persona)
+  if (!stages.length)
+    return '请选择采购阶段'
+  if (availableStageOptions.value.length && stages.length === availableStageOptions.value.length)
+    return '全部'
+  return stages.map(stage => optionLabel(availableStageOptions.value, stage)).join('、')
+}
+
+function toggleStage(persona: BuyerPersonaDraft, value: string) {
+  const current = selectedStages(persona)
+  const next = value === 'all'
+    ? current.length === availableStageOptions.value.length ? [] : availableStageOptions.value.map(option => option.value)
+    : current.includes(value) ? current.filter(stage => stage !== value) : [...current, value]
+  persona.purchaseStages = next
+  persona.purchaseStage = next[0] ?? ''
+  clearError(`${persona.id}.purchaseStage`)
+}
 function newDraft(): BuyerPersonaDraft {
   return {
     id: `buyer-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
     type: '',
     purchaseStage: '',
+    purchaseStages: [],
     commonQuestions: '',
     actualRole: '',
     industry: '',
@@ -54,7 +74,7 @@ function newDraft(): BuyerPersonaDraft {
 }
 
 function resetDraft() {
-  drafts.value = props.personas.map(item => ({ ...item, commonQuestions: item.commonQuestions ?? '' }))
+  drafts.value = props.personas.map(item => ({ ...item, purchaseStages: [...(item.purchaseStages ?? (item.purchaseStage ? [item.purchaseStage] : []))], commonQuestions: item.commonQuestions ?? '' }))
   if (props.mode === 'add' && drafts.value.length < maxBuyerPersonas)
     drafts.value.push(newDraft())
   if (!drafts.value.length)
@@ -116,7 +136,7 @@ async function save() {
   saveError.value = ''
   saving.value = true
   try {
-    const next = drafts.value.map(item => ({ ...item }))
+    const next = drafts.value.map(item => ({ ...item, purchaseStages: [...selectedStages(item)] }))
     const saved = props.persistPersonas ? await props.persistPersonas(next) : next
     confirmationOpen.value = false
     open.value = false
@@ -132,6 +152,7 @@ async function save() {
 
 watch([open, () => props.mode], ([isOpen]) => {
   confirmationOpen.value = false
+  openStageId.value = null
   if (isOpen) {
     saveError.value = ''
     resetDraft()
@@ -187,16 +208,23 @@ watch([open, () => props.mode], ([isOpen]) => {
             <div class="buyer-persona-field">
               <label :id="`persona-stage-label-${persona.id}`">采购阶段 <span aria-hidden="true">*</span></label>
               <div v-if="isReadOnly" class="buyer-persona-field__value">
-                {{ optionLabel(availableStageOptions, persona.purchaseStage) }}
+                {{ stageSummary(persona) }}
               </div>
-              <DropdownSelect
-                v-else
-                v-model="persona.purchaseStage"
-                :options="purchaseStageChoices"
-                panel-width="100%"
-                v-bind="{ ariaLabel: `人设 ${index + 1} 采购阶段`, ariaLabelledby: `persona-stage-label-${persona.id}`, ariaDescribedby: errors[`${persona.id}.purchaseStage`] ? `persona-stage-error-${persona.id}` : undefined }"
-                @update:model-value="clearError(`${persona.id}.purchaseStage`)"
-              />
+              <div v-else class="buyer-persona-stage">
+                <button type="button" class="buyer-persona-stage__trigger" :aria-expanded="openStageId === persona.id" :aria-labelledby="`persona-stage-label-${persona.id}`" @click="openStageId = openStageId === persona.id ? null : persona.id">
+                  <span>{{ stageSummary(persona) }}</span><span aria-hidden="true">⌄</span>
+                </button>
+                <div v-if="openStageId === persona.id" class="buyer-persona-stage__menu" role="group" :aria-labelledby="`persona-stage-label-${persona.id}`">
+                  <label class="buyer-persona-stage__option">
+                    <input type="checkbox" :checked="availableStageOptions.length > 0 && selectedStages(persona).length === availableStageOptions.length" @change="toggleStage(persona, 'all')">
+                    <span>全部</span>
+                  </label>
+                  <label v-for="option in availableStageOptions" :key="option.value" class="buyer-persona-stage__option">
+                    <input type="checkbox" :checked="selectedStages(persona).includes(option.value)" @change="toggleStage(persona, option.value)">
+                    <span>{{ option.label }}</span>
+                  </label>
+                </div>
+              </div>
               <p v-if="errors[`${persona.id}.purchaseStage`]" :id="`persona-stage-error-${persona.id}`" class="buyer-persona-field__error" role="alert">
                 {{ errors[`${persona.id}.purchaseStage`] }}
               </p>
@@ -284,6 +312,14 @@ watch([open, () => props.mode], ([isOpen]) => {
 .buyer-persona-field > label:not(.buyer-persona-field__sr-label) { color: var(--text-secondary); font-size: var(--font-size-body); line-height: var(--line-height-body); font-weight: var(--weight-medium); }
 .buyer-persona-field > label span { color: var(--status-error); }
 .buyer-persona-field__value { display: flex; min-height: 42px; align-items: center; padding: 8px 12px; border: 1px solid var(--border-control); border-radius: var(--radius-control); color: var(--text-primary); background: var(--background-secondary); overflow-wrap: anywhere; }
+.buyer-persona-stage { position: relative; min-width: 0; }
+.buyer-persona-stage__trigger { display: flex; width: 100%; min-height: 42px; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 12px; border: 1px solid var(--border-control); border-radius: var(--radius-control); color: var(--text-primary); background: var(--background-secondary); font: inherit; text-align: left; cursor: pointer; }
+.buyer-persona-stage__trigger span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.buyer-persona-stage__trigger:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 2px; }
+.buyer-persona-stage__menu { position: absolute; z-index: 5; top: calc(100% + 4px); left: 0; right: 0; padding: 6px; border: 1px solid var(--border-default); border-radius: var(--radius-control); background: var(--background-primary); box-shadow: 0 8px 20px #15213a1f; }
+.buyer-persona-stage__option { display: flex; align-items: center; gap: 10px; padding: 9px 10px; border-radius: 6px; color: var(--text-primary); cursor: pointer; }
+.buyer-persona-stage__option:hover { background: var(--background-secondary); }
+.buyer-persona-stage__option input { width: 16px; height: 16px; accent-color: #4056ff; }
 .buyer-persona-field__error,.buyer-persona-editor__error { margin: 0; color: var(--status-error); font-size: var(--font-size-caption); line-height: var(--line-height-caption); }
 .buyer-persona-editor__add { justify-self: start; border-style: dashed; }
 .buyer-persona-editor__hint { color: var(--text-muted); font-size: var(--font-size-caption); line-height: var(--line-height-caption); }

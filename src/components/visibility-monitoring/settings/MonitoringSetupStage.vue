@@ -80,6 +80,10 @@ function stageName(stage: string) {
   return purchaseStageOptions.find(option => option.value === stage)?.label ?? stage
 }
 
+function stageNames(persona: BuyerPersona) {
+  return (persona.purchaseStages?.length ? persona.purchaseStages : [persona.purchaseStage]).map(stageName).join('、')
+}
+
 function openPersonaDialog(mode: 'edit' | 'view') {
   personaDialogMode.value = mode
   personaDialogOpen.value = true
@@ -151,7 +155,7 @@ const questionOptions = computed<Record<'type' | 'persona' | 'purchaseStage' | '
               </div>
             </header>
             <div class="vm-persona-card__stage">
-              <span>采购阶段</span><strong class="vm-persona-card__stage-tag">{{ stageName(persona.purchaseStage) }}</strong>
+              <span>采购阶段</span><strong class="vm-persona-card__stage-tag">{{ stageNames(persona) }}</strong>
             </div>
             <Button class="vm-persona-card__view" variant="outline" @click="openPersonaDialog('view')">
               查看

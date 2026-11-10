@@ -246,9 +246,7 @@ async function persistMarketPersonas(personas: BuyerPersona[]) {
         purchaseCycle: persona.purchaseCycle || undefined,
         infoChannels: persona.discoveryChannel || undefined,
         commonQuestions: persona.commonQuestions ?? '',
-        purchaseStages: persona.purchaseStage
-          ? existingStages[0] === persona.purchaseStage ? [...existingStages] : [persona.purchaseStage]
-          : [],
+        purchaseStages: persona.purchaseStages ?? (persona.purchaseStage ? [persona.purchaseStage] : []),
       }
       if (existing) {
         const changed = existing.personaName !== payload.personaName
