@@ -55,10 +55,10 @@ const emit = defineEmits<{
 
       <p class="generate-latest-dialog__quota" role="status">
         <template v-if="unlimited">
-          本月不限次数，本次不会消耗生成权益。
+          当前不限次数，本次不会消耗生成权益。
         </template>
         <template v-else-if="remaining !== null">
-          本月剩余 {{ remaining }} 次生成权益，本次将消耗 1 次。
+          当前剩余 {{ remaining }} 次生成权益，本次将消耗 1 次。
         </template>
         <template v-else>
           当前无法确认剩余生成次数，请稍后重试。

@@ -107,7 +107,7 @@ function reportHref(reportId: string) {
               <span class="report-status" :class="report.empty ? 'is-empty' : `is-${report.status}`">
                 {{ report.empty ? '暂无数据' : ({ generated: '已生成', outline: '结构预览', generating: '生成中', failed: '生成失败', archived: '已归档' })[report.status] }}
               </span>
-              <a v-if="!report.empty" class="report-card__action" :href="reportHref(report.id)" :data-open-report="report.id" target="_blank" rel="noopener noreferrer">
+              <a v-if="!report.empty && report.status !== 'generating'" class="report-card__action" :href="reportHref(report.id)" :data-open-report="report.id" target="_blank" rel="noopener noreferrer">
                 {{ report.status === 'generated' || report.status === 'archived' ? '查看报告' : '查看详情' }}<AppIcon name="arrowRight" :size="12" aria-hidden="true" />
               </a>
             </div>

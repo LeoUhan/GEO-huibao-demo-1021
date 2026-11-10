@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import type { ReportFilter } from '../data/report-center-data'
-import { computed, onBeforeUnmount, shallowRef, watch } from 'vue'
+import type { ReportFilter, ReportRecord } from '../data/report-center-data'
+import { computed, onBeforeUnmount, onMounted, shallowRef, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { generateLatestReport, getReportList, getReportQuota } from '../api/reports'
 import GenerateLatestReportDialog from '../components/report-center/GenerateLatestReportDialog.vue'
@@ -10,6 +10,7 @@ import Toast from '../components/ui/ce/toast/Toast.vue'
 import GeoPageIntro from '../components/workbench/shared/GeoPageIntro.vue'
 import { mapReportListItem } from '../data/report-api-adapters'
 import { getDemoUserInfo } from '../mock/demo-user'
+import { updateMockState } from '../mock/repository'
 import { useGeoContextStore } from '../stores/geo-context'
 
 const route = useRoute()
@@ -29,6 +30,8 @@ const listError = shallowRef('')
 const generationDialogOpen = shallowRef(false)
 const generationSubmitting = shallowRef(false)
 const generationError = shallowRef('')
+const pendingReport = shallowRef<ReportRecord | null>(null)
+let generationTimer: ReturnType<typeof setTimeout> | undefined
 const generationContext = shallowRef({ scopeLabel: '德国 × 德语', questionCount: 20, platformCount: 6 })
 const toastOpen = shallowRef(false)
 const toastMessage = shallowRef('')
@@ -37,6 +40,8 @@ const toastVariant = shallowRef<'success' | 'warning' | 'error'>('success')
 const userInfo = shallowRef(getDemoUserInfo())
 const authReady = shallowRef(true)
 const latestReport = computed(() => reports.value.find(report => report.type === 'adhoc') ?? reports.value[0] ?? null)
+const visibleReports = computed(() => pendingReport.value ? [pendingReport.value, ...reports.value] : reports.value)
+const visibleCounts = computed(() => ({ ...counts.value, all: counts.value.all + Number(!!pendingReport.value), adhoc: counts.value.adhoc + Number(!!pendingReport.value) }))
 const siteId = computed(() => parseSiteId(userInfo.value?.siteId))
 const marketId = computed(() => parseMarketId(route.query.marketId) ?? geoContext.marketId)
 const canGenerate = computed(() => Boolean(
@@ -44,6 +49,7 @@ const canGenerate = computed(() => Boolean(
   && marketId.value
   && quotaLoaded.value
   && !quotaError.value
+  && !pendingReport.value
   && (quotaTotal.value === 0 || (remainingQuota.value !== null && remainingQuota.value > 0)),
 ))
 
@@ -133,6 +139,16 @@ async function refreshQuota() {
 }
 watch(siteId, () => void refreshQuota(), { immediate: true })
 
+onMounted(() => {
+  if (route.query.resetReportQuota !== '1')
+    return
+  updateMockState(draft => { draft.reports.quota = 2 })
+  const url = new URL(window.location.href)
+  url.searchParams.delete('resetReportQuota')
+  window.history.replaceState(window.history.state, '', url)
+  void refreshQuota()
+})
+
 function openGenerationDialog(context: typeof generationContext.value) {
   generationContext.value = context
   generationError.value = ''
@@ -148,6 +164,32 @@ async function submitLatestGeneration() {
   try {
     const result = await generateLatestReport({ siteId: siteId.value, marketId: marketId.value })
     generationDialogOpen.value = false
+    if (result.status === 0 || result.status === 1 || result.status === 2) {
+      pendingReport.value = {
+        id: `pending-${result.taskNo}`,
+        type: 'adhoc',
+        title: '最新监测次报',
+        period: '本次采集',
+        date: new Date().toISOString().slice(0, 10),
+        summary: '正在采集并生成报告，完成后可在这里查看。',
+        tags: [],
+        sections: [],
+        questionIds: [],
+        status: 'generating',
+      }
+      reportFilter.value = 'all'
+      pageNum.value = 1
+      clearTimeout(generationTimer)
+      // The local prototype completes immediately; keep the task visible to demonstrate the wait.
+      generationTimer = setTimeout(async () => {
+        await refreshReports()
+        pendingReport.value = null
+        toastMessage.value = '次报已生成，可在报告列表中查看。'
+        toastVariant.value = 'success'
+        toastMessageId.value += 1
+        toastOpen.value = true
+      }, 8000)
+    }
     const taskMessages = {
       0: '生成任务已提交',
       1: '报告正在生成',
@@ -159,7 +201,9 @@ async function submitLatestGeneration() {
     toastVariant.value = result.status === 3 ? 'error' : result.status === 4 ? 'warning' : 'success'
     toastMessageId.value += 1
     toastOpen.value = true
-    await Promise.all([refreshQuota(), refreshReports()])
+    await refreshQuota()
+    if (!pendingReport.value)
+      await refreshReports()
   }
   catch (error) {
     generationError.value = error instanceof Error ? error.message : '报告生成任务提交失败，请稍后重试。'
@@ -174,6 +218,7 @@ function closeToast() {
 }
 
 onBeforeUnmount(() => {
+  clearTimeout(generationTimer)
   toastOpen.value = false
 })
 
@@ -200,8 +245,8 @@ function changeFilter(filter: ReportFilter) {
     </p>
     <ReportListPanel
       :model-value="reportFilter"
-      :reports="reports"
-      :counts="counts"
+      :reports="visibleReports"
+      :counts="visibleCounts"
       :page-num="pageNum"
       :page-size="pageSize"
       :total="total"

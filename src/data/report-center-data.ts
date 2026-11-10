@@ -121,9 +121,9 @@ export function createDemoReport(reports: readonly ReportRecord[], quota: number
 
   const date = [now.getFullYear(), String(now.getMonth() + 1).padStart(2, '0'), String(now.getDate()).padStart(2, '0')].join('-')
   const report: ReportRecord = {
-    id: `weekly-${date}-demo`,
-    type: 'weekly',
-    title: '周度趋势报告',
+    id: `adhoc-${date}-demo`,
+    type: 'adhoc',
+    title: '最新监测次报',
     period: '最新监测周期 · 演示生成',
     date,
     summary: '这是一份演示生成的最新报告，展示本轮核心指标、趋势变化与关键证据。',

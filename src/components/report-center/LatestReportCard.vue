@@ -68,18 +68,6 @@ function requestGenerate() {
   })
 }
 
-const quotaExhausted = computed(() => props.quotaReady && props.quotaTotal > 0 && props.remaining === 0)
-const quotaLabel = computed(() => {
-  if (!props.quotaReady)
-    return '额度加载中…'
-  if (props.quotaTotal === 0)
-    return '本月不限次数'
-  if (props.remaining === null)
-    return '额度暂不可用'
-  if (props.remaining === 0)
-    return '本月已无剩余次数'
-  return `本月剩余 ${props.remaining} 次`
-})
 </script>
 
 <template>
@@ -103,14 +91,6 @@ const quotaLabel = computed(() => {
         >
           {{ remaining === 0 ? '本月次数已用完' : '生成最新报告' }}
         </button>
-        <div class="quota-control" aria-label="本月报告额度">
-          <span
-            data-testid="quota-count"
-            :class="{ 'quota-control__message--exhausted': quotaExhausted }"
-            class="quota-control__message"
-            role="status"
-          >{{ quotaLabel }}</span>
-        </div>
       </div>
     </div>
     <div class="latest-report__meta" data-testid="monitoring-scope" aria-label="当前监测范围与配置">
