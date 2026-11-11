@@ -3,6 +3,7 @@ import type { ReportFilter, ReportRecord, ReportType } from '../../data/report-c
 import { computed } from 'vue'
 import { filterReports } from '../../data/report-center-data'
 import OverviewInfoIcon from '../overview/OverviewInfoIcon.vue'
+import Pagination from '../ui/ce/pagination/Pagination.vue'
 import AppIcon from '../ui/icons/AppIcon.vue'
 
 const props = withDefaults(defineProps<{
@@ -16,7 +17,7 @@ const props = withDefaults(defineProps<{
   error?: string
   siteId?: string | null
   marketId?: number | null
-}>(), { pageNum: 1, pageSize: 20, total: 0, loading: false, error: '' })
+}>(), { pageNum: 1, pageSize: 10, total: 0, loading: false, error: '' })
 const emit = defineEmits<{
   'update:modelValue': [value: ReportFilter]
   'changePage': [page: number]
@@ -35,7 +36,7 @@ const counts = computed(() => Object.fromEntries(
 const visibleReports = computed(() => filterReports(props.reports, props.modelValue))
 const emptyLabel = computed(() => ({ all: '暂无已生成报告', weekly: '暂无周报', monthly: '暂无月报', quarterly: '暂无季度报告', adhoc: '暂无次报' })[props.modelValue])
 const reportLabels: Record<ReportType, string> = { weekly: '周报', monthly: '月报', quarterly: '季报', adhoc: '次报' }
-const pageCount = computed(() => Math.max(1, Math.ceil(props.total / props.pageSize)))
+const paginationTotal = computed(() => props.total || (props.counts?.[props.modelValue] ?? visibleReports.value.length))
 function reportHref(reportId: string) {
   const query = new URLSearchParams({ reportId })
   if (props.siteId !== null && props.siteId !== undefined)
@@ -117,15 +118,21 @@ function reportHref(reportId: string) {
           <h3>{{ emptyLabel }}</h3>
           <p>{{ visibleReports.length === 0 && total === 0 ? '该类型当前没有报告记录。' : '切换报告类型查看其他报告。' }}</p>
         </div>
-        <nav v-if="!loading && !error && pageCount > 1" class="report-pagination" aria-label="报告列表分页">
-          <button type="button" :disabled="pageNum <= 1" @click="emit('changePage', pageNum - 1)">
-            上一页
-          </button>
-          <span>第 {{ pageNum }} / {{ pageCount }} 页 · 共 {{ total }} 条</span>
-          <button type="button" :disabled="pageNum >= pageCount" @click="emit('changePage', pageNum + 1)">
-            下一页
-          </button>
-        </nav>
+        <Pagination
+          v-if="!loading && !error && paginationTotal > 0"
+          class="report-pagination"
+          :model-value="pageNum"
+          :total="paginationTotal"
+          :page-size="pageSize"
+          size="sm"
+          label="报告列表分页"
+          previous-label="上一页报告"
+          next-label="下一页报告"
+          :page-label="page => `报告第 ${page} 页`"
+          :summary-text="({ page, pages, total: count, pageSize: size }) => `第 ${page} / ${pages} 页 · 共 ${count} 条 · 每页 ${size} 条`"
+          :format-value="String"
+          @update:model-value="emit('changePage', $event)"
+        />
       </div>
     </div>
   </section>
@@ -179,9 +186,7 @@ function reportHref(reportId: string) {
 .report-empty p { margin: 0; font-size: var(--font-size-body); line-height: var(--line-height-body); }
 .report-request-state { margin: 0; padding: 18px; color: var(--text-muted); }
 .report-request-state.is-error { border: 1px solid var(--status-error-border, #fecaca); border-radius: 10px; color: var(--status-error-foreground, #b91c1c); background: var(--status-error-background, #fef2f2); }
-.report-pagination { display: flex; align-items: center; justify-content: center; gap: 14px; padding-top: 8px; color: var(--text-muted); font-size: 12px; }
-.report-pagination button { min-height: 30px; padding: 0 10px; border: 1px solid var(--border-default); border-radius: 7px; background: var(--background-primary); color: var(--text-secondary); cursor: pointer; }
-.report-pagination button:disabled { cursor: not-allowed; opacity: .5; }
+.report-pagination { border-top: 1px solid var(--border-default); margin-top: 4px; padding: 16px 0 0; }
 @media (max-width: 880px) { .reports-layout { grid-template-columns: 1fr; } .report-filter { display: flex; overflow-x: auto; align-items: center; gap: 4px; padding: 8px; } .report-filter h3 { flex: 0 0 auto; margin: 0 6px 0 2px; } .report-filter button { flex: 0 0 auto; } }
 @media (max-width: 620px) { .reports-panel { padding: 18px; } .reports-panel__heading { flex-direction: column; } .report-card { grid-template-columns: 58px minmax(0, 1fr); gap: 10px; padding: 14px; } .report-card__type { padding: 0 6px; font-size: 12px; } .report-card__actions { grid-column: 2; justify-content: flex-start; } .report-card__title-row { flex-direction: column; } }
 </style>

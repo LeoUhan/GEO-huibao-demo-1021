@@ -3,7 +3,7 @@ import { createPinia, setActivePinia } from 'pinia'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { createMemoryHistory, createRouter } from 'vue-router'
 import GenerateLatestReportDialog from '../components/report-center/GenerateLatestReportDialog.vue'
-import { readMockState, resetMockState } from '../mock/repository'
+import { readMockState, resetMockState, updateMockState } from '../mock/repository'
 import { useGeoContextStore } from '../stores/geo-context'
 import ReportCenterView from './ReportCenterView.vue'
 
@@ -42,6 +42,36 @@ describe('standalone report center', () => {
     await flushPromises()
     expect(readMockState().reports.quota).toBe(1)
     expect(readMockState().reports.items.length).toBeGreaterThan(4)
+    wrapper.unmount()
+  })
+
+  it('shows ten reports per page and paginates within the selected type', async () => {
+    updateMockState((draft) => {
+      const weekly = draft.reports.items.find(report => report.type === 'weekly')!
+      draft.reports.items.push(...Array.from({ length: 11 }, (_, index) => ({
+        ...weekly,
+        id: `weekly-extra-${index}`,
+        date: `2026-10-${String(index + 1).padStart(2, '0')}`,
+      })))
+    })
+    const wrapper = await mountReportCenter()
+    expect(wrapper.findAll('.report-card')).toHaveLength(10)
+    expect(wrapper.get('[aria-label="报告列表分页"]').text()).toContain('每页 10 条')
+
+    await wrapper.get('[data-report-filter="weekly"]').trigger('click')
+    await flushPromises()
+    expect(wrapper.findAll('.report-card')).toHaveLength(10)
+    expect(wrapper.get('[aria-label="报告列表分页"]').text()).toContain('共 13 条')
+
+    await wrapper.get('[aria-label="下一页报告"]').trigger('click')
+    await flushPromises()
+    expect(wrapper.findAll('.report-card')).toHaveLength(3)
+    expect(wrapper.get('[aria-label="报告列表分页"]').text()).toContain('第 2 / 2 页')
+
+    await wrapper.get('[data-report-filter="monthly"]').trigger('click')
+    await flushPromises()
+    expect(wrapper.findAll('.report-card')).toHaveLength(1)
+    expect(wrapper.get('[aria-label="报告列表分页"]').text()).toContain('第 1 / 1 页')
     wrapper.unmount()
   })
 })

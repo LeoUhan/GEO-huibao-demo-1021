@@ -3,6 +3,7 @@ export type ApiReportType = 'weekly' | 'monthly' | 'quarterly' | 'latest'
 export interface ReportListParams {
   pageNum?: number
   pageSize?: number
+  reportType?: ApiReportType | 'all'
 }
 
 export interface ReportListItem {

@@ -19,10 +19,11 @@ function toListItem(report: ReportRecord): ReportListItem {
 }
 export async function getReportList(params: ReportListParams): Promise<ReportListResponse> {
   const records = [...readMockState().reports.items].sort((left, right) => right.date.localeCompare(left.date)).map(toListItem)
+  const filtered = records.filter(item => !params.reportType || params.reportType === 'all' || item.reportType === params.reportType)
   const pageNum = params.pageNum ?? 1
-  const pageSize = params.pageSize ?? 20
+  const pageSize = params.pageSize ?? 10
   const count = (type: string) => records.filter(item => type === 'all' || item.reportType === type).length
-  return { counts: { all: records.length, weekly: count('weekly'), monthly: count('monthly'), quarterly: count('quarterly'), latest: count('latest') }, page: { total: records.length, pageNum, pageSize, records: records.slice((pageNum - 1) * pageSize, pageNum * pageSize) } }
+  return { counts: { all: records.length, weekly: count('weekly'), monthly: count('monthly'), quarterly: count('quarterly'), latest: count('latest') }, page: { total: filtered.length, pageNum, pageSize, records: filtered.slice((pageNum - 1) * pageSize, pageNum * pageSize) } }
 }
 export async function getReportQuota(_siteId: string): Promise<ReportQuotaResponse> {
   const state = readMockState()

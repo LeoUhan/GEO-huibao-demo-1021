@@ -22,7 +22,7 @@ const quotaLoaded = shallowRef(false)
 const quotaError = shallowRef('')
 const reportFilter = shallowRef<ReportFilter>('all')
 const pageNum = shallowRef(1)
-const pageSize = 20
+const pageSize = 10
 const total = shallowRef(0)
 const counts = shallowRef({ all: 0, weekly: 0, monthly: 0, quarterly: 0, adhoc: 0 })
 const loading = shallowRef(false)
@@ -40,8 +40,11 @@ const toastVariant = shallowRef<'success' | 'warning' | 'error'>('success')
 const userInfo = shallowRef(getDemoUserInfo())
 const authReady = shallowRef(true)
 const latestReport = computed(() => reports.value.find(report => report.type === 'adhoc') ?? reports.value[0] ?? null)
-const visibleReports = computed(() => pendingReport.value ? [pendingReport.value, ...reports.value] : reports.value)
+const visibleReports = computed(() => pendingReport.value && pageNum.value === 1 && (reportFilter.value === 'all' || reportFilter.value === 'adhoc')
+  ? [pendingReport.value, ...reports.value].slice(0, pageSize)
+  : reports.value)
 const visibleCounts = computed(() => ({ ...counts.value, all: counts.value.all + Number(!!pendingReport.value), adhoc: counts.value.adhoc + Number(!!pendingReport.value) }))
+const visibleTotal = computed(() => total.value + Number(!!pendingReport.value && (reportFilter.value === 'all' || reportFilter.value === 'adhoc')))
 const siteId = computed(() => parseSiteId(userInfo.value?.siteId))
 const marketId = computed(() => parseMarketId(route.query.marketId) ?? geoContext.marketId)
 const canGenerate = computed(() => Boolean(
@@ -82,6 +85,7 @@ async function refreshReports() {
     const result = await getReportList({
       pageNum: nextPage,
       pageSize,
+      reportType: reportFilter.value === 'adhoc' ? 'latest' : reportFilter.value,
     })
     if (requestId !== listRequestId)
       return
@@ -107,7 +111,7 @@ async function refreshReports() {
       loading.value = false
   }
 }
-watch([authReady, pageNum], () => void refreshReports(), { immediate: true })
+watch([authReady, pageNum, reportFilter], () => void refreshReports(), { immediate: true })
 
 let quotaRequestId = 0
 async function refreshQuota() {
@@ -142,7 +146,9 @@ watch(siteId, () => void refreshQuota(), { immediate: true })
 onMounted(() => {
   if (route.query.resetReportQuota !== '1')
     return
-  updateMockState(draft => { draft.reports.quota = 2 })
+  updateMockState((draft) => {
+    draft.reports.quota = 2
+  })
   const url = new URL(window.location.href)
   url.searchParams.delete('resetReportQuota')
   window.history.replaceState(window.history.state, '', url)
@@ -249,7 +255,7 @@ function changeFilter(filter: ReportFilter) {
       :counts="visibleCounts"
       :page-num="pageNum"
       :page-size="pageSize"
-      :total="total"
+      :total="visibleTotal"
       :loading="loading"
       :error="listError"
       :site-id="siteId"
