@@ -2,6 +2,7 @@
 import type { BrandMetric } from '../../api/monitoring'
 import type { OverviewTrend } from '../../data/monitoring-api-adapters'
 import { computed } from 'vue'
+import { baselineAffectsMetric } from '../../data/baseline-events'
 import MonitoringEChart from '../visibility-monitoring/analysis/MonitoringEChart.vue'
 import MetricDefinitionButton from './MetricDefinitionButton.vue'
 import { createOverviewTrendOption } from './overview-chart-options'
@@ -17,11 +18,21 @@ const formatRate = (value: number | null | undefined) => value == null ? '—' :
 const formatChange = (value: number | null | undefined) => value == null ? '—' : `${value > 0 ? '+' : ''}${value}pp`
 const metricCards = computed(() => metricDefinitions.map((definition) => {
   const metric = props.brandMetric
+  const trendSeries = props.trend.series.find(series => series.id === (definition.id === 'officialCitation' ? 'citation' : definition.id))
+  const values = trendSeries?.values ?? []
+  const current = values.at(-1)
+  const previous = values.at(-2)
+  const first = values[0]
+  const trendDelta = (reference: number | null | undefined) => current == null || reference == null ? null : Math.round((current - reference) * 10) / 10
+  const events = props.trend.baselines ?? []
+  const latestDate = props.trend.weeks.at(-1)
+  const previousComparable = !events.some(event => event.date === latestDate && baselineAffectsMetric(event, definition.id))
+  const firstComparable = !events.some(event => event.date > (props.trend.weeks[0] ?? '') && baselineAffectsMetric(event, definition.id))
   return {
     ...definition,
     value: formatRate(metric?.[definition.field]),
-    previous: formatChange(metric?.[definition.previous]),
-    first: formatChange(metric?.[definition.first]),
+    previous: previousComparable ? formatChange(metric?.[definition.previous] ?? trendDelta(previous)) : '—',
+    first: firstComparable ? formatChange(metric?.[definition.first] ?? trendDelta(first)) : '—',
   }
 }))
 const trendOption = computed(() => createOverviewTrendOption({ weeks: props.trend.weeks, series: props.trend.series }))

@@ -36,10 +36,13 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div ref="element" class="visibility-chart" role="img" :aria-label="label" />
+  <div class="visibility-chart-wrap">
+    <div ref="element" class="visibility-chart" role="img" :aria-label="label" />
+  </div>
 </template>
 
 <style scoped>
+.visibility-chart-wrap { position: relative; }
 .visibility-chart { width: 100%; min-width: 0; height: 320px; }
 @media (max-width: 760px) { .visibility-chart { height: 280px; } }
 </style>

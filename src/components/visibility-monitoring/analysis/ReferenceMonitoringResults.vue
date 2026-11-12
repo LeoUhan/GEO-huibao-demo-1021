@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import type { QuestionHit } from '../../../api/monitoring'
-import type { CitedPage, MonitoringQuestion, SourceDomain, TrendMode, VisibilityTab } from '../../../data/visibility-monitoring-data'
+import type { MarketTrend, QuestionHit } from '../../../api/monitoring'
+import type { CitedPage, MonitoringQuestion, SourceDomain, TrendMode, TrendSeries, VisibilityTab } from '../../../data/visibility-monitoring-data'
 import { computed, shallowRef, watch } from 'vue'
 import { referenceMonitoringResults as data } from '../../../data/reference-monitoring-results'
 import QuestionDetailDrawer from '../questions/QuestionDetailDrawer.vue'
@@ -9,7 +9,34 @@ import SourceDetailDrawer from '../sources/SourceDetailDrawer.vue'
 import SourceDomainTracking from '../sources/SourceDomainTracking.vue'
 import BrandMentionAnalysis from './BrandMentionAnalysis.vue'
 
-const props = defineProps<{ activeTab: VisibilityTab, questionHits?: readonly QuestionHit[], hideQuestionComparison?: boolean }>()
+const props = defineProps<{ activeTab: VisibilityTab, questionHits?: readonly QuestionHit[], hideQuestionComparison?: boolean, marketTrend?: MarketTrend | null }>()
+const chartRounds = computed(() => [...(props.marketTrend?.rounds ?? [])].reverse().filter(round => round.monitorDate > '2026-09-18'))
+const chartWeeks = computed(() => [...data.weeks, ...chartRounds.value.map(round => round.monitorDate.slice(5).replace('-', '/'))].slice(-12))
+const chartBaselines = computed(() => (chartRounds.value.some(round => round.questionBaseline || round.brandBaseline || round.citationBaseline)
+  ? chartRounds.value.filter(round => round.questionBaseline || round.brandBaseline || round.citationBaseline)
+  : chartRounds.value.slice(-1)).filter(round => chartWeeks.value.includes(round.monitorDate.slice(5).replace('-', '/'))).map(round => ({
+  date: round.monitorDate.slice(5).replace('-', '/'),
+  roundNo: round.roundNo,
+  question: !!round.questionBaseline,
+  brand: !!round.brandBaseline,
+  citation: !!round.citationBaseline,
+})))
+function extendSeries(series: readonly TrendSeries[], mode: 'overall' | 'competitor' | 'other'): TrendSeries[] {
+  const count = chartRounds.value.length
+  const own = props.marketTrend?.series.find(item => item.brandType === 1)
+  return series.map((item) => {
+    const brand = mode === 'overall' ? own : mode === 'competitor' ? props.marketTrend?.series.find(candidate => candidate.brandName === item.label) : null
+    const extra = chartRounds.value.map((round) => {
+      const index = props.marketTrend?.rounds.findIndex(candidate => candidate.roundId === round.roundId) ?? -1
+      return brand?.points[index]?.mentionRate ?? null
+    })
+    return { ...item, values: [...item.values, ...(mode === 'other' ? Array<number | null>(count).fill(null) : extra)].slice(-12) }
+  })
+}
+const overallSeries = computed(() => extendSeries(data.overallSeries, 'overall'))
+const competitorSeries = computed(() => extendSeries(data.trendSeries, 'competitor'))
+const engineSeries = computed(() => extendSeries(data.engineSeries, 'other'))
+const personaSeries = computed(() => extendSeries(data.personaSeries, 'other'))
 const questions = computed<readonly MonitoringQuestion[]>(() => props.questionHits?.map((hit) => {
   const reference = data.relatedQuestions.find(question => question.question === hit.questionContent)
   return {
@@ -53,8 +80,8 @@ watch(() => props.activeTab, () => {
     <BrandMentionAnalysis
       v-if="activeTab === 'brand'"
       v-model="trendMode"
-      :weeks="data.weeks" :overall-series="data.overallSeries" :series="data.trendSeries"
-      :engine-series="data.engineSeries" :persona-series="data.personaSeries"
+      :weeks="chartWeeks" :overall-series="overallSeries" :series="competitorSeries" :baselines="chartBaselines"
+      :engine-series="engineSeries" :persona-series="personaSeries"
       :competitors="data.competitors" :personas="data.personas" :topics="data.topics" :intents="data.intents"
       :topic-cells="data.topicCells" :intent-cells="data.intentCells"
     />

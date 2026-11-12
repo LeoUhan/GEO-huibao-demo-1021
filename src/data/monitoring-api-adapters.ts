@@ -10,6 +10,7 @@ export interface OverviewTrendSeries {
 export interface OverviewTrend {
   weeks: string[]
   series: OverviewTrendSeries[]
+  baselines?: Array<{ date: string, roundNo: number, question: boolean, brand: boolean, citation: boolean }>
 }
 
 const metricSeries = [
@@ -24,13 +25,16 @@ export function toOverviewTrend(trend: MarketTrend): OverviewTrend {
   if (!ownBrand || trend.rounds.length === 0)
     return { weeks: [], series: [] }
 
+  const chronological = trend.rounds.map((round, index) => ({ round, point: ownBrand.points[index] }))
+    .sort((left, right) => left.round.monitorDate.localeCompare(right.round.monitorDate) || left.round.roundNo - right.round.roundNo)
+
   return {
-    weeks: trend.rounds.map(round => round.monitorDate),
+    weeks: chronological.map(item => item.round.monitorDate),
+    baselines: (chronological.some(item => item.round.questionBaseline || item.round.brandBaseline || item.round.citationBaseline)
+      ? chronological.filter(item => item.round.questionBaseline || item.round.brandBaseline || item.round.citationBaseline)
+      : chronological.slice(-1)).map(({ round }) => ({ date: round.monitorDate, roundNo: round.roundNo, question: !!round.questionBaseline, brand: !!round.brandBaseline, citation: !!round.citationBaseline })),
     series: metricSeries.map((metric) => {
-      const values = trend.rounds.map((_, index) => {
-        const point = ownBrand.points[index]
-        return point ? point[metric.key] : null
-      })
+      const values = chronological.map(({ point }) => point ? point[metric.key] : null)
       return { id: metric.id, label: metric.label, color: metric.color, values }
     }),
   }

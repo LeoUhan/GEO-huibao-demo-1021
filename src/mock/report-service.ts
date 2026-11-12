@@ -32,7 +32,9 @@ export async function getReportQuota(_siteId: string): Promise<ReportQuotaRespon
 }
 export async function generateLatestReport(_request: GenerateLatestReportRequest): Promise<GenerateLatestReportResponse> {
   const state = readMockState()
-  const result = createDemoReport(state.reports.items, state.reports.quota)
+  const latestRound = state.monitoring.rounds.find(round => (round.marketId ?? state.config.activeMarketId) === state.config.activeMarketId)
+  const snapshotRoundId = latestRound ? latestRound.apiId ?? Number(latestRound.date.replaceAll('-', '')) : undefined
+  const result = createDemoReport(state.reports.items, state.reports.quota, new Date(), snapshotRoundId)
   if (!result.report)
     throw new Error('本月报告额度已用完')
   updateMockState((draft) => {

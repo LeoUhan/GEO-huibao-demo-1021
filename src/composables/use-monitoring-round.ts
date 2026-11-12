@@ -1,6 +1,6 @@
-import type { BrandMetric, PageResult, PersonaMetric, PlatformMetric, QuestionHit, RoundDetail, RoundSummary, SourceDomainMetric, SourcePageMetric } from '../api/monitoring'
+import type { BrandMetric, MarketTrend, PageResult, PersonaMetric, PlatformMetric, QuestionHit, RoundDetail, RoundSummary, SourceDomainMetric, SourcePageMetric } from '../api/monitoring'
 import { computed, ref, shallowRef } from 'vue'
-import { getBrandMetrics, getPersonaMetrics, getPlatformMetrics, getQuestionHits, getRoundDetail, getRounds, getSourceDomains, getSourcePages } from '../api/monitoring'
+import { getBrandMetrics, getMarketTrend, getPersonaMetrics, getPlatformMetrics, getQuestionHits, getRoundDetail, getRounds, getSourceDomains, getSourcePages } from '../api/monitoring'
 
 export interface CumulativeSamplingSummary {
   executedCount: number
@@ -14,6 +14,7 @@ export interface CumulativeSamplingSummary {
 
 export function useMonitoringRound() {
   const round = shallowRef<RoundSummary | null>(null)
+  const marketTrend = shallowRef<MarketTrend | null>(null)
   const detail = shallowRef<RoundDetail | null>(null)
   const brandMetrics = shallowRef<BrandMetric[]>([])
   const platformMetrics = shallowRef<PlatformMetric[]>([])
@@ -28,6 +29,7 @@ export function useMonitoringRound() {
 
   function clearSnapshot() {
     round.value = null
+    marketTrend.value = null
     detail.value = null
     brandMetrics.value = []
     platformMetrics.value = []
@@ -55,7 +57,7 @@ export function useMonitoringRound() {
       }
 
       round.value = latestRound
-      const [roundDetail, brands, platforms, personas, questions, domains, pages] = await Promise.all([
+      const [roundDetail, brands, platforms, personas, questions, domains, pages, trend] = await Promise.all([
         getRoundDetail(latestRound.id),
         getBrandMetrics(latestRound.id),
         getPlatformMetrics(latestRound.id),
@@ -63,8 +65,10 @@ export function useMonitoringRound() {
         getQuestionHits(latestRound.id),
         getSourceDomains(latestRound.id, 1, 50),
         getSourcePages(latestRound.id, 1, 50),
+        getMarketTrend(12),
       ])
       detail.value = roundDetail
+      marketTrend.value = trend
       const historicalDetails = await Promise.allSettled(allRounds.map(item => item.id === latestRound.id ? Promise.resolve(roundDetail) : getRoundDetail(item.id)))
       const complete = historicalDetails.every(result => result.status === 'fulfilled')
       if (complete) {
@@ -99,5 +103,5 @@ export function useMonitoringRound() {
     }
   }
 
-  return { round, detail, brandMetrics, platformMetrics, personaMetrics, questionHits, sourceDomains, sourcePages, cumulativeSampling, loading, error, empty, load }
+  return { round, marketTrend, detail, brandMetrics, platformMetrics, personaMetrics, questionHits, sourceDomains, sourcePages, cumulativeSampling, loading, error, empty, load }
 }

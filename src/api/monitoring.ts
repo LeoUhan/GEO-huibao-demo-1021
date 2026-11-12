@@ -72,6 +72,9 @@ export interface TrendRound {
   roundNo: number
   monitorDate: string
   isComparablePrev: number | null
+  questionBaseline?: boolean
+  brandBaseline?: boolean
+  citationBaseline?: boolean
 }
 
 export interface TrendPoint {

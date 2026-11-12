@@ -2,7 +2,10 @@
 import type { ReportType } from '../data/report-center-data'
 import { computed, shallowRef, watch } from 'vue'
 import { useRoute } from 'vue-router'
+import { getMarketTrend, getRoundDetail } from '../api/monitoring'
 import ReportDetailDocument from '../components/report-center/ReportDetailDocument.vue'
+import { buildReportBaselineContext } from '../data/report-baseline-context'
+import { enhanceReportHtml } from '../data/report-baseline-enhancement'
 import { getReportDetailData } from '../data/report-detail-data'
 import { findMockReportById } from '../mock/report-service'
 
@@ -17,6 +20,7 @@ const route = useRoute()
 const report = shallowRef<ReturnType<typeof getReportDetailData>>(null)
 const prototypeType = shallowRef<ReportType | null>(null)
 const prototypeHtml = shallowRef('')
+const baselineContext = shallowRef<ReturnType<typeof buildReportBaselineContext>>(null)
 const loading = shallowRef(false)
 const error = shallowRef('')
 const backHref = computed(() => {
@@ -28,17 +32,20 @@ const backHref = computed(() => {
   return `${import.meta.env.BASE_URL}?${query}`
 })
 // A bare fragment in srcdoc resolves against the parent page's URL.
-const prototypeDocument = computed(() => prototypeHtml.value
+const prototypeDocument = computed(() => enhanceReportHtml(prototypeHtml.value, baselineContext.value)
   .replace('href="../report-center"', () => `href="${backHref.value.replaceAll('&', '&amp;')}"`)
   .replaceAll('href="#', 'href="about:srcdoc#'))
 
 watch(() => String(route.params.reportId ?? ''), async (reportId, _, onCleanup) => {
   let current = true
-  onCleanup(() => { current = false })
+  onCleanup(() => {
+    current = false
+  })
   error.value = ''
   report.value = null
   prototypeType.value = null
   prototypeHtml.value = ''
+  baselineContext.value = null
   loading.value = false
 
   const record = findMockReportById(reportId)
@@ -49,10 +56,14 @@ watch(() => String(route.params.reportId ?? ''), async (reportId, _, onCleanup) 
 
   loading.value = true
   try {
-    const { default: html } = await prototypeLoaders[record.type]()
+    const [{ default: html }, trend] = await Promise.all([prototypeLoaders[record.type](), getMarketTrend(100)])
+    const snapshotIndex = record.monitoringRoundId == null ? 0 : trend.rounds.findIndex(round => round.roundId === record.monitoringRoundId)
+    const candidateRounds = trend.rounds.slice(Math.max(0, snapshotIndex)).filter(round => round.monitorDate <= record.date)
+    const details = await Promise.all(candidateRounds.map(round => getRoundDetail(round.roundId)))
     if (current) {
       prototypeHtml.value = html
       prototypeType.value = record.type
+      baselineContext.value = buildReportBaselineContext(record, { ...trend, rounds: candidateRounds, series: trend.series.map(series => ({ ...series, points: series.points.slice(Math.max(0, snapshotIndex)) })) }, new Map(details.map(detail => [detail.id, detail])))
     }
   }
   catch {

@@ -390,6 +390,7 @@ async function launchManualRound() {
         v-else-if="monitoringRound.round.value"
         :key="geoContext.marketId ?? 'default'"
         :active-tab="activeTab"
+        :market-trend="monitoringRound.marketTrend.value"
         :question-hits="monitoringRound.round.value.questionBaseline === undefined ? undefined : monitoringRound.questionHits.value"
         :hide-question-comparison="monitoringRound.round.value.questionBaseline || monitoringRound.round.value.brandBaseline"
       />

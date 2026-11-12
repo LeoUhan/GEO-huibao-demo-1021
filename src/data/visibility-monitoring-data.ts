@@ -8,7 +8,7 @@ export interface TrendSeries {
   id: string
   label: string
   color: string
-  values: number[]
+  values: Array<number | null>
 }
 
 export interface HeatmapCell {

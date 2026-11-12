@@ -8,6 +8,7 @@ export interface ReportSection {
 
 export interface ReportRecord {
   id: string
+  monitoringRoundId?: number
   type: ReportType
   title: string
   period: string
@@ -115,13 +116,14 @@ export function filterReports(reports: readonly ReportRecord[], type: ReportFilt
     .sort((left, right) => right.date.localeCompare(left.date))
 }
 
-export function createDemoReport(reports: readonly ReportRecord[], quota: number, now = new Date()) {
+export function createDemoReport(reports: readonly ReportRecord[], quota: number, now = new Date(), monitoringRoundId?: number) {
   if (quota <= 0)
     return { reports: [...reports], quota: 0, report: null }
 
   const date = [now.getFullYear(), String(now.getMonth() + 1).padStart(2, '0'), String(now.getDate()).padStart(2, '0')].join('-')
   const report: ReportRecord = {
     id: `adhoc-${date}-demo`,
+    monitoringRoundId,
     type: 'adhoc',
     title: '最新监测次报',
     period: '最新监测周期 · 演示生成',

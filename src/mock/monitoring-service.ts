@@ -47,10 +47,13 @@ function responseRows(round: RoundSummary): RoundResponseRecord[] {
   const platforms = config.platforms.filter(item => item.enabled)
   return config.questions.map((question, index) => ({ id: round.id * 1000 + index + 1, roundId: round.id, questionId: question.id, personaId: question.personaId, platform: platforms[index % platforms.length]?.platform ?? 'ChatGPT', collectStatus: 1, failReason: null, isMentioned: index % 3 === 0 ? 1 : 0, repeatNo: 1, collectChannel: 1, collectTime: `${round.monitorDate}T05:10:00` }))
 }
+function trendRate(base: number, roundNo: number, step: number): number {
+  return Math.max(0, Math.min(100, base + (roundNo - 3) * step))
+}
 export async function getMarketTrend(limit?: number): Promise<MarketTrend> {
   const rounds = summaries().slice(0, limit ?? 5)
-  const series = visibilityMonitoringData.competitors.map((brand, index) => ({ brandType: brand.ownBrand ? 1 : 2, brandId: index + 1, brandName: brand.name, points: rounds.map((_round, roundIndex) => ({ mentionRate: Math.max(0, brand.mentionRate - roundIndex * 2), recommendRate: Math.max(0, brand.recommendationRate - roundIndex), citationRate: ('officialCitationRate' in brand ? brand.officialCitationRate : 0), sovRate: brand.mentionRate })) }))
-  return { rounds: rounds.map(item => ({ roundId: item.id, roundNo: item.roundNo, monitorDate: item.monitorDate, isComparablePrev: item.questionBaseline ? 0 : 1 })), series }
+  const series = visibilityMonitoringData.competitors.map((brand, index) => ({ brandType: brand.ownBrand ? 1 : 2, brandId: index + 1, brandName: brand.name, points: rounds.map(round => ({ mentionRate: trendRate(brand.mentionRate, round.roundNo, 2), recommendRate: trendRate(brand.recommendationRate, round.roundNo, 1), citationRate: ('officialCitationRate' in brand ? brand.officialCitationRate : 0), sovRate: trendRate(brand.mentionRate, round.roundNo, 2) })) }))
+  return { rounds: rounds.map(item => ({ roundId: item.id, roundNo: item.roundNo, monitorDate: item.monitorDate, isComparablePrev: item.questionBaseline || item.brandBaseline || item.citationBaseline ? 0 : 1, questionBaseline: item.questionBaseline, brandBaseline: item.brandBaseline, citationBaseline: item.citationBaseline })), series }
 }
 export async function getRounds(params: { pageNum?: number, pageSize?: number, triggerType?: number } = {}): Promise<PageResult<RoundSummary>> { return page(summaries(), params.pageNum ?? 1, params.pageSize ?? 10) }
 export async function getRoundDetail(id: number): Promise<RoundDetail> { return clone(detailFor(id)) }
@@ -75,7 +78,8 @@ export async function getResponseDetail(id: number): Promise<RoundResponseDetail
 }
 export async function getBrandMetrics(id: number): Promise<BrandMetric[]> {
   const config = configurationFor(id)
-  return visibilityMonitoringData.competitors.map((brand, index) => ({ brandType: brand.ownBrand ? 1 : 2, brandId: index + 1, brandName: brand.ownBrand ? config.brand.brandName : brand.name, validAnswerCount: 1169, mentionedAnswerCount: Math.round(1169 * brand.mentionRate / 100), mentionTotalCount: 1169, mentionRate: brand.mentionRate, recommendRate: brand.recommendationRate, citationRate: ('officialCitationRate' in brand ? brand.officialCitationRate : 0), sovRate: brand.mentionRate, avgRank: brand.rank, top1Rate: brand.rank === 1 ? 100 : 0, top3Rate: brand.rank <= 3 ? 100 : 0, top5Rate: 100, factAccuracyRate: 96, sentimentPositiveCount: 35, sentimentNeutralCount: 20, sentimentNegativeCount: 2 }))
+  const roundNo = summaries().find(round => round.id === id)?.roundNo ?? 3
+  return visibilityMonitoringData.competitors.map((brand, index) => ({ brandType: brand.ownBrand ? 1 : 2, brandId: index + 1, brandName: brand.ownBrand ? config.brand.brandName : brand.name, validAnswerCount: 1169, mentionedAnswerCount: Math.round(1169 * trendRate(brand.mentionRate, roundNo, 2) / 100), mentionTotalCount: 1169, mentionRate: trendRate(brand.mentionRate, roundNo, 2), recommendRate: trendRate(brand.recommendationRate, roundNo, 1), citationRate: ('officialCitationRate' in brand ? brand.officialCitationRate : 0), sovRate: trendRate(brand.mentionRate, roundNo, 2), avgRank: brand.rank, top1Rate: brand.rank === 1 ? 100 : 0, top3Rate: brand.rank <= 3 ? 100 : 0, top5Rate: 100, factAccuracyRate: 96, sentimentPositiveCount: 35, sentimentNeutralCount: 20, sentimentNegativeCount: 2 }))
 }
 export async function getPlatformMetrics(id: number): Promise<PlatformMetric[]> {
   const round = summaries().find(item => item.id === id)

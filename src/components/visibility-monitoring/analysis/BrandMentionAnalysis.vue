@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import type { BaselineEvent } from '../../../data/baseline-events'
 import type { HeatmapCell, TrendMode, TrendSeries } from '../../../data/visibility-monitoring-data'
 import { computed } from 'vue'
 import MetricDefinitionButton from '../../overview/MetricDefinitionButton.vue'
@@ -7,6 +8,7 @@ import MonitoringEChart from './MonitoringEChart.vue'
 
 const props = defineProps<{
   weeks: readonly string[]
+  baselines?: readonly BaselineEvent[]
   overallSeries: readonly TrendSeries[]
   series: readonly TrendSeries[]
   engineSeries: readonly TrendSeries[]
@@ -41,7 +43,7 @@ const filters: Array<{ id: TrendMode, label: string }> = [
   <div class="visibility-analysis">
     <section class="vm-card">
       <div class="vm-section-head">
-        <div><h2>变化趋势 <MetricDefinitionButton id="soa" /></h2><p>展示 12 周品牌提及率（SOA）变化。</p></div>
+        <div><h2>变化趋势 <MetricDefinitionButton id="soa" /></h2><p>展示近12轮品牌提及率变化</p></div>
         <div class="vm-segment" role="group" aria-label="趋势维度">
           <button v-for="filter in filters" :key="filter.id" type="button" :aria-pressed="mode === filter.id" :class="{ 'is-active': mode === filter.id }" @click="mode = filter.id">
             {{ filter.label }}

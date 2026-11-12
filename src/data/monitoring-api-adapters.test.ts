@@ -27,6 +27,7 @@ describe('monitoring API adapters', () => {
 
     expect(toOverviewTrend(trend)).toEqual({
       weeks: ['2026-10-01', '2026-10-08'],
+      baselines: [],
       series: [
         { id: 'soa', label: '品牌提及率（SOA）', color: '#2563eb', values: [35, 42] },
         { id: 'recommendation', label: '品牌推荐率', color: '#059669', values: [null, 28] },
