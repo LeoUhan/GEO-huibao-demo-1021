@@ -13,7 +13,6 @@ export type NotificationType =
   | 'report.quarterly'
   | 'report.partial'
   | 'report.failed'
-  | 'todo'
 export type NotificationAction = { label: string, route: string, params?: Record<string, string>, query?: Record<string, string> }
 export type CollectionMessage = {
   id: string
@@ -26,8 +25,6 @@ export type CollectionMessage = {
   createdAt: number
   read: boolean
   action: NotificationAction
-  todoStatus?: 'pending' | 'completed'
-  todoCount?: number
 }
 
 type ProcessingState = { startedAt: number, completed: number }
@@ -50,8 +47,8 @@ function readState(): ProcessingState | null {
 function normalizeMessage(value: unknown, index: number): CollectionMessage | null {
   if (!value || typeof value !== 'object')
     return null
-  const message = value as Partial<CollectionMessage> & { route?: string, title?: string, id?: string | number, createdAt?: number, read?: boolean, todoItems?: { completed?: boolean }[] }
-  if (!message.title || (!message.action?.route && !message.route))
+  const message = value as Partial<Omit<CollectionMessage, 'type'>> & { type?: NotificationType | 'todo', route?: string, title?: string, id?: string | number, createdAt?: number, read?: boolean }
+  if (!message.title || message.type === 'todo' || (!message.action?.route && !message.route))
     return null
   const id = String(message.id ?? `legacy-${index}`)
   return {
@@ -65,8 +62,6 @@ function normalizeMessage(value: unknown, index: number): CollectionMessage | nu
     createdAt: message.createdAt ?? Date.now(),
     read: Boolean(message.read),
     action: message.action ?? { label: '查看详情', route: message.route ?? 'overview' },
-    todoStatus: message.todoStatus,
-    todoCount: message.todoCount ?? message.todoItems?.filter(item => !item.completed).length,
   }
 }
 
@@ -102,15 +97,6 @@ function upsertMessage(next: CollectionMessage) {
     const existing = messages.value[existingIndex]
     const updated = [...messages.value]
     const merged = { ...existing, ...next, id: existing.id, createdAt: existing.createdAt, read: existing.read }
-    if (existing.type === 'todo' && next.type === 'todo' && existing.todoStatus) {
-      merged.todoStatus = existing.todoStatus
-      merged.todoCount = existing.todoCount
-      if (existing.todoStatus === 'completed') {
-        merged.title = existing.title
-        merged.body = existing.body
-        merged.action = existing.action
-      }
-    }
     updated[existingIndex] = merged
     messages.value = updated
   }
@@ -121,7 +107,7 @@ function markMessageRead(id: string) {
   persistMessages()
 }
 function clearReadMessages() {
-  messages.value = messages.value.filter(message => !message.read || message.todoStatus === 'pending')
+  messages.value = messages.value.filter(message => !message.read)
   persistMessages()
 }
 function demoMessage(input: Omit<CollectionMessage, 'id' | 'createdAt' | 'read'>): CollectionMessage {
@@ -143,35 +129,6 @@ export function loadNotificationExamples() {
     demoMessage({ businessKey: 'demo:report:failed:us:2026-q3', batchId: 'report-quarterly-us-2026-q3', type: 'report.failed', category: '报告生成失败', title: '美国·英语·2026年第三季度季报生成失败', body: '该报告暂不可查看。报告数据生成超时，系统自动重试后仍未成功，点击查看处理状态。', action: { label: '查看处理状态', route: 'report-center', query: { marketId: '3', taskId: 'report-quarterly-us-2026-q3' } } }),
   ]
   examples.forEach(upsertMessage)
-  const todoKey = 'demo:todo:de:batch-2026-11-06-a'
-  upsertMessage(demoMessage({
-    businessKey: todoKey,
-    batchId: 'todo-batch-2026-11-06-a',
-    type: 'todo',
-    category: '待用户处理',
-    title: '有 3 项 GEO 内容待处理',
-    body: '德国·德语市场有 3 条优化策略待审核，审核后可继续进入优化执行。',
-    action: { label: '处理策略', route: 'diagnosis', query: { marketId: '2', batchId: 'todo-batch-2026-11-06-a' } },
-    todoStatus: 'pending',
-    todoCount: 3,
-  }))
-}
-
-export function createPendingTodoBatch() {
-  const nextNumber = messages.value.filter(message => message.type === 'todo').length + 1
-  const batchId = `todo-batch-demo-${Date.now()}`
-  const marketLabel = nextNumber % 2 ? '德国·德语' : '美国·英语'
-  upsertMessage(demoMessage({
-    businessKey: `demo:todo:${batchId}`,
-    batchId,
-    type: 'todo',
-    category: '待用户处理',
-    title: '有 2 项 GEO 内容待处理',
-    body: `${marketLabel}市场有 2 条优化策略待审核，处理后可继续完成配置。`,
-    action: { label: '处理策略', route: 'diagnosis', query: { marketId: nextNumber % 2 ? '2' : '3', batchId } },
-    todoStatus: 'pending',
-    todoCount: 2,
-  }))
 }
 
 function addWorkflowMessage(page: ProcessingPage, startedAt: number) {
@@ -201,8 +158,7 @@ export function updateDataProcessing(): ProcessingPage[] {
 export function useDataProcessing() {
   const completed = computed(() => state.value?.completed ?? processingPages.length)
   const running = computed(() => !!state.value && completed.value < processingPages.length)
-  const pendingTodoCount = computed(() => messages.value.filter(message => message.type === 'todo' && message.todoStatus === 'pending').reduce((total, message) => total + (message.todoCount ?? 0), 0))
   const isReady = (page: ProcessingPage) => computed(() => completed.value > processingPages.indexOf(page))
   const isCollecting = (page: ProcessingPage) => computed(() => page !== 'report-center' && !!state.value && !isReady(page).value)
-  return { hasRun: computed(() => state.value !== null), completed, running, isReady, isCollecting, labels: processingLabels, start: startDataProcessing, messages, unreadCount: computed(() => messages.value.filter(message => !message.read).length), pendingTodoCount, markMessageRead, clearReadMessages, loadNotificationExamples, createPendingTodoBatch }
+  return { hasRun: computed(() => state.value !== null), completed, running, isReady, isCollecting, labels: processingLabels, start: startDataProcessing, messages, unreadCount: computed(() => messages.value.filter(message => !message.read).length), markMessageRead, clearReadMessages, loadNotificationExamples }
 }
