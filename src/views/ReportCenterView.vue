@@ -70,7 +70,7 @@ const visibleReports = computed(() => {
 })
 const visibleCounts = computed(() => ({ ...counts.value, all: counts.value.all + marketExpertReports.value.length + Number(!!pendingReport.value), adhoc: counts.value.adhoc + Number(!!pendingReport.value), expert: marketExpertReports.value.length }))
 const visibleTotal = computed(() => reportFilter.value === 'expert' ? marketExpertReports.value.length : total.value + (reportFilter.value === 'all' ? marketExpertReports.value.length + Number(!!pendingReport.value) : reportFilter.value === 'adhoc' ? Number(!!pendingReport.value) : 0))
-const canUploadExpert = computed(() => role.value === 'ops' && marketId.value === 1)
+const canUploadExpert = computed(() => role.value === 'ops' && Boolean(marketId.value))
 const deliveredMonths = computed(() => expertReports.value.filter(report => report.expert?.marketId === marketId.value && report.expert.delivery === 'delivered').map(report => report.expert!.month))
 const canGenerate = computed(() => Boolean(
   siteId.value
@@ -329,9 +329,22 @@ function changeFilter(filter: ReportFilter) {
 }
 
 watch([role, marketId], () => {
+  // Seeded reports are prototype fixtures. Bind them to the first active market
+  // so the operator flow remains demonstrable regardless of the API's market IDs.
+  if (role.value === 'ops' && marketId.value && !expertReports.value.some(report => report.expert?.marketId === marketId.value)) {
+    const onlySeedReports = expertReports.value.length > 0 && expertReports.value.every(report => report.id.startsWith('expert-demo-'))
+    if (onlySeedReports) {
+      const scopedReports = expertReports.value.map(report => ({
+        ...report,
+        expert: report.expert ? { ...report.expert, marketId: marketId.value! } : undefined,
+      }))
+      saveExpertReports(scopedReports)
+      expertReports.value = scopedReports
+    }
+  }
   if (reportFilter.value === 'expert' && !marketExpertReports.value.length)
     reportFilter.value = 'all'
-})
+}, { immediate: true })
 </script>
 
 <template>
