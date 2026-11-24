@@ -1,13 +1,18 @@
 <script setup lang="ts">
 import type { ReportFilter, ReportRecord } from '../data/report-center-data'
-import { computed, onBeforeUnmount, onMounted, shallowRef, watch } from 'vue'
+import { computed, inject, onBeforeUnmount, onMounted, shallowRef, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { generateLatestReport, getReportList, getReportQuota } from '../api/reports'
+import ExpertReportDialog from '../components/report-center/ExpertReportDialog.vue'
+import ExpertReportPreview from '../components/report-center/ExpertReportPreview.vue'
 import GenerateLatestReportDialog from '../components/report-center/GenerateLatestReportDialog.vue'
 import LatestReportCard from '../components/report-center/LatestReportCard.vue'
 import ReportListPanel from '../components/report-center/ReportListPanel.vue'
 import Toast from '../components/ui/ce/toast/Toast.vue'
 import GeoPageIntro from '../components/workbench/shared/GeoPageIntro.vue'
+import { useServerMarkets } from '../composables/use-server-markets'
+import { geoWorkbenchRouteContextKey } from '../composables/workbench-route-context'
+import { expertReportName, expertSummaryDefault, getExpertQuota, loadExpertReports, saveExpertFile, saveExpertReports, setExpertQuota } from '../data/expert-report-demo'
 import { mapReportListItem } from '../data/report-api-adapters'
 import { getDemoUserInfo } from '../mock/demo-user'
 import { updateMockState } from '../mock/repository'
@@ -15,6 +20,19 @@ import { useGeoContextStore } from '../stores/geo-context'
 
 const route = useRoute()
 const geoContext = useGeoContextStore()
+const workbench = inject(geoWorkbenchRouteContextKey, null)
+const markets = useServerMarkets()
+const role = computed(() => workbench?.role.value ?? 'ops')
+const expertReports = shallowRef<ReportRecord[]>(loadExpertReports())
+const expertQuota = shallowRef(getExpertQuota())
+const expertDialogOpen = shallowRef(false)
+const editingExpert = shallowRef<ReportRecord | null>(null)
+const previewExpert = shallowRef<ReportRecord | null>(null)
+const expertError = shallowRef('')
+const scope = computed(() => {
+  const market = markets.activeMarket.value
+  return market ? `APW Waterjet · ${market.country} / ${market.language}` : 'APW Waterjet · 德国 / 德语'
+})
 const reports = shallowRef<ReturnType<typeof mapReportListItem>[]>([])
 const remainingQuota = shallowRef<number | null>(null)
 const quotaTotal = shallowRef(0)
@@ -24,7 +42,7 @@ const reportFilter = shallowRef<ReportFilter>('all')
 const pageNum = shallowRef(1)
 const pageSize = 10
 const total = shallowRef(0)
-const counts = shallowRef({ all: 0, weekly: 0, monthly: 0, quarterly: 0, adhoc: 0 })
+const counts = shallowRef({ all: 0, weekly: 0, monthly: 0, quarterly: 0, adhoc: 0, expert: 0 })
 const loading = shallowRef(false)
 const listError = shallowRef('')
 const generationDialogOpen = shallowRef(false)
@@ -39,14 +57,21 @@ const toastMessageId = shallowRef(0)
 const toastVariant = shallowRef<'success' | 'warning' | 'error'>('success')
 const userInfo = shallowRef(getDemoUserInfo())
 const authReady = shallowRef(true)
-const latestReport = computed(() => reports.value.find(report => report.type === 'adhoc') ?? reports.value[0] ?? null)
-const visibleReports = computed(() => pendingReport.value && pageNum.value === 1 && (reportFilter.value === 'all' || reportFilter.value === 'adhoc')
-  ? [pendingReport.value, ...reports.value].slice(0, pageSize)
-  : reports.value)
-const visibleCounts = computed(() => ({ ...counts.value, all: counts.value.all + Number(!!pendingReport.value), adhoc: counts.value.adhoc + Number(!!pendingReport.value) }))
-const visibleTotal = computed(() => total.value + Number(!!pendingReport.value && (reportFilter.value === 'all' || reportFilter.value === 'adhoc')))
 const siteId = computed(() => parseSiteId(userInfo.value?.siteId))
 const marketId = computed(() => parseMarketId(route.query.marketId) ?? geoContext.marketId)
+const marketExpertReports = computed(() => expertReports.value.filter(report => report.expert?.marketId === marketId.value && (role.value === 'ops' || report.expert.delivery === 'delivered')))
+const latestReport = computed(() => reports.value.find(report => report.type === 'adhoc') ?? reports.value[0] ?? null)
+const visibleReports = computed(() => {
+  if (reportFilter.value === 'expert')
+    return [...marketExpertReports.value].sort((a, b) => b.date.localeCompare(a.date)).slice((pageNum.value - 1) * pageSize, pageNum.value * pageSize)
+  if (reportFilter.value === 'all')
+    return [...marketExpertReports.value, ...(pendingReport.value ? [pendingReport.value] : []), ...reports.value].sort((a, b) => b.date.localeCompare(a.date)).slice((pageNum.value - 1) * pageSize, pageNum.value * pageSize)
+  return pendingReport.value && pageNum.value === 1 && reportFilter.value === 'adhoc' ? [pendingReport.value, ...reports.value].slice(0, pageSize) : reports.value
+})
+const visibleCounts = computed(() => ({ ...counts.value, all: counts.value.all + marketExpertReports.value.length + Number(!!pendingReport.value), adhoc: counts.value.adhoc + Number(!!pendingReport.value), expert: marketExpertReports.value.length }))
+const visibleTotal = computed(() => reportFilter.value === 'expert' ? marketExpertReports.value.length : total.value + (reportFilter.value === 'all' ? marketExpertReports.value.length + Number(!!pendingReport.value) : reportFilter.value === 'adhoc' ? Number(!!pendingReport.value) : 0))
+const canUploadExpert = computed(() => role.value === 'ops' && marketId.value === 1)
+const deliveredMonths = computed(() => expertReports.value.filter(report => report.expert?.marketId === marketId.value && report.expert.delivery === 'delivered').map(report => report.expert!.month))
 const canGenerate = computed(() => Boolean(
   siteId.value
   && marketId.value
@@ -83,9 +108,9 @@ async function refreshReports() {
   listError.value = ''
   try {
     const result = await getReportList({
-      pageNum: nextPage,
-      pageSize,
-      reportType: reportFilter.value === 'adhoc' ? 'latest' : reportFilter.value,
+      pageNum: reportFilter.value === 'all' || reportFilter.value === 'expert' ? 1 : nextPage,
+      pageSize: reportFilter.value === 'all' || reportFilter.value === 'expert' ? 100 : pageSize,
+      reportType: reportFilter.value === 'adhoc' ? 'latest' : reportFilter.value === 'expert' ? 'all' : reportFilter.value,
     })
     if (requestId !== listRequestId)
       return
@@ -97,6 +122,7 @@ async function refreshReports() {
       monthly: result.counts.monthly,
       quarterly: result.counts.quarterly,
       adhoc: result.counts.latest,
+      expert: 0,
     }
   }
   catch (error) {
@@ -144,6 +170,7 @@ async function refreshQuota() {
 watch(siteId, () => void refreshQuota(), { immediate: true })
 
 onMounted(() => {
+  void markets.load()
   if (route.query.resetReportQuota !== '1')
     return
   updateMockState((draft) => {
@@ -223,6 +250,74 @@ function closeToast() {
   toastOpen.value = false
 }
 
+interface ExpertInput { id?: string, month: string, name: string, summary: string, file: File | null, fileName: string, format: 'html' | 'pdf' | null }
+
+function openExpert(report: ReportRecord) {
+  if (report.expert?.delivery === 'draft' && role.value === 'ops') {
+    editingExpert.value = report
+    expertError.value = ''
+    expertDialogOpen.value = true
+  }
+  else {
+    previewExpert.value = report
+  }
+}
+
+function notifyExpert(message: string) {
+  toastMessage.value = message
+  toastVariant.value = 'success'
+  toastMessageId.value += 1
+  toastOpen.value = true
+}
+
+async function persistExpert(value: ExpertInput, deliver: boolean) {
+  if (!marketId.value || role.value !== 'ops')
+    return
+  expertError.value = ''
+  if (deliver && expertQuota.value <= 0) {
+    expertError.value = '运营专家报告权益不足。'
+    return
+  }
+  if (deliver && deliveredMonths.value.includes(value.month)) {
+    expertError.value = '该月份已有已交付报告。'
+    return
+  }
+  const id = value.id ?? `expert-${marketId.value}-${value.month}-${Date.now()}`
+  try {
+    if (value.file)
+      await saveExpertFile(id, value.file)
+    const now = new Date().toISOString().slice(0, 10)
+    const item: ReportRecord = {
+      id,
+      type: 'expert',
+      title: `APW Waterjet · ${value.month.slice(0, 4)} 年 ${Number(value.month.slice(5))} 月 ${value.name || expertReportName}`,
+      period: `${value.month.slice(0, 4)} 年 ${Number(value.month.slice(5))} 月`,
+      date: now,
+      summary: deliver ? value.summary || expertSummaryDefault : '本月诊断报告尚未提交，客户暂不可见。',
+      tags: deliver ? ['月度诊断', (value.format ?? 'html').toUpperCase()] : ['待交付', ...(value.fileName ? [(value.format ?? 'html').toUpperCase()] : [])],
+      sections: [],
+      questionIds: [],
+      status: 'generated',
+      expert: { marketId: marketId.value, month: value.month, fileName: value.fileName, format: value.format ?? 'html', delivery: deliver ? 'delivered' : 'draft', deliveredAt: deliver ? now : undefined, draftSummary: deliver ? undefined : value.summary },
+    }
+    const next = [item, ...expertReports.value.filter(report => report.id !== id)]
+    saveExpertReports(next)
+    expertReports.value = next
+    if (deliver) {
+      setExpertQuota(expertQuota.value - 1)
+      expertQuota.value -= 1
+    }
+    expertDialogOpen.value = false
+    editingExpert.value = null
+    reportFilter.value = 'expert'
+    pageNum.value = 1
+    notifyExpert(deliver ? '报告已交付，客户现在可以查看。' : '草稿已保存，客户暂不可见。')
+  }
+  catch {
+    expertError.value = '保存演示文件失败，请检查浏览器存储空间后重试。'
+  }
+}
+
 onBeforeUnmount(() => {
   clearTimeout(generationTimer)
   toastOpen.value = false
@@ -232,6 +327,11 @@ function changeFilter(filter: ReportFilter) {
   reportFilter.value = filter
   pageNum.value = 1
 }
+
+watch([role, marketId], () => {
+  if (reportFilter.value === 'expert' && !marketExpertReports.value.length)
+    reportFilter.value = 'all'
+})
 </script>
 
 <template>
@@ -260,9 +360,27 @@ function changeFilter(filter: ReportFilter) {
       :error="listError"
       :site-id="siteId"
       :market-id="marketId"
+      :role="role"
+      :show-expert-filter="marketExpertReports.length > 0"
+      :can-upload-expert="canUploadExpert"
       @update:model-value="changeFilter"
       @change-page="pageNum = $event"
+      @upload-expert="editingExpert = null; expertError = ''; expertDialogOpen = true"
+      @open-expert="openExpert"
     />
+
+    <ExpertReportDialog
+      :open="expertDialogOpen"
+      :report="editingExpert"
+      :scope="scope"
+      :remaining="expertQuota"
+      :delivered-months="deliveredMonths"
+      :error="expertError"
+      @close="expertDialogOpen = false"
+      @save="persistExpert($event, false)"
+      @deliver="persistExpert($event, true)"
+    />
+    <ExpertReportPreview :report="previewExpert" @close="previewExpert = null" />
 
     <GenerateLatestReportDialog
       v-model:open="generationDialogOpen"

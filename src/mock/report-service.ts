@@ -3,7 +3,7 @@ import type { ReportRecord } from '../data/report-center-data'
 import { createDemoReport } from '../data/report-center-data'
 import { readMockState, updateMockState } from './repository'
 
-const reportTypeCode = { weekly: 1, monthly: 2, quarterly: 3, adhoc: 4 } as const
+const reportTypeCode = { weekly: 1, monthly: 2, quarterly: 3, adhoc: 4, expert: 5 } as const
 export function mockReportId(report: ReportRecord): number {
   const dateDigits = report.date.replaceAll('-', '').slice(-8)
   return Number(`${reportTypeCode[report.type]}${dateDigits}`)
@@ -13,7 +13,7 @@ export function findMockReportById(id: string | number): ReportRecord | undefine
 }
 function toListItem(report: ReportRecord): ReportListItem {
   const date = `${report.date}T00:00:00`
-  const type = report.type === 'adhoc' ? 'latest' : report.type
+  const type = report.type === 'adhoc' || report.type === 'expert' ? 'latest' : report.type
   const status = report.status === 'generated' ? 1 : report.status === 'failed' ? 2 : report.status === 'archived' ? 3 : 0
   return { reportId: mockReportId(report), reportNo: report.id, reportType: type, reportName: report.title, reportFocus: report.summary, reportTags: JSON.stringify(report.tags), periodStart: date, periodEnd: date, scopeSummary: report.scopeSummary ?? '德国 · 德语', status, empty: report.empty ?? false, createTime: date }
 }
@@ -48,5 +48,5 @@ export async function getReportDetailBundle(reportId: number): Promise<ReportDet
   if (!report)
     throw new Error('找不到这份本地演示报告')
   // The detail screen renders its local report profile directly; this empty contract keeps legacy callers local too.
-  return { detail: { header: { reportId, reportName: report.title, reportType: report.type === 'adhoc' ? 'latest' : report.type, periodStart: report.date, periodEnd: report.date, scopeSummary: report.scopeSummary ?? '德国 · 德语', monitorCadence: '每周', personaCount: 3, intentCount: 4, keywordCount: 5, questionCount: 67, platformCount: 5, status: 1, summary: report.summary }, narratives: [], trendPoints: [], ribbon: { sovRate: 31, competitorGap: { label: '与领先品牌差距', applicable: true, headCompetitor: 'Flow', ownRank: 2, mentionGap: '14pp', recommendGap: '13pp' }, soaBottom: { label: '品牌提及率', value: 42 } } }, metrics: [], platforms: [], questions: { records: [], total: 0, size: 10, current: 1, pages: 0 }, sources: {}, sourcePages: {}, evidence: { credibility: { totalSample: 1200, validSample: 1169, validReturnRate: 97.4, dualSourceRate: 91, manualReviewRate: 96, manualReviewCount: 62, repeatablePp: 3.1, overallCiPp: 2.8, personaCiJson: '{}', iabCheckJson: '{}' }, total: 0, pageNum: 1, pageSize: 10, evidences: [] }, competitors: { summaryText: '', positioning: '', bullets: [], nextPeriod: '', narrative: { compInsight: '', gapPlatform: '', gapPersonaIntent: '', gapSource: '' }, overallRanks: [], platformMatrix: [], personaIntentMatrix: [], sourceCooccurrence: [] } } as ReportDetailBundle
+  return { detail: { header: { reportId, reportName: report.title, reportType: report.type === 'adhoc' || report.type === 'expert' ? 'latest' : report.type, periodStart: report.date, periodEnd: report.date, scopeSummary: report.scopeSummary ?? '德国 · 德语', monitorCadence: '每周', personaCount: 3, intentCount: 4, keywordCount: 5, questionCount: 67, platformCount: 5, status: 1, summary: report.summary }, narratives: [], trendPoints: [], ribbon: { sovRate: 31, competitorGap: { label: '与领先品牌差距', applicable: true, headCompetitor: 'Flow', ownRank: 2, mentionGap: '14pp', recommendGap: '13pp' }, soaBottom: { label: '品牌提及率', value: 42 } } }, metrics: [], platforms: [], questions: { records: [], total: 0, size: 10, current: 1, pages: 0 }, sources: {}, sourcePages: {}, evidence: { credibility: { totalSample: 1200, validSample: 1169, validReturnRate: 97.4, dualSourceRate: 91, manualReviewRate: 96, manualReviewCount: 62, repeatablePp: 3.1, overallCiPp: 2.8, personaCiJson: '{}', iabCheckJson: '{}' }, total: 0, pageNum: 1, pageSize: 10, evidences: [] }, competitors: { summaryText: '', positioning: '', bullets: [], nextPeriod: '', narrative: { compInsight: '', gapPlatform: '', gapPersonaIntent: '', gapSource: '' }, overallRanks: [], platformMatrix: [], personaIntentMatrix: [], sourceCooccurrence: [] } } as ReportDetailBundle
 }

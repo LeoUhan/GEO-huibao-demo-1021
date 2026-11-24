@@ -1,4 +1,4 @@
-export type ReportType = 'weekly' | 'monthly' | 'quarterly' | 'adhoc'
+export type ReportType = 'weekly' | 'monthly' | 'quarterly' | 'adhoc' | 'expert'
 export type ReportFilter = 'all' | ReportType
 
 export interface ReportSection {
@@ -20,6 +20,15 @@ export interface ReportRecord {
   status: 'generated' | 'outline' | 'generating' | 'failed' | 'archived'
   empty?: boolean
   scopeSummary?: string
+  expert?: {
+    marketId: number
+    month: string
+    format: 'html' | 'pdf'
+    fileName: string
+    delivery: 'draft' | 'delivered'
+    deliveredAt?: string
+    draftSummary?: string
+  }
 }
 
 export const initialMonthlyQuota = 2

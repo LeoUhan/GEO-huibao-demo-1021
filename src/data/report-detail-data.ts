@@ -1,6 +1,8 @@
 import type { ReportType } from './report-center-data'
 import { initialReports } from './report-center-data'
 
+type GeneratedReportType = Exclude<ReportType, 'expert'>
+
 export interface ReportMetric {
   label: string
   value: string
@@ -10,7 +12,7 @@ export interface ReportMetric {
 }
 
 export interface ReportDetailProfile {
-  type: ReportType
+  type: GeneratedReportType
   label: string
   title: string
   date: string
@@ -98,7 +100,7 @@ const sharedRecommendations = [
   { title: '跟踪领先竞品的回答差距', description: '按相同问题集比较 APW 与 Flow 的平台表现，定位差距最大的意图和来源页面。', priority: 'P1', evidence: '综合竞品表现与逐题证据' },
 ]
 
-const profiles: Record<ReportType, ReportDetailProfile> = {
+const profiles: Record<GeneratedReportType, ReportDetailProfile> = {
   weekly: {
     type: 'weekly',
     label: '周报',
@@ -227,7 +229,7 @@ export function getReportDetailData(reportId: string): ReportDetailProfile | nul
   if (!Object.hasOwn(profiles, prefix))
     return null
 
-  const profile = profiles[prefix as ReportType]
+  const profile = profiles[prefix as GeneratedReportType]
   return { ...profile, status: report?.status ?? profile.status, date: report?.date ?? profile.date }
 }
 

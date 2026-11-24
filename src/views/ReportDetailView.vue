@@ -14,11 +14,11 @@ const prototypeLoaders = {
   monthly: () => import('../data/report-prototypes/monthly.html?raw'),
   quarterly: () => import('../data/report-prototypes/quarterly.html?raw'),
   adhoc: () => import('../data/report-prototypes/adhoc.html?raw'),
-} satisfies Record<ReportType, () => Promise<{ default: string }>>
+} satisfies Record<Exclude<ReportType, 'expert'>, () => Promise<{ default: string }>>
 
 const route = useRoute()
 const report = shallowRef<ReturnType<typeof getReportDetailData>>(null)
-const prototypeType = shallowRef<ReportType | null>(null)
+const prototypeType = shallowRef<Exclude<ReportType, 'expert'> | null>(null)
 const prototypeHtml = shallowRef('')
 const baselineContext = shallowRef<ReturnType<typeof buildReportBaselineContext>>(null)
 const loading = shallowRef(false)
@@ -49,7 +49,7 @@ watch(() => String(route.params.reportId ?? ''), async (reportId, _, onCleanup) 
   loading.value = false
 
   const record = findMockReportById(reportId)
-  if (!record) {
+  if (!record || record.type === 'expert') {
     report.value = getReportDetailData(reportId)
     return
   }
