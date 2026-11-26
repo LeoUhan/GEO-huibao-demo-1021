@@ -4,6 +4,7 @@ import type { DropdownSelectOption } from '../components/ui/ce/dropdown-select/t
 import type { KnowledgeItem } from '../types'
 import { computed, onBeforeUnmount, onMounted, shallowRef } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { getMarkets, switchMarket } from '../api/geo-config'
 import BuyerPersonaStep from '../components/onboarding/buyer-persona/BuyerPersonaStep.vue'
 import KnowledgeEditorDialog from '../components/onboarding/knowledge/KnowledgeEditorDialog.vue'
 import KnowledgeSummaryCard from '../components/onboarding/knowledge/KnowledgeSummaryCard.vue'
@@ -12,11 +13,13 @@ import MonitoringQuestionStep from '../components/onboarding/monitoring-question
 import BottomActionBar from '../components/onboarding/shared/BottomActionBar.vue'
 import OnboardingHelp from '../components/onboarding/shared/OnboardingHelp.vue'
 import OnboardingSteps from '../components/onboarding/shared/OnboardingSteps.vue'
-import { Alert, Modal, Spinner, Tag, Toast } from '../components/ui/ce'
+import { Alert, DropdownSelect, Modal, Spinner, Tag, Toast } from '../components/ui/ce'
 import { useFirstConfigWizard } from '../composables/use-first-config-wizard'
+import { useGeoContextStore } from '../stores/geo-context'
 import { useOnboardingStore } from '../stores/onboarding'
 
 const store = useOnboardingStore()
+const geoContext = useGeoContextStore()
 const router = useRouter()
 const route = useRoute()
 const wizard = useFirstConfigWizard()
@@ -29,12 +32,27 @@ const toastVariant = shallowRef<'info' | 'success' | 'error'>('info')
 const personaSaving = shallowRef(false)
 const questionSelectionSaving = shallowRef(false)
 let toastTimer: ReturnType<typeof setTimeout> | undefined
+let preparationTimer: ReturnType<typeof setTimeout> | undefined
+const selectedLanguage = shallowRef('德语')
+const selectedMarket = shallowRef('德国')
+const preparingMarket = shallowRef(false)
+const marketPreparationError = shallowRef('')
+const availableMarkets = shallowRef<Awaited<ReturnType<typeof getMarkets>>>([])
+const languageMarkets: Record<string, string[]> = {
+  德语: ['德国', '奥地利', '瑞士'],
+  英语: ['美国', '英国', '加拿大', '澳大利亚'],
+  法语: ['法国', '比利时', '加拿大'],
+  日语: ['日本'],
+  中文: ['中国'],
+}
+const languageOptions: DropdownSelectOption[] = Object.keys(languageMarkets).map(label => ({ value: label, label }))
+const marketOptions = computed<DropdownSelectOption[]>(() => (languageMarkets[selectedLanguage.value] ?? []).map(label => ({ value: label, label })))
 
 const currentMarket = computed(() => store.knowledgeItems.find(item => item.id === 'market')?.marketLanguage?.market ?? '')
 const currentLanguage = computed(() => store.knowledgeItems.find(item => item.id === 'market')?.marketLanguage?.language ?? '')
 const options = (key: string): DropdownSelectOption[] => wizard.dictionaryOptions.value[key] ?? []
 const personaOptions = computed<DropdownSelectOption[]>(() => store.buyerPersonas.map(persona => ({ value: persona.id, label: persona.type })))
-const entryCheck = computed(() => ['service', 'website', 'knowledge'].includes(String(route.query.entryCheck)) ? String(route.query.entryCheck) : null)
+const entryCheck = computed(() => ['service', 'website', 'knowledge', 'market'].includes(String(route.query.entryCheck)) ? String(route.query.entryCheck) : null)
 const entryCheckCopy = computed(() => {
   if (entryCheck.value === 'service')
     return { title: '请先开通 AI 建站服务', body: '请先开通独立站营销智能体建站服务，再开启 GEO。', action: '开通服务后，重新检查' }
@@ -43,7 +61,12 @@ const entryCheckCopy = computed(() => {
   return { title: '请先完成网站建设', body: '请先完成网站建设并绑定可用域名，再开启 GEO。', action: '完成建站并绑定域名后，重新检查' }
 })
 
-onMounted(() => void loadWizard())
+onMounted(() => {
+  void loadWizard()
+  void getMarkets().then((markets) => {
+    availableMarkets.value = markets
+  }).catch(() => {})
+})
 
 async function loadWizard() {
   try {
@@ -57,8 +80,44 @@ async function loadWizard() {
 }
 
 function advanceEntryCheck() {
-  const nextState = entryCheck.value === 'service' ? 'website' : entryCheck.value === 'website' ? 'knowledge' : undefined
+  const nextState = entryCheck.value === 'service' ? 'website' : entryCheck.value === 'website' ? 'knowledge' : 'market'
   void router.replace({ name: 'onboarding', query: { ...route.query, entryCheck: nextState } })
+}
+
+function changeLanguage(value: string) {
+  selectedLanguage.value = value
+  selectedMarket.value = languageMarkets[value]?.[0] ?? ''
+}
+
+async function confirmMarket() {
+  if (!selectedLanguage.value || !selectedMarket.value || preparingMarket.value)
+    return
+  marketPreparationError.value = ''
+  preparingMarket.value = true
+  const startedAt = Date.now()
+  try {
+    const market = availableMarkets.value.find(item => item.marketCountry === selectedMarket.value && item.marketLanguage === selectedLanguage.value)
+    if (market) {
+      await switchMarket(market.id)
+      await geoContext.refreshEntryStatus()
+      await wizard.load()
+      store.currentStep = 0
+    }
+    const items = store.knowledgeItems.map(item => item.id === 'market'
+      ? { ...item, summary: `${selectedMarket.value} · ${selectedLanguage.value}`, marketLanguage: { market: selectedMarket.value, language: selectedLanguage.value } }
+      : item)
+    store.updateKnowledgeItems(items)
+    await new Promise<void>((resolve) => {
+      preparationTimer = setTimeout(resolve, Math.max(0, 3_000 - (Date.now() - startedAt)))
+    })
+    await router.replace({ name: 'onboarding', query: { ...route.query, entryCheck: undefined, preview: '1' } })
+  }
+  catch (cause) {
+    marketPreparationError.value = cause instanceof Error ? cause.message : '准备失败，请重试。'
+  }
+  finally {
+    preparingMarket.value = false
+  }
 }
 
 function openEditor(item: KnowledgeItem) {
@@ -203,6 +262,8 @@ function closeToast() {
 onBeforeUnmount(() => {
   if (toastTimer)
     clearTimeout(toastTimer)
+  if (preparationTimer)
+    clearTimeout(preparationTimer)
 })
 </script>
 
@@ -328,7 +389,7 @@ onBeforeUnmount(() => {
     />
 
     <Modal
-      :open="!!entryCheck"
+      :open="!!entryCheck && entryCheck !== 'market'"
       title=""
       width="min(720px, calc(100vw - 32px))"
       confirm-text=""
@@ -347,6 +408,56 @@ onBeforeUnmount(() => {
         <p>{{ entryCheckCopy.body }}</p>
         <button type="button" class="geo-entry-prompt__action" @click="advanceEntryCheck">
           {{ entryCheckCopy.action }}
+        </button>
+      </div>
+    </Modal>
+
+    <Modal
+      :open="entryCheck === 'market'"
+      title=""
+      width="min(760px, calc(100vw - 32px))"
+      :show-close="false"
+      :show-cancel="false"
+      :close-disabled="true"
+      :footer="null"
+      confirm-text=""
+      cancel-text=""
+      processing-text=""
+      close-label="完成市场设置"
+      class="geo-market-entry"
+    >
+      <div v-if="preparingMarket" class="geo-market-entry__loading" role="status" aria-live="polite">
+        <span class="geo-market-entry__spinner" aria-hidden="true" />
+        <h2>正在准备市场推荐内容</h2>
+        <p>正在整理所选市场的相关内容，预计需要约 20 秒。</p>
+        <span>准备中，请稍候…</span>
+      </div>
+      <div v-else class="geo-market-entry__form">
+        <span class="geo-market-entry__icon" aria-hidden="true">◎</span>
+        <h2>先设置目标市场和语言</h2>
+        <p>选择语言和目标市场，我们将为你准备相应的引导内容与推荐。</p>
+        <div class="geo-market-entry__fields">
+          <label for="entry-language">语言</label>
+          <DropdownSelect
+            id="entry-language"
+            :model-value="selectedLanguage"
+            :options="languageOptions"
+            v-bind="{ ariaLabel: '语言', ariaLabelledby: 'entry-language' }"
+            @update:model-value="changeLanguage"
+          />
+          <label for="entry-market">目标市场</label>
+          <DropdownSelect
+            id="entry-market"
+            v-model="selectedMarket"
+            :options="marketOptions"
+            v-bind="{ ariaLabel: '目标市场', ariaLabelledby: 'entry-market' }"
+          />
+        </div>
+        <p v-if="marketPreparationError" class="geo-market-entry__error" role="alert">
+          {{ marketPreparationError }}
+        </p>
+        <button type="button" class="geo-market-entry__action" @click="confirmMarket">
+          确认并继续
         </button>
       </div>
     </Modal>
@@ -387,4 +498,22 @@ onBeforeUnmount(() => {
 .geo-entry-prompt__content p { margin: 0; color: var(--text-secondary); font-size: 14px; line-height: 22px; }
 .geo-entry-prompt__action { min-height: 40px; margin-top: 20px; padding: 0 18px; border: 0; border-radius: 8px; background: var(--action-accent); color: white; font: inherit; font-weight: 600; cursor: pointer; }
 .geo-entry-prompt__action:hover { filter: brightness(.96); }
+:global(.geo-market-entry) { --modal-backdrop: rgb(20 31 50 / 58%); --modal-backdrop-blur: 3px; --modal-shadow: 0 24px 64px rgb(15 23 42 / 25%); }
+:global(.geo-market-entry .ce-modal) { border-radius: 18px; }
+:global(.geo-market-entry .ce-modal-header) { display: none; }
+:global(.geo-market-entry .ce-modal-body) { padding: 32px 48px 38px; }
+.geo-market-entry__form,.geo-market-entry__loading { display: flex; flex-direction: column; align-items: center; text-align: center; }
+.geo-market-entry__icon { display: grid; width: 54px; height: 54px; place-items: center; border-radius: 16px; color: #1459ef; background: #e8efff; font-size: 38px; line-height: 1; }
+.geo-market-entry__form h2,.geo-market-entry__loading h2 { margin: 17px 0 8px; color: var(--text-primary); font-size: 25px; line-height: 1.3; }
+.geo-market-entry__form > p,.geo-market-entry__loading > p { margin: 0; color: var(--text-secondary); font-size: 14px; line-height: 1.6; }
+.geo-market-entry__fields { display: grid; grid-template-columns: 132px minmax(0, 1fr); align-items: center; gap: 22px 14px; width: min(100%, 560px); margin: 34px 0 30px; text-align: left; }
+.geo-market-entry__fields label { color: var(--text-primary); font-size: 16px; font-weight: 600; }
+.geo-market-entry__action { min-width: 200px; min-height: 46px; padding: 0 24px; border: 0; border-radius: 9px; background: var(--action-accent); color: white; font: inherit; font-weight: 600; cursor: pointer; }
+.geo-market-entry__action:hover { filter: brightness(.96); }
+.geo-market-entry__error { margin: -14px 0 16px !important; color: var(--status-error-foreground) !important; }
+.geo-market-entry__loading { min-height: 290px; justify-content: center; }
+.geo-market-entry__spinner { width: 58px; height: 58px; border: 5px solid #e7efff; border-top-color: var(--action-accent); border-radius: 50%; animation: geo-market-spin .9s linear infinite; }
+.geo-market-entry__loading > span:last-child { margin-top: 24px; color: var(--action-accent); font-size: 13px; }
+@keyframes geo-market-spin { to { transform: rotate(360deg); } }
+@media (max-width: 560px) { :global(.geo-market-entry .ce-modal-body) { padding: 28px 20px; } .geo-market-entry__fields { grid-template-columns: 1fr; gap: 8px; margin: 28px 0; } .geo-market-entry__fields label:not(:first-child) { margin-top: 12px; } }
 </style>
